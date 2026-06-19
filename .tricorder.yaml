@@ -1,19 +1,14 @@
 session:
-  targets:
-    - exe:tricorder
-    - exe:tricorder-daemon
-    - lib:atelier-core
-    - lib:atelier-db
-    - lib:atelier-testing
-    - lib:tricorder-internal
-    - test:atelier-test
-    - test:tricorder-test
 observability:
   log_file: /tmp/tricorder.log
   metrics:
     enabled: true
-    port: 9091
+    port: 9192
   tracing:
     enabled: true
-    service_name: tricorder
+    service_name: tricorder-legacy
+    otlp_endpoint: "http://localhost:4318"
+  observe:
+    enabled: true
+    service_name: tricorder-observe
     otlp_endpoint: "http://localhost:4318"

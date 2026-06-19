@@ -13,11 +13,14 @@ let
     async = ">=2.2 && <2.3";
     atelier-core = ">=0.2 && <0.3";
     atelier-db = ">=0.1 && <0.2";
+    atelier-observe = ">=0.1 && <0.2";
+    atelier-observe-otel = ">=0.1 && <0.2";
     atelier-prelude = ">=0.1 && <0.2";
     base64-bytestring = ">=1.2 && <1.3";
     brick = ">=2.10 && <2.11";
     bytestring = ">=0.11 && <0.13";
     casing = ">=0.1 && <0.2";
+    comonad = ">=5.0 && <5.1";
     containers = ">=0.6 && <0.9";
     contra-tracer = ">=0.2 && <0.3";
     daemons = ">=0.4 && <0.5";
@@ -28,6 +31,7 @@ let
     effectful-plugin = ">=2.0 && <2.2";
     effectful-th = ">=1.0 && <1.1";
     filepath = ">=1.4 && <1.6";
+    foldl = ">=1.4 && <1.5";
     fsnotify = ">=0.4 && <0.5";
     hashable = ">=1.5 && <1.6";
     hasql = ">=1.9 && <1.11";
@@ -35,6 +39,7 @@ let
     hasql-transaction = ">=1.2 && <1.3";
     hedgehog = ">=1.7 && <1.8";
     hs-opentelemetry-api = ">=0.3 && <0.4";
+    hs-opentelemetry-exporter-otlp = ">=0.1 && <0.2";
     hs-opentelemetry-sdk = ">=0.1 && <0.2";
     hspec = ">=2.11 && <2.12";
     hspec-hedgehog = ">=0.3 && <0.4";
@@ -43,6 +48,7 @@ let
     ki = ">=1.0 && <1.1";
     list-t = ">=1.0 && <1.1";
     megaparsec = ">=9.7 && <9.8";
+    monoidal-containers = ">=0.6 && <0.7";
     mtl = ">=2.3 && <2.4";
     network = ">=3.2 && <3.3";
     optparse-applicative = ">=0.19 && <0.20";

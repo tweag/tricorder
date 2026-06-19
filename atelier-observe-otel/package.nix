@@ -3,11 +3,12 @@ let
   common = import ../nix/package/common.nix;
 in
 {
-  name = "atelier-core";
-  version = "0.2.0.0";
-  synopsis = "Foundational Effectful-based effects and utilities";
-  description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
+  name = "atelier-observe-otel";
+  version = "0.1.0.0";
+  synopsis = "OpenTelemetry exporter for atelier-observe";
+  description = "Fold an atelier-observe Moment stream into OpenTelemetry spans: a Consumer that turns instrumented runs into traces, with signals as attributes, failures as error status, and links between traces. Part of the atelier toolkit.";
   github = "atelier-hub/tricorder";
+  homepage = "https://github.com/atelier-hub/tricorder/tree/main/atelier-observe-otel";
   category = "Control";
 
   extra-doc-files = [
@@ -22,7 +23,6 @@ in
     license-file
     language
     default-extensions
-    tested-with
     ;
 
   inherit (common.options)
@@ -47,46 +47,18 @@ in
     ++ depList [
       "atelier-prelude"
       "atelier-observe"
-      "aeson"
-      "base64-bytestring"
-      "bytestring"
-      "casing"
       "containers"
-      "contra-tracer"
-      "daemons"
-      "data-default"
-      "directory"
       "effectful"
-      "effectful-th"
-      "filepath"
-      "fsnotify"
       "hs-opentelemetry-api"
+      "hs-opentelemetry-exporter-otlp"
       "hs-opentelemetry-sdk"
-      "http-api-data"
-      "http-types"
-      "ki"
-      "list-t"
-      "optparse-applicative"
-      "process"
-      "prometheus-client"
-      "prometheus-metrics-ghc"
-      "stm"
-      "stm-containers"
       "text"
-      "time"
-      "time-units"
-      "typed-process"
-      "unagi-chan"
-      "unix"
       "unordered-containers"
-      "uuid"
-      "wai"
-      "warp"
     ];
   };
 
   tests = {
-    atelier-test = {
+    atelier-observe-otel-test = {
       main = "Driver.hs";
       source-dirs = "test";
       ghc-options = [ "-Wno-prepositive-qualified-module" ];
@@ -95,30 +67,22 @@ in
         {
           name = "base";
           version = constraints.base;
-          mixin = [
-            "hiding (Prelude)"
-          ];
+          mixin = [ "hiding (Prelude)" ];
         }
       ]
       ++ depList [
         "atelier-prelude"
-        "atelier-core"
         "atelier-observe"
-        "aeson"
+        "atelier-observe-otel"
         "async"
-        "bytestring"
-        "containers"
-        "data-default"
         "effectful"
-        "hedgehog"
         "hs-opentelemetry-api"
         "hspec"
-        "hspec-hedgehog"
-        "stm"
-        "stm-containers"
         "tasty"
+        "tasty-discover"
         "tasty-hspec"
-        "time"
+        "text"
+        "unordered-containers"
       ];
     };
   };

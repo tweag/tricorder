@@ -10,7 +10,7 @@
 -- publish to should be started with 'forkListener' or 'forkListener_', which
 -- block until the subscription is live and therefore cannot miss early events.
 module Atelier.Effects.Publishing
-    ( Pub
+    ( Pub (..)
     , Sub
     , listen
     , listen_

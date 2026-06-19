@@ -45,6 +45,8 @@ in
       ++ depList [
         "atelier-prelude"
         "atelier-core"
+        "atelier-observe"
+        "atelier-observe-otel"
         "Cabal"
         "Cabal-syntax"
         "aeson"
@@ -59,6 +61,7 @@ in
         "effectful-th"
         "filepath"
         "hashable"
+        "hs-opentelemetry-api"
         "process"
         "template-haskell"
         "megaparsec"
@@ -124,15 +127,19 @@ in
       ]
       ++ [ "tricorder-internal" ]
       ++ depList [
+        "atelier-core"
+        "atelier-observe"
+        "atelier-observe-otel"
+        "atelier-prelude"
         "Cabal-syntax"
         "aeson"
-        "atelier-core"
-        "atelier-prelude"
+        "async"
         "bytestring"
         "containers"
         "data-default"
         "effectful"
         "filepath"
+        "hs-opentelemetry-api"
         "hspec"
         "megaparsec"
         "process"
@@ -148,6 +155,7 @@ in
         "typed-process"
         "unagi-chan"
         "unix"
+        "unordered-containers"
         "zlib"
       ];
     };

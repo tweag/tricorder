@@ -1,0 +1,122 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.38.3.
+--
+-- see: https://github.com/sol/hpack
+
+name:           atelier-observe
+version:        0.1.0.0
+synopsis:       Side-channel observation of oblivious Effectful programs
+description:    Instrument an oblivious Effectful program with Taps, discharge it into a Moment stream, and fold that stream with a Consumer — separating program-side instrumentation from the summary policy. Part of the atelier toolkit.
+category:       Control
+homepage:       https://github.com/atelier-hub/tricorder/tree/main/atelier-observe
+bug-reports:    https://github.com/atelier-hub/tricorder/issues
+author:         Christian Georgii
+maintainer:     christian.georgii@tweag.io
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-doc-files:
+    CHANGELOG.md
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/atelier-hub/tricorder
+
+library
+  exposed-modules:
+      Atelier.Observe
+      Atelier.Observe.Aggregate
+  other-modules:
+      Paths_atelier_observe
+  autogen-modules:
+      Paths_atelier_observe
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      atelier-prelude ==0.1.*
+    , base >=4.18 && <4.23
+    , comonad ==5.0.*
+    , effectful ==2.6.*
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , effectful-th ==1.0.*
+    , foldl ==1.4.*
+    , monoidal-containers ==0.6.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
+
+test-suite atelier-observe-test
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  other-modules:
+      Observe.Test
+      ServerExample
+      Unit.ObserveConcSpec
+      Unit.ObserveFrameworkSpec
+      Paths_atelier_observe
+  autogen-modules:
+      Paths_atelier_observe
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module
+  build-tool-depends:
+      tasty-discover:tasty-discover
+  build-depends:
+      atelier-observe ==0.1.*
+    , atelier-prelude ==0.1.*
+    , base >=4.18 && <4.23
+    , containers >=0.6 && <0.9
+    , effectful ==2.6.*
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , hspec ==2.11.*
+    , monoidal-containers ==0.6.*
+    , tasty ==1.5.*
+    , tasty-discover ==5.2.*
+    , tasty-hspec ==1.2.*
+    , text ==2.1.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations

@@ -1,6 +1,6 @@
 module Tricorder.Effects.GhciSession
     ( -- * Effect
-      GhciSession
+      GhciSession (..)
     , Controls (..)
     , withGhci
 

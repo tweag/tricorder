@@ -21,7 +21,7 @@ import Atelier.Effects.Timeout (runTimeout)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
-import Effectful.Reader.Static (runReader)
+import Effectful.Reader.Static (ask, runReader)
 import Effectful.State.Static.Shared (evalState)
 
 import Atelier.Effects.Cache.Config qualified as CacheConfig
@@ -47,6 +47,7 @@ import Tricorder.Builder.Dispatch qualified as Dispatch
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.GhcPkg.Types qualified as GhcPkg
 import Tricorder.Observability qualified as Observability
+import Tricorder.Observe qualified as Observe
 import Tricorder.Socket.Server qualified as SocketServer
 import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.Version qualified as Version
@@ -78,6 +79,7 @@ main =
         . runLoadedConfig
         . runConfig @"observability" @Observability.Config
         . runConfig @"observability.tracing" @TracingConfig
+        . runConfig @"observability.observe" @Observe.ObserveConfig
         . runTracingFromConfig
         . runChan
         . runPubSub @SessionStore.SessionStoreReloaded
@@ -104,9 +106,11 @@ main =
         . evalState @Dispatch.BuilderState Dispatch.emptyBuilderState
         $ do
             Log.info $ "Starting tricorder " <> Version.gitHash
-            runSystem
-                [ Observability.component
-                , Watcher.component
-                , Builder.component
-                , SocketServer.component
-                ]
+            observeCfg <- ask @Observe.ObserveConfig
+            Observe.withObserve observeCfg
+                $ runSystem
+                    [ Observability.component
+                    , Watcher.component
+                    , Builder.component
+                    , SocketServer.component
+                    ]

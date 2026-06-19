@@ -57,6 +57,7 @@ library tricorder-internal
       Tricorder.Events.FileChanged
       Tricorder.GhcPkg.Types
       Tricorder.Observability
+      Tricorder.Observe
       Tricorder.Runtime
       Tricorder.Session
       Tricorder.Socket.Client
@@ -105,6 +106,8 @@ library tricorder-internal
     , aeson ==2.2.*
     , ansi-terminal ==1.1.*
     , atelier-core ==0.2.*
+    , atelier-observe ==0.1.*
+    , atelier-observe-otel ==0.1.*
     , atelier-prelude ==0.1.*
     , base >=4.18 && <4.23
     , brick ==2.10.*
@@ -119,6 +122,7 @@ library tricorder-internal
     , effectful-th ==1.0.*
     , filepath >=1.4 && <1.6
     , hashable ==1.5.*
+    , hs-opentelemetry-api ==0.3.*
     , megaparsec ==9.7.*
     , mtl ==2.3.*
     , network ==3.2.*
@@ -233,6 +237,7 @@ test-suite tricorder-test
       Unit.Tricorder.Effects.PostBuildStoreSpec
       Unit.Tricorder.Effects.SessionStoreSpec
       Unit.Tricorder.GhcPkgSpec
+      Unit.Tricorder.ObserveSpec
       Unit.Tricorder.SessionSpec
       Unit.Tricorder.SocketSpec
       Unit.Tricorder.SourceLookup.SliceSpec
@@ -269,7 +274,10 @@ test-suite tricorder-test
   build-depends:
       Cabal-syntax >=3.12 && <3.17
     , aeson ==2.2.*
+    , async ==2.2.*
     , atelier-core ==0.2.*
+    , atelier-observe ==0.1.*
+    , atelier-observe-otel ==0.1.*
     , atelier-prelude ==0.1.*
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
@@ -279,6 +287,7 @@ test-suite tricorder-test
     , effectful-core ==2.6.*
     , effectful-plugin >=2.0 && <2.2
     , filepath >=1.4 && <1.6
+    , hs-opentelemetry-api ==0.3.*
     , hspec ==2.11.*
     , megaparsec ==9.7.*
     , process ==1.6.*
@@ -295,6 +304,7 @@ test-suite tricorder-test
     , typed-process ==0.2.*
     , unagi-chan ==0.4.*
     , unix ==2.8.*
+    , unordered-containers ==0.2.*
     , zlib ==0.7.*
   mixins:
       base hiding (Prelude)
