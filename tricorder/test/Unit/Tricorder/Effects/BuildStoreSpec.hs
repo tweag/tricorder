@@ -1,4 +1,4 @@
-module Unit.Tricorder.BuildStoreSpec (spec_BuildStore) where
+module Unit.Tricorder.Effects.BuildStoreSpec (spec_BuildStore) where
 
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Delay (Delay, runDelay)
@@ -20,7 +20,7 @@ import Tricorder.BuildState
     , PostBuild (..)
     )
 import Tricorder.Effects.BuildStore
-    ( BuildStore
+    ( BuildStore (..)
     , getState
     , runBuildStore
     , runBuildStoreScripted
@@ -28,8 +28,6 @@ import Tricorder.Effects.BuildStore
     , waitForNext
     , waitUntilDone
     )
-
-import Tricorder.BuildState.Test qualified as Test
 
 
 spec_BuildStore :: Spec
@@ -186,8 +184,7 @@ donePhase =
             , diagnostics = []
             }
         )
-        $ PostBuild
-        $ Test.Suites mempty
+        $ PostBuild mempty mempty
 
 
 doneAt :: Int -> BuildState

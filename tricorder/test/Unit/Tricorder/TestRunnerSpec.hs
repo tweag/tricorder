@@ -232,13 +232,13 @@ runScripted results = runEff . runConcurrent . runTestRunnerScripted results
 testAbortGatedProgress :: Spec
 testAbortGatedProgress = do
     it "applies the progress update when abortedRef is False" do
-        finalRuns <- runProgress False progress42 startingRuns
+        finalRuns <- runProgress False progress42 startingSuites
         Map.toList finalRuns.getSuites
             `shouldMatchList` [(mkTestTarget "test:foo", Test.SuiteRunning (Just expected42))]
 
     it "drops the progress update when abortedRef is True" do
-        finalRuns <- runProgress True progress42 startingRuns
-        finalRuns `shouldBe` startingRuns
+        finalRuns <- runProgress True progress42 startingSuites
+        finalRuns `shouldBe` startingSuites
 
     it "drops every update applied while abortedRef stays True" do
         abortedRef <- newTVarIO True
@@ -246,11 +246,11 @@ testAbortGatedProgress = do
         finalRuns <- runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete result
-                $ PostBuild startingRuns
+                $ PostBuild startingSuites mempty
 
             for_ loadings $ abortGatedProgress abortedRef $ mkTestTarget "test:foo"
             phaseTestSuites <$> getState
-        finalRuns `shouldBe` startingRuns
+        finalRuns `shouldBe` startingSuites
 
     it "flips behaviour mid-run if abortedRef is set between updates" do
         abortedRef <- newTVarIO False
@@ -258,7 +258,7 @@ testAbortGatedProgress = do
             BuildStore.setPhase
                 (BuildId 1)
                 $ BuildComplete result
-                $ PostBuild startingRuns
+                $ PostBuild startingSuites mempty
 
             -- This one applies.
             abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 3 10)
@@ -271,16 +271,16 @@ testAbortGatedProgress = do
         Map.toList finalRuns.getSuites
             `shouldMatchList` [(mkTestTarget "test:foo", Test.SuiteRunning (Just BuildProgress {compiled = 3, total = 10}))]
   where
-    startingRuns = Test.Suites $ Map.fromList [(mkTestTarget "test:foo", Test.SuiteRunning Nothing)]
+    startingSuites = Test.Suites $ Map.fromList [(mkTestTarget "test:foo", Test.SuiteRunning Nothing)]
     progress42 = mkLoading 4 10
     expected42 = BuildProgress {compiled = 4, total = 10}
 
-    runProgress aborted loading runs = do
+    runProgress aborted loading suites = do
         abortedRef <- newTVarIO aborted
         runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete result
-                $ PostBuild runs
+                $ PostBuild suites mempty
             abortGatedProgress abortedRef (mkTestTarget "test:foo") loading
             phaseTestSuites <$> getState
 
@@ -313,7 +313,7 @@ testAbortGatedProgress = do
 
     phaseTestSuites :: BuildState -> Test.Suites
     phaseTestSuites s = case s.phase of
-        BuildComplete _ (PostBuild testSuites) -> testSuites
+        BuildComplete _ (PostBuild testSuites _) -> testSuites
         _ -> Test.Suites mempty
 
     epoch :: UTCTime

@@ -44,6 +44,7 @@ import Tricorder.BuildState
     , Severity (..)
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
+import Tricorder.BuildState.EvalComments (Comment (..))
 import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 import Tricorder.UI.Keys (KeyEvent, keybindForRoute, viewKeybindings)
@@ -51,6 +52,7 @@ import Tricorder.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, war
 import Tricorder.UI.Route (Route)
 import Tricorder.UI.State (Processed (..), State (..), TestFilter (..), Viewports (..), currentRoute)
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.UI.Keys qualified as Keys
 import Tricorder.UI.Route qualified as Route
@@ -88,6 +90,8 @@ view kc ws =
                 viewTests ws
             Route.Main ->
                 viewMain ws
+            Route.Evals ->
+                viewEvals ws
         ]
     ]
 
@@ -116,6 +120,11 @@ viewDaemonInfo ws =
 viewTests :: State -> Widget Viewports
 viewTests ws =
     withBuildState ws (viewTestResultsPanel ws)
+
+
+viewEvals :: State -> Widget Viewports
+viewEvals ws =
+    withBuildState ws $ viewEvalCommentsPanel ws
 
 
 viewMain :: State -> Widget Viewports
@@ -161,6 +170,7 @@ viewHeading ws = case currentRoute ws of
     Route.Help -> Just "Help"
     Route.DaemonInfo -> Just "Daemon info"
     Route.Main -> Nothing
+    Route.Evals -> Just "Eval comments"
 
 
 viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports
@@ -174,6 +184,45 @@ viewTestResultsPanel ws bs =
         [ viewBuildPhaseLine ws.timeZone bs.phase
         , viewTestPanel ws.testFilter (phaseTestRuns bs.phase)
         ]
+
+
+viewEvalCommentsPanel :: State -> BuildState -> Widget Viewports
+viewEvalCommentsPanel ws bs =
+    vBoxSpaced
+        1
+        [ viewBuildPhaseLine ws.timeZone bs.phase
+        , case bs.phase of
+            BuildComplete _ postBuild -> viewEvalComments postBuild.evalComments
+            _ -> txt "Waiting for build..."
+        ]
+
+
+viewEvalComments :: Eval.Comments -> Widget Viewports
+viewEvalComments (Eval.Comments []) =
+    txt "No eval comments detected"
+viewEvalComments (Eval.Comments results) =
+    vScrollViewport EvalResultsViewport $ vBoxSpaced 1 $ viewEvaluation <$> results
+
+
+viewEvaluation :: Eval.Evaluation -> Widget n
+viewEvaluation evaluation =
+    vBox
+        $ [ hBoxSpaced
+                1
+                [ subtle $ txt "File:"
+                , txt $ toText evaluation.file <> ":" <> show evaluation.comment.lineNumber
+                ]
+          , subtle $ txt "Expression:"
+          , txt evaluation.comment.expression
+          ]
+            <> case evaluation.state of
+                Eval.Completed output ->
+                    [ subtle $ txt "Result:"
+                    , vBox $ txt <$> T.lines output
+                    ]
+                Eval.Pending ->
+                    [ subtle $ txt "Running..."
+                    ]
 
 
 viewExpandedDaemonInfo :: DaemonInfo -> Widget n
@@ -270,18 +319,17 @@ viewBuildFailed :: Text -> Widget Viewports
 viewBuildFailed msg =
     vBox
         [ err $ txt "Build command failed"
-        , vScrollViewport DiagnosticViewport (txtWrap <$> T.lines msg)
+        , vScrollViewport DiagnosticViewport (vBox $ txtWrap <$> T.lines msg)
         ]
 
 
 -- | A vertically-scrollable viewport with clickable scrollbars on the right.
-vScrollViewport :: Viewports -> [Widget Viewports] -> Widget Viewports
-vScrollViewport vp children =
+vScrollViewport :: (Ord vp, Show vp) => vp -> Widget vp -> Widget vp
+vScrollViewport vp =
     withClickableVScrollBars (\_ _ -> vp)
-        $ withVScrollBarHandles
-        $ withVScrollBars OnRight
-        $ viewport vp Vertical
-        $ vBox children
+        . withVScrollBarHandles
+        . withVScrollBars OnRight
+        . viewport vp Vertical
 
 
 viewBuildResult :: TimeZone -> BuildResult -> Widget Viewports
@@ -310,7 +358,7 @@ viewBuildResult tz result
                     , viewDuration result.duration
                     , viewTimestamp tz result.completedAt
                     ]
-                , vScrollViewport DiagnosticViewport (viewDiagnostic <$> msgs)
+                , vScrollViewport DiagnosticViewport $ vBox $ viewDiagnostic <$> msgs
                 ]
 
 
@@ -442,7 +490,9 @@ viewTestPanel tvf suites
 
 scrollableRuns :: TestFilter -> Test.Suites -> Widget Viewports
 scrollableRuns tvf suites =
-    vScrollViewport TestViewport (uncurry (viewTestRunDetail tvf) <$> Map.toList suites.getSuites)
+    vScrollViewport TestViewport
+        $ vBox
+        $ uncurry (viewTestRunDetail tvf) <$> Map.toList suites.getSuites
 
 
 viewTestRunDetail :: TestFilter -> TestTarget -> Test.Suite -> Widget n

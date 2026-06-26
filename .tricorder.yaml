@@ -1,3 +1,13 @@
+session:
+  targets:
+    - exe:tricorder
+    - exe:tricorder-daemon
+    - lib:atelier-core
+    - lib:atelier-db
+    - lib:atelier-testing
+    - lib:tricorder-internal
+    - test:atelier-test
+    - test:tricorder-test
 observability:
   log_file: /tmp/tricorder.log
   metrics:

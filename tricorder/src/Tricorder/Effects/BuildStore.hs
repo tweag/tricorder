@@ -35,6 +35,7 @@ import Tricorder.BuildState
     , initialBuildState
     )
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 
 
@@ -99,7 +100,9 @@ isBuilding :: BuildState -> Bool
 isBuilding s = case s.phase of
     Building _ -> True
     Restarting -> True
-    BuildComplete _ postBuild -> Test.anyRunningTests postBuild.testSuites
+    BuildComplete _ postBuild ->
+        Test.anyRunningTests postBuild.testSuites
+            || Eval.anyRunningComments postBuild.evalComments
     BuildFailed _ -> False
 
 

@@ -26,6 +26,7 @@ import Tricorder.Session (TestTarget)
 newtype Suites = Suites {getSuites :: Map TestTarget Suite}
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically Suites
+    deriving (Monoid, Semigroup) via Map TestTarget Suite
 
 
 hasFailedTests :: Suites -> Bool

@@ -50,6 +50,7 @@ import Tricorder.Session (renderTestTarget)
 import Tricorder.Socket.Client (querySource, queryStatus, queryStatusWait)
 import Tricorder.TestOutput (stripGhciNoise)
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.BuildState.Test qualified as Tests
 
@@ -79,7 +80,10 @@ showStatus opts = do
             Right BuildState {phase = Building _} -> Console.putStrLn "Building..."
             Right BuildState {phase = Restarting} -> Console.putStrLn "Restarting..."
             Right BuildState {phase = BuildComplete _ postBuild}
+                | Tests.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
+                    Console.putStrLn "Testing and evaluating comments..."
                 | Tests.anyRunningTests postBuild.testSuites -> Console.putStrLn "Testing..."
+                | Eval.anyRunningComments postBuild.evalComments -> Console.putStrLn "Evaluating comments..."
                 | otherwise -> pure ()
             Right BuildState {phase = BuildFailed _} -> pure ()
             Left _ -> pure ()
@@ -101,34 +105,44 @@ showStatus opts = do
         Building _ -> Console.putStrLn "Building..."
         Restarting -> Console.putStrLn "Restarting..."
         BuildFailed msg -> reportBuildFailed msg
-        BuildComplete result postBuild
-            | Tests.anyRunningTests postBuild.testSuites -> Console.putStrLn "Testing..."
-            | otherwise -> do
-                tz <- currentTimeZone
-                case expand of
-                    Just n ->
-                        case result.diagnostics !!? (n - 1) of
-                            Nothing ->
-                                Console.putTextLn
-                                    $ "No diagnostic #"
-                                        <> show n
-                                        <> " (current build has "
-                                        <> show (length result.diagnostics)
-                                        <> ")"
-                            Just d -> do
-                                Console.putTextLn $ diagnosticLineIndexed n d
-                                Console.putText d.text
-                    Nothing -> do
-                        let printDiag (i, d) = case verbosity of
-                                Verbose -> do
-                                    Console.putTextLn $ diagnosticLineIndexed i d
-                                    Console.putText d.text
-                                Concise ->
-                                    Console.putTextLn $ diagnosticLineIndexed i d
-                        mapM_ printDiag (zip [1 ..] result.diagnostics)
-                        Console.putTextLn $ buildSummary tz result
-                        mapM_ (uncurry (printTestRun verbosity)) $ Map.toList postBuild.testSuites.getSuites
-                        when (buildHasErrors result || Tests.hasFailedTests postBuild.testSuites) exitFailure
+        BuildComplete result postBuild ->
+            let
+                testsRunning = Tests.anyRunningTests postBuild.testSuites
+                commentsEvaluating = Eval.anyRunningComments postBuild.evalComments
+            in
+                if
+                    | testsRunning && commentsEvaluating ->
+                        Console.putStrLn "Testing and evaluating comments..."
+                    | testsRunning ->
+                        Console.putStrLn "Testing..."
+                    | commentsEvaluating ->
+                        Console.putStrLn "Evaluating comments..."
+                    | otherwise -> do
+                        tz <- currentTimeZone
+                        case expand of
+                            Just n ->
+                                case result.diagnostics !!? (n - 1) of
+                                    Nothing ->
+                                        Console.putTextLn
+                                            $ "No diagnostic #"
+                                                <> show n
+                                                <> " (current build has "
+                                                <> show (length result.diagnostics)
+                                                <> ")"
+                                    Just d -> do
+                                        Console.putTextLn $ diagnosticLineIndexed n d
+                                        Console.putText d.text
+                            Nothing -> do
+                                let printDiag (i, d) = case verbosity of
+                                        Verbose -> do
+                                            Console.putTextLn $ diagnosticLineIndexed i d
+                                            Console.putText d.text
+                                        Concise ->
+                                            Console.putTextLn $ diagnosticLineIndexed i d
+                                mapM_ printDiag (zip [1 ..] result.diagnostics)
+                                Console.putTextLn $ buildSummary tz result
+                                mapM_ (uncurry (printTestRun verbosity)) $ Map.toList postBuild.testSuites.getSuites
+                                when (buildHasErrors result || Tests.hasFailedTests postBuild.testSuites) exitFailure
 
     printTestRun verbosity tgt tr = do
         Console.putTextLn $ case tr of

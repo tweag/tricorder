@@ -50,6 +50,7 @@ import Tricorder.Socket.Protocol
 import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
@@ -206,26 +207,24 @@ respondWhenDone h = awaitResult >>= sendJson h
   where
     awaitResult = do
         s <- getState
-        case s.phase of
-            Building _ -> waitUntilDone
-            Restarting -> waitUntilDone
-            BuildComplete _ postBuild
-                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
-                | otherwise -> awaitBuildStart (5 :: Int) s
-            BuildFailed _ -> pure s
+        waitOrStart s (awaitBuildStart (5 :: Int) s) s.phase
 
     -- Poll up to n × 50ms for a build to start, then wait for it to finish.
     awaitBuildStart 0 s = pure s
     awaitBuildStart n _ = do
         wait (50 :: Millisecond)
         s' <- getState
-        case s'.phase of
-            Building _ -> waitUntilDone
-            Restarting -> waitUntilDone
-            BuildComplete _ postBuild
-                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
-                | otherwise -> awaitBuildStart (n - 1) s'
-            BuildFailed _ -> pure s'
+        waitOrStart s' (awaitBuildStart (n - 1) s') s'.phase
+
+    waitOrStart s start = \case
+        Building _ -> waitUntilDone
+        Restarting -> waitUntilDone
+        BuildComplete _ postBuild
+            | Test.anyRunningTests postBuild.testSuites
+                || Eval.anyRunningComments postBuild.evalComments ->
+                waitUntilDone
+            | otherwise -> start
+        BuildFailed _ -> pure s
 
 
 -- | Stream a JSON object after each state change (loops until handle closes or error).
@@ -246,7 +245,7 @@ respondDiagnostic idx h = do
     state <- getState
     case state.phase of
         BuildComplete result postBuild
-            | not $ Test.anyRunningTests postBuild.testSuites ->
+            | not $ Test.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
                 case result.diagnostics !!? (idx - 1) of
                     Nothing ->
                         sendJson h

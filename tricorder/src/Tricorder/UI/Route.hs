@@ -9,6 +9,7 @@ data Route
     | Help
     | DaemonInfo
     | Tests
+    | Evals
     deriving stock (Bounded, Enum, Eq)
 
 
@@ -18,3 +19,4 @@ name = \case
     Help -> "Help"
     DaemonInfo -> "Daemon info"
     Tests -> "Tests"
+    Evals -> "Eval comments"

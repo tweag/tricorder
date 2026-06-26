@@ -9,8 +9,8 @@ module Tricorder.BuildState
     ( BuildId (..)
     , BuildState (..)
     , BuildPhase (..)
-    , PostBuild (..)
     , BuildResult (..)
+    , PostBuild (..)
     , DaemonInfo (..)
     , loadDaemonInfo
     , runDaemonInfo
@@ -37,6 +37,7 @@ import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..), Target, WatchDirs (..))
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.BuildState.Test qualified as Tests
 import Tricorder.Effects.SessionStore qualified as SessionStore
@@ -125,6 +126,7 @@ data BuildResult = BuildResult
 
 data PostBuild = PostBuild
     { testSuites :: Test.Suites
+    , evalComments :: Eval.Comments
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically PostBuild
@@ -168,6 +170,7 @@ stateLabel (BuildComplete result postBuild)
     | any (\m -> m.severity == SError) result.diagnostics = "error"
     | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
     | Tests.anyRunningTests postBuild.testSuites = "testing"
+    | Eval.anyRunningComments postBuild.evalComments = "evaluating comments"
     | otherwise = "ok"
 
 
