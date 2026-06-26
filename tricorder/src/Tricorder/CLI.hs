@@ -34,6 +34,7 @@ import Tricorder.BuildState
     , BuildResult (..)
     , BuildState (..)
     , Diagnostic (..)
+    , EvalPhase (..)
     , PostBuild (..)
     , Severity (..)
     , TestCase (..)
@@ -83,7 +84,9 @@ showStatus opts = do
         case current of
             Right BuildState {phase = Building _} -> Console.putStrLn "Building..."
             Right BuildState {phase = Restarting} -> Console.putStrLn "Restarting..."
-            Right BuildState {phase = BuildComplete (PostBuild Testing _)} -> Console.putStrLn "Testing..."
+            Right BuildState {phase = BuildComplete (PostBuild Testing EvaluatingComments _)} -> Console.putStrLn "Testing and evaluating comments..."
+            Right BuildState {phase = BuildComplete (PostBuild Testing _ _)} -> Console.putStrLn "Testing..."
+            Right BuildState {phase = BuildComplete (PostBuild _ EvaluatingComments _)} -> Console.putStrLn "Evaluating comments..."
             _ -> pure ()
     result <-
         case opts.wait of
@@ -103,8 +106,13 @@ showStatus opts = do
         Building _ -> Console.putStrLn "Building..."
         Restarting -> Console.putStrLn "Restarting..."
         BuildFailed msg -> reportBuildFailed msg
-        BuildComplete (PostBuild Testing _) -> Console.putStrLn "Testing..."
-        BuildComplete (PostBuild _ r) -> do
+        BuildComplete (PostBuild Testing EvaluatingComments _) ->
+            Console.putStrLn "Testing and evaluating comments..."
+        BuildComplete (PostBuild Testing DoneEvaluatingComments _) ->
+            Console.putStrLn "Testing..."
+        BuildComplete (PostBuild DoneTesting EvaluatingComments _) ->
+            Console.putStrLn "Evaluating comments..."
+        BuildComplete (PostBuild DoneTesting DoneEvaluatingComments r) -> do
             tz <- currentTimeZone
             case expand of
                 Just n ->
@@ -211,7 +219,7 @@ showTests opts = do
             case state.phase of
                 Building _ -> Console.putStrLn "Build in progress, no test results yet."
                 Restarting -> Console.putStrLn "Daemon restarting, no test results yet."
-                BuildComplete r -> renderTestRuns r.result.testRuns
+                BuildComplete build -> renderTestRuns build.result.testRuns
                 BuildFailed msg -> reportBuildFailed msg
   where
     renderTestRuns [] = Console.putStrLn "No test results."

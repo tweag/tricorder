@@ -19,6 +19,7 @@ import Tricorder.BuildState
     , BuildResult (..)
     , BuildState (..)
     , DaemonInfo (..)
+    , EvalPhase (..)
     , PostBuild (..)
     , TestPhase (..)
     )
@@ -178,6 +179,19 @@ testWithPostBuildPhase = do
                         BuildComplete
                             PostBuild
                                 { testPhase = DoneTesting
+                                , evalPhase = EvaluatingComments
+                                , result = emptyBuildResult
+                                }
+                    }
+        describe "setEvalPhase" $ it "sets eval phase" do
+            let actualState = runTest $ PostBuild.setEvalPhase DoneEvaluatingComments
+            actualState
+                `shouldBe` doneBuildState
+                    { phase =
+                        BuildComplete
+                            PostBuild
+                                { testPhase = Testing
+                                , evalPhase = DoneEvaluatingComments
                                 , result = emptyBuildResult
                                 }
                     }
@@ -189,6 +203,7 @@ testWithPostBuildPhase = do
                         BuildComplete
                             PostBuild
                                 { testPhase = Testing
+                                , evalPhase = EvaluatingComments
                                 , result = emptyBuildResult {moduleCount = 99}
                                 }
                     }
@@ -204,6 +219,20 @@ testWithPostBuildPhase = do
                             BuildComplete
                                 PostBuild
                                     { testPhase = DoneTesting
+                                    , evalPhase = EvaluatingComments
+                                    , result = emptyBuildResult
+                                    }
+                        }
+        describe "setEvalPhase" do
+            it "sets the build phase to Done and sets eval phase" do
+                let actualState = runTest $ PostBuild.setEvalPhase DoneEvaluatingComments
+                actualState
+                    `shouldBe` doneBuildState
+                        { phase =
+                            BuildComplete
+                                PostBuild
+                                    { testPhase = Testing
+                                    , evalPhase = DoneEvaluatingComments
                                     , result = emptyBuildResult
                                     }
                         }
@@ -216,6 +245,7 @@ testWithPostBuildPhase = do
                             BuildComplete
                                 PostBuild
                                     { testPhase = Testing
+                                    , evalPhase = EvaluatingComments
                                     , result = emptyBuildResult {moduleCount = 99}
                                     }
                         }
@@ -251,8 +281,8 @@ doneBuildState =
         , phase =
             BuildComplete
                 PostBuild
-                    { testPhase =
-                        Testing
+                    { testPhase = Testing
+                    , evalPhase = EvaluatingComments
                     , result = emptyBuildResult
                     }
         , daemonInfo = emptyDaemonInfo
@@ -267,6 +297,7 @@ emptyBuildResult =
         , moduleCount = 0
         , diagnostics = []
         , testRuns = []
+        , evalRuns = []
         }
 
 
@@ -288,13 +319,14 @@ buildingAt n = BuildState (BuildId n) (Building Nothing) emptyDaemonInfo
 donePhase :: BuildPhase
 donePhase =
     BuildComplete
-        $ PostBuild DoneTesting
+        $ PostBuild DoneTesting DoneEvaluatingComments
         $ BuildResult
             { completedAt = epoch
             , duration = 0
             , moduleCount = 0
             , diagnostics = []
             , testRuns = []
+            , evalRuns = []
             }
 
 

@@ -22,6 +22,7 @@ import Tricorder.BuildState
     , BuildResult (..)
     , BuildState (..)
     , DaemonInfo (..)
+    , EvalPhase (..)
     , PostBuild (..)
     , TestPhase (..)
     , TestRun (..)
@@ -245,8 +246,11 @@ testAbortGatedProgress = do
         finalRuns <- runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                $ PostBuild Testing
-                $ partialResultWith startingRuns
+                    PostBuild
+                        { testPhase = Testing
+                        , evalPhase = EvaluatingComments
+                        , result = partialResultWith startingRuns
+                        }
             for_ loadings (abortGatedProgress abortedRef "test:foo")
             phaseTestRuns <$> getState
         finalRuns `shouldBe` startingRuns
@@ -256,8 +260,12 @@ testAbortGatedProgress = do
         finalRuns <- runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                $ PostBuild Testing
-                $ partialResultWith startingRuns
+                    PostBuild
+                        { testPhase = Testing
+                        , evalPhase = EvaluatingComments
+                        , result = partialResultWith startingRuns
+                        }
+
             -- This one applies.
             abortGatedProgress abortedRef "test:foo" (mkLoading 3 10)
             -- Simulate the interrupt firing.
@@ -278,8 +286,11 @@ testAbortGatedProgress = do
         runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                $ PostBuild Testing
-                $ partialResultWith runs
+                    PostBuild
+                        { testPhase = Testing
+                        , evalPhase = EvaluatingComments
+                        , result = partialResultWith runs
+                        }
             abortGatedProgress abortedRef "test:foo" loading
             phaseTestRuns <$> getState
 
@@ -309,11 +320,12 @@ testAbortGatedProgress = do
             , moduleCount = 0
             , diagnostics = []
             , testRuns = runs
+            , evalRuns = []
             }
 
     phaseTestRuns :: BuildState -> [TestRun]
     phaseTestRuns s = case s.phase of
-        BuildComplete (PostBuild Testing r) -> r.testRuns
+        BuildComplete (PostBuild Testing _ r) -> r.testRuns
         _ -> []
 
     epoch :: UTCTime

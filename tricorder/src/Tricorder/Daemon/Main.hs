@@ -31,6 +31,7 @@ import Tricorder.BuildState (BuildId (..), runDaemonInfo)
 import Tricorder.Config (restartOnConfigChange, runLoadedConfig)
 import Tricorder.Effects.BuildStore (runBuildStore)
 import Tricorder.Effects.Cabal (runCabalIO)
+import Tricorder.Effects.EvalRunner (runEvalRunnerIO)
 import Tricorder.Effects.GhcPkg (runGhcPkgIO)
 import Tricorder.Effects.GhciSession (runGhciSession)
 import Tricorder.Effects.Logging (runLogging)
@@ -95,6 +96,7 @@ main =
         . runEnv
         . runMetricsServerIO
         . runTestRunnerIO
+        . runEvalRunnerIO
         . runGhcPkgIO
         . runUnixSocketIO
         . runGhciSession

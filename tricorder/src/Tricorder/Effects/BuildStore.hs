@@ -49,6 +49,7 @@ import Tricorder.BuildState
     , BuildState (..)
     , ChangeKind (..)
     , DaemonInfo (..)
+    , EvalPhase (..)
     , PostBuild (..)
     , TestPhase (..)
     , initialBuildState
@@ -93,6 +94,16 @@ withPostBuildPhase initialBuildResult =
                 BuildComplete
                     PostBuild
                         { testPhase = tp
+                        , evalPhase = EvaluatingComments
+                        , result = initialBuildResult
+                        }
+        SetEvalPhase ep -> modifyPhase \state -> case state.phase of
+            BuildComplete pb -> BuildComplete pb {evalPhase = ep}
+            _ ->
+                BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , evalPhase = ep
                         , result = initialBuildResult
                         }
         UpdateBuildResult f -> modifyPhase \state -> case state.phase of
@@ -102,6 +113,7 @@ withPostBuildPhase initialBuildResult =
                 BuildComplete
                     PostBuild
                         { testPhase = Testing
+                        , evalPhase = EvaluatingComments
                         , result = f initialBuildResult
                         }
 
@@ -140,8 +152,9 @@ isBuilding :: BuildState -> Bool
 isBuilding s = case s.phase of
     Building _ -> True
     Restarting -> True
-    BuildComplete (PostBuild Testing _) -> True
-    BuildComplete (PostBuild DoneTesting _) -> False
+    BuildComplete (PostBuild Testing _ _) -> True
+    BuildComplete (PostBuild _ EvaluatingComments _) -> True
+    BuildComplete (PostBuild DoneTesting DoneEvaluatingComments _) -> False
     BuildFailed _ -> False
 
 

@@ -31,7 +31,7 @@ import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (atomically, newTVar)
 import Effectful.Exception (finally, trySync)
 import Effectful.Reader.Static (Reader, ask)
-import Effectful.State.Static.Shared (State, get, modify, put, state)
+import Effectful.State.Static.Shared (State, get, modify, put)
 import System.FilePath (normalise)
 
 import Atelier.Effects.Clock qualified as Clock
@@ -40,6 +40,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing qualified as Sub
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.BuildState
     ( BuildId (..)
@@ -47,6 +48,9 @@ import Tricorder.BuildState
     , BuildResult (..)
     , CabalChangeDetected (..)
     , Diagnostic (..)
+    , EvalPhase (..)
+    , EvalRun (..)
+    , EvalState (..)
     , Severity (..)
     , SourceChangeDetected (..)
     , TestPhase (..)
@@ -63,12 +67,14 @@ import Tricorder.Builder.Dispatch
     , preserveFailureVisibility
     )
 import Tricorder.Effects.BuildStore (BuildStore)
+import Tricorder.Effects.EvalRunner (EvalRunner, findEvalCommentsInModules)
 import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Effects.GhciSession.GhciProcess (GhciProcessError (..))
 import Tricorder.Effects.PostBuildStore (PostBuildStore)
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Effects.TestRunner (TestRunner)
+import Tricorder.EvalComment (EvalComment (..))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session
     ( Command (..)
@@ -81,6 +87,7 @@ import Tricorder.Session
     )
 
 import Tricorder.Effects.BuildStore qualified as BuildStore
+import Tricorder.Effects.EvalRunner qualified as EvalRunner
 import Tricorder.Effects.GhciSession qualified as GhciSession
 import Tricorder.Effects.PostBuildStore qualified as PostBuild
 import Tricorder.Effects.SessionStore qualified as SessionStore
@@ -96,6 +103,7 @@ component
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -246,6 +254,7 @@ data GhciSessionHooks es = GhciSessionHooks
 defaultGhciSessionHooks
     :: ( BuildStore :> es
        , Clock :> es
+       , EvalRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -321,6 +330,7 @@ buildWithGhciOnChange
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -375,11 +385,12 @@ watchSourceChanges
     -> BuildConfig
     -> GhciSession.Controls (Eff es)
     -> Eff es Void
-watchSourceChanges hooks config controls = Conc.scoped do
+watchSourceChanges hooks config controls = do
     BuildId n <- get
     Log.debug $ "Builder: waiting for dirty flag (build #" <> show n <> ")"
     forever $ Conc.scoped do
         pending <- atomically (newTVar @(Maybe SourceChangeDetected) Nothing)
+        Log.debug "Builder: starting listeners"
         -- Write the latest event into a `TVar`, and a single worker fork
         -- drains it when it is ready to process a new event. Events that
         -- arrive while the worker is processing the previous one simply
@@ -389,7 +400,8 @@ watchSourceChanges hooks config controls = Conc.scoped do
         -- 'interruptCurrent' can't drop the in-flight cycle promptly — e.g.
         -- when a 'status --wait' caller has registered as a waiter, gating
         -- 'interruptCurrent' to a no-op.
-        Conc.fork_ $ Sub.listen_ \ev ->
+        Conc.fork_ $ Sub.listen_ \ev -> do
+            Log.debug $ "Builder: got source change"
             debounced 200 "source_change_reloader" do
                 atomically (writeTVar pending (Just ev))
                 -- Interrupts the currently running build as long as there are
@@ -399,13 +411,12 @@ watchSourceChanges hooks config controls = Conc.scoped do
         -- `hooks.onSourceChange` returns, which it will do once it completes
         -- or when it is interrupted. Only one worker should be running at any
         -- given time.
-        Conc.fork_ $ forever do
+        forever do
             ev <- atomically do
                 readTVar pending >>= \case
                     Nothing -> retry
                     Just e -> writeTVar pending Nothing >> pure e
             hooks.onSourceChange config controls ev
-        Conc.awaitAll
 
 
 -- 'controls.interrupt' is a safe no-op when GHCi is idle, and 'GhciSession'
@@ -427,6 +438,7 @@ interruptCurrent controls = do
 reloadOnSourceChange
     :: ( BuildStore :> es
        , Clock :> es
+       , EvalRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -483,10 +495,11 @@ runAction controls = \case
 
 
 -- | Run the post-load pipeline synchronously: compile diagnostics into a
--- 'BuildResult', then (optionally) run tests and transition through the
--- corresponding phases.
+-- 'BuildResult', run eval comments in clean builds, then (optionally) run
+-- tests and transition through the corresponding phases.
 afterLoad
     :: ( BuildStore :> es
+       , EvalRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
@@ -497,7 +510,30 @@ afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
     when (all ((/= SError) . (.severity)) buildResult.diagnostics)
         $ BuildStore.withPostBuildPhase buildResult do
+            processEvalComments newLoadResult.loadResult
             requestTestRunsForNewBuildResults config.testTargets
+  where
+    processEvalComments loadResult = do
+        builderState <- get @BuilderState
+        evalComments <- findEvalCommentsInModules (resolveKnownTargets builderState.loadedModules loadResult)
+
+        let pendingEvalRuns =
+                (\(p, (_, ecs)) -> toPending p <$> toList ecs)
+                    `concatMap` Map.toList evalComments
+        PostBuild.setEvalPhase EvaluatingComments
+        PostBuild.updateBuildResult \br -> br {evalRuns = pendingEvalRuns}
+
+        completedEvalRuns <- EvalRunner.runEvals evalComments
+        PostBuild.setEvalPhase DoneEvaluatingComments
+        PostBuild.updateBuildResult \br -> br {evalRuns = completedEvalRuns}
+        pure ()
+    toPending p ec =
+        EvalRun
+            { file = p
+            , line = ec.lineNumber
+            , expression = ec.expression
+            , state = EvalPending
+            }
 
 
 compileLoadResultsIntoBuildResults
@@ -516,7 +552,7 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
                         $ filterToWatchDirs projectRoot watchDirs loadResult.diagnostics
                 }
 
-    newAccumulated <- state \s ->
+    newAccumulated <- State.state \s ->
         let merged = mergeDiagnostics s.diagnosticMap filteredResult
         in  (merged, s {diagnosticMap = merged})
 
@@ -527,6 +563,7 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
             , moduleCount = loadResult.moduleCount
             , diagnostics = sortOn (\d -> (d.severity, d.file, d.line, d.col)) $ concat (Map.elems newAccumulated)
             , testRuns = []
+            , evalRuns = []
             }
   where
     BuildConfig {watchDirs} = session

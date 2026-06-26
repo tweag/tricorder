@@ -1,6 +1,7 @@
 module Tricorder.Effects.PostBuildStore
     ( PostBuildStore (..)
     , setTestPhase
+    , setEvalPhase
     , updateBuildResult
     , runPostBuildStoreState
     , runPostBuildStoreCapture
@@ -12,11 +13,12 @@ import Effectful.State.Static.Shared (State, gets, modify)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 
-import Tricorder.BuildState (BuildResult, PostBuild (..), TestPhase)
+import Tricorder.BuildState (BuildResult, EvalPhase, PostBuild (..), TestPhase)
 
 
 data PostBuildStore :: Effect where
     SetTestPhase :: TestPhase -> PostBuildStore m ()
+    SetEvalPhase :: EvalPhase -> PostBuildStore m ()
     UpdateBuildResult :: (BuildResult -> BuildResult) -> PostBuildStore m ()
 
 
@@ -29,6 +31,7 @@ runPostBuildStoreState
     => Eff (PostBuildStore : es) a -> Eff es a
 runPostBuildStoreState = interpret_ \case
     SetTestPhase tp -> modify \pb -> pb {testPhase = tp}
+    SetEvalPhase ep -> modify \pb -> pb {evalPhase = ep}
     UpdateBuildResult f -> modify \pb -> pb {result = f pb.result}
 
 
@@ -45,6 +48,10 @@ runPostBuildStoreCapture = interpose_ @PostBuildStore \case
         pb <- gets \pb -> pb {testPhase = tp}
         tell [pb]
         setTestPhase tp
+    SetEvalPhase ep -> do
+        pb <- gets \pb -> pb {evalPhase = ep}
+        tell [pb]
+        setEvalPhase ep
     UpdateBuildResult f -> do
         pb <- gets \pb -> pb {result = f pb.result}
         tell [pb]

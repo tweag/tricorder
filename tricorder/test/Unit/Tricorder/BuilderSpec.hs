@@ -18,11 +18,11 @@ import Data.Time (UTCTime (..), addUTCTime, fromGregorian)
 import Effectful (runEff, runPureEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Concurrent.STM (atomically)
-import Effectful.Dispatch.Dynamic (interpose, interpret_, passthrough)
+import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Error.Static (runErrorNoCallStack, throwError)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (runReader)
-import Effectful.State.Static.Shared (evalState, runState)
+import Effectful.State.Static.Shared (State, evalState, get, put, runState)
 import Effectful.Writer.Static.Shared (Writer, execWriter, tell)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList, shouldSatisfy)
 
@@ -40,6 +40,7 @@ import Tricorder.BuildState
     , CabalChangeDetected (..)
     , DaemonInfo (..)
     , Diagnostic (..)
+    , EvalPhase (..)
     , PostBuild (..)
     , Severity (..)
     , SourceChangeDetected (..)
@@ -68,7 +69,8 @@ import Tricorder.Builder.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Effects.BuildStore (BuildStore, runBuildStoreState)
+import Tricorder.Effects.BuildStore (runBuildStoreState)
+import Tricorder.Effects.EvalRunner (runEvalRunnerNoOp)
 import Tricorder.Effects.GhciSession
     ( Controls (..)
     , LoadResult (..)
@@ -215,6 +217,7 @@ testBuildWithGhciRecovery = do
             . runBuildStoreState
             . runBuildStoreCapture
             . runTestRunnerScripted []
+            . runEvalRunnerNoOp
             . runGhciSessionScripted script
             . runPubSub @SourceChangeDetected
             . runConc
@@ -240,12 +243,12 @@ testReloadOnSourceChange = do
 
             it "calls controls.reload" do
                 phases <- runTest knownFoo noTargets distinctCtrls (SourceChangeDetected "/abs/path/Foo.hs" Modified)
-                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr]
+                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr, resultFor reloadLr]
 
         describe "when the file is not loaded in GHCi" do
             it "calls controls.add (the editor just wrote a new file)" do
                 phases <- runTest Map.empty noTargets distinctCtrls (SourceChangeDetected "/abs/path/New.hs" Modified)
-                buildResultsFrom phases `shouldMatchList` [resultFor addLr]
+                buildResultsFrom phases `shouldMatchList` [resultFor addLr, resultFor addLr]
 
         -- Regression test for stale-diagnostics bug: cold-start with a
         -- pre-existing error then fix it. Foo is in :show targets but
@@ -259,7 +262,7 @@ testReloadOnSourceChange = do
                         (KnownTargetNames (Set.singleton "Foo"))
                         distinctCtrls
                         (SourceChangeDetected "/abs/src/Foo.hs" Modified)
-                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr]
+                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr, resultFor reloadLr]
 
         -- A failed executable 'Main' appears in :show targets only as its
         -- path ("app/Main.hs", since the name 'Main' is ambiguous across home
@@ -272,21 +275,21 @@ testReloadOnSourceChange = do
                         (KnownTargetNames (Set.singleton "app/Main.hs"))
                         distinctCtrls
                         (SourceChangeDetected "/abs/app/Main.hs" Modified)
-                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr]
+                buildResultsFrom phases `shouldMatchList` [resultFor reloadLr, resultFor reloadLr]
 
     describe "Added" do
         describe "when the file is not loaded" $ it "calls controls.add" do
             phases <- runTest Map.empty noTargets distinctCtrls (SourceChangeDetected "/abs/path/Foo.hs" Added)
-            buildResultsFrom phases `shouldMatchList` [resultFor addLr]
+            buildResultsFrom phases `shouldMatchList` [resultFor addLr, resultFor addLr]
 
         describe "when the file is already loaded" $ it "calls controls.reload (re-add is a reload)" do
             phases <- runTest knownFoo noTargets distinctCtrls (SourceChangeDetected "/abs/path/Foo.hs" Added)
-            buildResultsFrom phases `shouldMatchList` [resultFor reloadLr]
+            buildResultsFrom phases `shouldMatchList` [resultFor reloadLr, resultFor reloadLr]
 
     describe "Removed" do
         describe "when the file is loaded" $ it "calls controls.unadd" do
             phases <- runTest knownFoo noTargets distinctCtrls (SourceChangeDetected "/abs/path/Foo.hs" Removed)
-            buildResultsFrom phases `shouldMatchList` [resultFor unaddLr]
+            buildResultsFrom phases `shouldMatchList` [resultFor unaddLr, resultFor unaddLr]
 
         describe "when the file is not loaded" $ it "is a no-op" do
             phases <- runTest Map.empty noTargets distinctCtrls (SourceChangeDetected "/abs/path/Unknown.hs" Removed)
@@ -320,14 +323,16 @@ testReloadOnSourceChange = do
             . runBuildStoreState
             . runBuildStoreCapture
             . runTestRunnerScripted []
+            . runEvalRunnerNoOp
             $ reloadOnSourceChange (def @BuildConfig) ctrls event
 
     flow lr =
         [ EnteringNewPhase (BuildId 1) $ Building Nothing
-        , EnteringNewPhase (BuildId 1) $ BuildComplete $ PostBuild DoneTesting (resultFor lr)
+        , EnteringNewPhase (BuildId 1) $ BuildComplete $ PostBuild DoneTesting DoneEvaluatingComments (resultFor lr)
+        , EnteringNewPhase (BuildId 1) $ BuildComplete $ PostBuild DoneTesting DoneEvaluatingComments (resultFor lr)
         ]
 
-    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete (PostBuild _ r)) <- phases]
+    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete (PostBuild _ _ r)) <- phases]
 
     resultFor lr =
         BuildResult
@@ -336,6 +341,7 @@ testReloadOnSourceChange = do
             , moduleCount = lr.moduleCount
             , diagnostics = []
             , testRuns = []
+            , evalRuns = []
             }
 
     noTargets = KnownTargetNames Set.empty
@@ -455,6 +461,7 @@ testCompileLoadResultsIntoBuildResults = do
                     , moduleCount = 2
                     , diagnostics = [warnMsg]
                     , testRuns = []
+                    , evalRuns = []
                     }
         r `shouldBe` expected
   where
@@ -472,7 +479,7 @@ testRequestTestRunsForNewBuildResults = do
     describe "when there are no test targets" $ it "should skip testing" do
         phaseResults <- runTest (parseTestTargets []) [] expected
         phaseResults
-            `shouldMatchList` [ PostBuild DoneTesting expected
+            `shouldMatchList` [ PostBuild DoneTesting EvaluatingComments expected
                               ]
 
     it "should emit EnteringNewPhase events for each test target" do
@@ -527,7 +534,7 @@ testRequestTestRunsForNewBuildResults = do
                 . runLogNoOp
                 . execWriter
                 . evalState (BuildId 1)
-                . evalState (PostBuild Testing expected)
+                . evalState (PostBuild Testing EvaluatingComments expected)
                 . runPostBuildStoreState
                 . runPostBuildStoreCapture
                 . runTestRunnerAbortAfterFirst (mkCompleteTestRun "test:foo")
@@ -538,7 +545,7 @@ testRequestTestRunsForNewBuildResults = do
         -- briefly publish a half-finished testRuns list that a
         -- 'status --wait' caller could observe.
         length
-            [ () | PostBuild DoneTesting _ <- phases
+            [ () | PostBuild DoneTesting _ _ <- phases
             ]
             `shouldBe` 0
         -- Sanity: only the initial Testing transition was published; the
@@ -577,6 +584,7 @@ testRequestTestRunsForNewBuildResults = do
             , moduleCount = 2
             , diagnostics = [warnMsg]
             , testRuns = []
+            , evalRuns = []
             }
 
     mkCompleteTestRun target =
@@ -969,7 +977,7 @@ testExtractTitle = do
 --------------------------------------------------------------------------------
 
 mkPostBuild :: TestPhase -> BuildResult -> PostBuild
-mkPostBuild tp br = PostBuild tp br
+mkPostBuild tp br = PostBuild tp EvaluatingComments br
 
 
 errMsg :: Diagnostic
@@ -1387,16 +1395,24 @@ runTestRunnerAbortAfterFirst result act = do
 -- 'Writer'. Captures both 'SetPhase' (used by 'enterPhase') and 'ModifyPhase'
 -- (used by 'withPostBuildPhase' for BuildComplete transitions).
 runBuildStoreCapture
-    :: ( BuildStore :> es
-       , Writer [EnteringNewPhase] :> es
-       )
-    => Eff es a -> Eff es a
-runBuildStoreCapture = interpose \env -> \case
+    :: (State BuildState :> es, Writer [EnteringNewPhase] :> es)
+    => Eff (BuildStore.BuildStore : es) a -> Eff es a
+runBuildStoreCapture = interpret_ \case
     BuildStore.SetPhase bid phase -> do
         tell [EnteringNewPhase bid phase]
-        BuildStore.setPhase bid phase
+        put
+            BuildState
+                { buildId = bid
+                , phase
+                , daemonInfo = emptyDaemonInfo
+                }
+    BuildStore.HasWaiters -> pure False
+    BuildStore.MarkDirty _ -> pure ()
+    BuildStore.GetState -> get
     BuildStore.ModifyPhase f -> do
-        s <- BuildStore.getState
-        tell [EnteringNewPhase s.buildId (f s)]
-        BuildStore.modifyPhase f
-    e -> passthrough env e
+        curr <- get
+        put $ curr {phase = f curr}
+    BuildStore.WaitUntilDone -> get
+    BuildStore.WaitForNext _ -> get
+    BuildStore.WaitForAnyChange _ -> get
+    BuildStore.WaitDirty -> error "runBuildStoreCapture: WaitDirty unsupported"

@@ -40,6 +40,8 @@ import Tricorder.BuildState
     , BuildState (..)
     , DaemonInfo (..)
     , Diagnostic (..)
+    , EvalRun (..)
+    , EvalState (..)
     , PostBuild (..)
     , Severity (..)
     , TestCase (..)
@@ -91,6 +93,8 @@ view kc ws =
                 viewTests ws
             Route.Main ->
                 viewMain ws
+            Route.Evals ->
+                viewEvals ws
         ]
     ]
 
@@ -119,6 +123,11 @@ viewDaemonInfo ws =
 viewTests :: State -> Widget Viewports
 viewTests ws =
     withBuildState ws (viewTestResultsPanel ws)
+
+
+viewEvals :: State -> Widget Viewports
+viewEvals ws =
+    withBuildState ws $ viewEvalCommentsPanel ws
 
 
 viewMain :: State -> Widget Viewports
@@ -164,6 +173,7 @@ viewHeading ws = case currentRoute ws of
     Route.Help -> Just "Help"
     Route.DaemonInfo -> Just "Daemon info"
     Route.Main -> Nothing
+    Route.Evals -> Just "Eval comments"
 
 
 viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports
@@ -177,6 +187,44 @@ viewTestResultsPanel ws bs =
         [ viewBuildPhaseLine ws.timeZone bs.phase
         , viewTestPanel ws.testFilter (phaseTestRuns bs.phase)
         ]
+
+
+viewEvalCommentsPanel :: State -> BuildState -> Widget Viewports
+viewEvalCommentsPanel ws bs =
+    vBoxSpaced
+        1
+        [ viewBuildPhaseLine ws.timeZone bs.phase
+        , case bs.phase of
+            BuildComplete build -> viewEvalRuns build.result.evalRuns
+            _ -> txt "Waiting for build..."
+        ]
+
+
+viewEvalRuns :: [EvalRun] -> Widget Viewports
+viewEvalRuns [] = txt "No eval comments detected"
+viewEvalRuns results = vScrollViewport EvalResultsViewport $ vBoxSpaced 1 $ viewEvalRun <$> results
+
+
+viewEvalRun :: EvalRun -> Widget n
+viewEvalRun run =
+    vBox
+        $ [ hBoxSpaced
+                1
+                [ subtle $ txt "File:"
+                , txt $ toText run.file
+                , txt $ "(line " <> show run.line <> ")"
+                ]
+          , subtle $ txt "Expression:"
+          , txt run.expression
+          ]
+            <> case run.state of
+                EvalCompleted output ->
+                    [ subtle $ txt "Result:"
+                    , vBox $ txt <$> T.lines output
+                    ]
+                EvalPending ->
+                    [ subtle $ txt "Running..."
+                    ]
 
 
 viewExpandedDaemonInfo :: DaemonInfo -> Widget n
@@ -268,18 +316,17 @@ viewBuildFailed :: Text -> Widget Viewports
 viewBuildFailed msg =
     vBox
         [ err $ txt "Build command failed"
-        , vScrollViewport DiagnosticViewport (txtWrap <$> T.lines msg)
+        , vScrollViewport DiagnosticViewport (vBox $ txtWrap <$> T.lines msg)
         ]
 
 
 -- | A vertically-scrollable viewport with clickable scrollbars on the right.
-vScrollViewport :: Viewports -> [Widget Viewports] -> Widget Viewports
-vScrollViewport vp children =
+vScrollViewport :: (Ord vp, Show vp) => vp -> Widget vp -> Widget vp
+vScrollViewport vp =
     withClickableVScrollBars (\_ _ -> vp)
-        $ withVScrollBarHandles
-        $ withVScrollBars OnRight
-        $ viewport vp Vertical
-        $ vBox children
+        . withVScrollBarHandles
+        . withVScrollBars OnRight
+        . viewport vp Vertical
 
 
 viewBuildResult :: TimeZone -> BuildResult -> Widget Viewports
@@ -308,7 +355,7 @@ viewBuildResult tz result
                     , viewDuration result.duration
                     , viewTimestamp tz result.completedAt
                     ]
-                , vScrollViewport DiagnosticViewport (viewDiagnostic <$> msgs)
+                , vScrollViewport DiagnosticViewport $ vBox $ viewDiagnostic <$> msgs
                 ]
 
 
@@ -428,7 +475,7 @@ viewTestPanel tvf runs = scrollableRuns tvf runs
 
 scrollableRuns :: TestFilter -> [TestRun] -> Widget Viewports
 scrollableRuns tvf runs =
-    vScrollViewport TestViewport (viewTestRunDetail tvf <$> runs)
+    vScrollViewport TestViewport $ vBox $ viewTestRunDetail tvf <$> runs
 
 
 viewTestRunDetail :: TestFilter -> TestRun -> Widget n

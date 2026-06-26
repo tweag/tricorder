@@ -235,12 +235,16 @@ reportTestProgress
     :: (BuildStore :> es) => Text -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
     modifyPhase \state -> case state.phase of
-        BuildComplete (PostBuild Testing partialResult) ->
+        BuildComplete build ->
             let progress = BuildProgress {compiled = loading.index, total = loading.total}
                 updateRun (TestRunning t _) | t == target = TestRunning t (Just progress)
                 updateRun r = r
-                newRuns = map updateRun partialResult.testRuns
-            in  BuildComplete (PostBuild Testing partialResult {testRuns = newRuns})
+                newRuns = map updateRun build.result.testRuns
+            in  BuildComplete
+                    $ build
+                        { testPhase = Testing
+                        , result = build.result {testRuns = newRuns}
+                        }
         other -> other
 
 

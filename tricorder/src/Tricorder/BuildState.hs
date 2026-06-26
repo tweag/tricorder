@@ -9,10 +9,13 @@ module Tricorder.BuildState
     ( BuildId (..)
     , BuildState (..)
     , BuildPhase (..)
-    , PostBuild (..)
-    , TestPhase (..)
     , BuildProgress (..)
     , BuildResult (..)
+    , PostBuild (..)
+    , TestPhase (..)
+    , EvalPhase (..)
+    , EvalRun (..)
+    , EvalState (..)
     , TestRun (..)
     , TestRunError (..)
     , TestRunCompletion (..)
@@ -33,11 +36,13 @@ module Tricorder.BuildState
 import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Input (Input, runInputEff)
 import Atelier.Time (Millisecond)
-import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withObject, withText, (.:))
 import Data.Time (UTCTime)
 import Effectful.Reader.Static (Reader, ask)
 import GHC.Generics (Generically (..))
 import System.FilePath (makeRelative)
+
+import Data.Aeson.KeyMap qualified as KM
 
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
@@ -147,9 +152,58 @@ data BuildResult = BuildResult
     , moduleCount :: Int
     , diagnostics :: [Diagnostic]
     , testRuns :: [TestRun]
+    , evalRuns :: [EvalRun]
     }
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON, ToJSON)
+
+
+data EvalState
+    = -- | The eval comment has yet to complete evaluation.
+      EvalPending
+    | -- | Combined stdout+stderr from GHCi, or an error message.
+      EvalCompleted Text
+    deriving stock (Eq, Generic, Show)
+
+
+instance ToJSON EvalState where
+    toJSON = \case
+        EvalPending ->
+            toJSON
+                $ KM.fromList
+                    [ ("state", String "pending")
+                    ]
+        EvalCompleted output ->
+            toJSON
+                $ KM.fromList
+                    [ ("state", String "completed")
+                    , ("output", String output)
+                    ]
+
+
+instance FromJSON EvalState where
+    parseJSON = withObject "EvalState" \o -> do
+        state :: Text <- o .: "state"
+        case state of
+            "pending" -> pure $ EvalPending
+            "completed" -> do
+                output <- o .: "output"
+                pure $ EvalCompleted output
+            _ -> fail "invalid 'state' property"
+
+
+data EvalRun = EvalRun
+    { file :: FilePath
+    -- ^ Source file path, relative to the project root.
+    , line :: Int
+    -- ^ 1-based line number of the eval comment.
+    , expression :: Text
+    -- ^ The expression that was evaluated.
+    , state :: EvalState
+    -- ^ The current state of this particular eval comment run.
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically EvalRun
 
 
 data BuildProgress = BuildProgress
@@ -171,6 +225,7 @@ data BuildPhase
 
 data PostBuild = PostBuild
     { testPhase :: TestPhase
+    , evalPhase :: EvalPhase
     , result :: BuildResult
     }
     deriving stock (Eq, Generic, Show)
@@ -180,6 +235,11 @@ data PostBuild = PostBuild
 data TestPhase = Testing | DoneTesting
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically TestPhase
+
+
+data EvalPhase = EvaluatingComments | DoneEvaluatingComments
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically EvalPhase
 
 
 data BuildState = BuildState
@@ -224,8 +284,9 @@ instance ToJSON Severity where
 stateLabel :: BuildPhase -> Text
 stateLabel (Building _) = "building"
 stateLabel Restarting = "restarting"
-stateLabel (BuildComplete (PostBuild Testing _)) = "testing"
-stateLabel (BuildComplete (PostBuild _ result))
+stateLabel (BuildComplete (PostBuild Testing _ _)) = "testing"
+stateLabel (BuildComplete (PostBuild _ EvaluatingComments _)) = "evaluating comments"
+stateLabel (BuildComplete (PostBuild _ _ result))
     | any (\m -> m.severity == SError) result.diagnostics = "error"
     | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
     | otherwise = "ok"

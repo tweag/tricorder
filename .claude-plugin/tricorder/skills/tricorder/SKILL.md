@@ -26,6 +26,10 @@ tricorder is a daemon-based GHCi build monitor. It exposes build state over a Un
 - `tricorder test-results --failed` — show output only from failed test suites
 - `tricorder test-results --wait` — block until the current build cycle completes, then show results
 - `tricorder source MODULE...` — print Haskell source for one or more installed modules (e.g. `tricorder source Data.Map.Strict`)
+- `tricorder eval-comments` — print eval comments and their evaluated results from the current build result.
+- `tricorder eval-comments --wait` — print eval comments and their evaluated results, waiting for the current build to finish if it is in-progress
+- `tricorder eval-comments --json` — print eval comments and their evaluated results as JSON
+- `tricorder eval-comments --wait --json` — print eval comments and their evaluated results as JSON, waiting for the current build to finish if it is in-progress
 - `tricorder ui` — auto-refreshing terminal display (for humans)
 
 ## Checking Build Status
@@ -147,6 +151,46 @@ tricorder test-results --wait --failed
 ```
 
 **Exit code**: 1 when any shown test suite failed or errored, 0 otherwise.
+
+### Eval comments (`eval-comments`)
+
+The daemon evaluates eval comments in the watched source files it finds. These
+are rarely useful to you, except when the user explicitly asks you to utilize
+them.
+
+Default output lists each eval comment with its evaluated result:
+
+```
+./src/Source/Module.hs (line 123)
+Expression:
+:t someFunc
+Output:
+someFunc :: Int -> Int
+```
+
+With `--json`, the output is formatted as a JSON object:
+
+```
+{
+  "state": "done",
+  "comments": [
+    {
+      "expression": ":t someFunc",
+      "file": "./src/Source/Module.hs",
+      "line": 123,
+      "state": {
+        "output": "someFunc :: Int -> Int\n\n",
+        "state": "completed"
+      }
+    }
+  ]
+}
+```
+
+The `state` property on the top-level object represents the current build
+state. If a build is currently in-progress, the `state` will show which stage
+of the build the daemon is at. Only `done` will be accompanied by a `comments`
+array with the evaluated comments.
 
 ## Workflow
 
