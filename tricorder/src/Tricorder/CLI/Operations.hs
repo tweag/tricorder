@@ -3,6 +3,7 @@ module Tricorder.CLI.Operations
     , showSource
     , showStatus
     , showTests
+    , showEvalComments
     ) where
 
 import Atelier.Effects.Clock (Clock, currentTimeZone)
@@ -24,7 +25,8 @@ import Data.Text qualified as T
 import Tricorder.Build (BuildState (..), Severity (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Arguments
-    ( FollowMode (..)
+    ( EvalCommentsOptions (..)
+    , FollowMode (..)
     , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
@@ -46,6 +48,7 @@ import Tricorder.TestOutput (stripGhciNoise)
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
+import Tricorder.Build.Test qualified as Tests
 
 
 -- | Print a build-command failure message and exit non-zero.
@@ -66,25 +69,9 @@ showStatus
        )
     => StatusOptions -> Eff es ()
 showStatus opts = do
-    SocketPath sockPath <- ask
-    when (opts.wait == WaitForBuild && opts.format == TextOutput) $ do
-        current <- queryStatus sockPath
-        case current of
-            Right BuildState {phase = Build.Starting} -> Console.putStrLn "Starting..."
-            Right BuildState {phase = Build.Building _ _} -> Console.putStrLn "Building..."
-            Right BuildState {phase = Build.PostBuilding _ postBuild}
-                | Test.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
-                    Console.putStrLn "Testing and evaluating comments..."
-                | Test.anyRunningTests postBuild.testSuites -> Console.putStrLn "Testing..."
-                | Eval.anyRunningComments postBuild.evalComments -> Console.putStrLn "Evaluating comments..."
-                | otherwise -> pure ()
-            Right BuildState {phase = Build.Finished _ _} -> pure ()
-            Right BuildState {phase = Build.Failed _} -> pure ()
-            Left _ -> pure ()
-    result <-
-        case opts.wait of
-            WaitForBuild -> queryStatusWait sockPath
-            ShowCurrent -> queryStatus sockPath
+    when (opts.wait == WaitForBuild && opts.format == TextOutput) do
+        displayPendingBuildStatus
+    result <- awaitBuildStatus opts.wait
     case result of
         Left err -> Console.putTextLn $ "Error: " <> err
         Right state ->
@@ -102,7 +89,7 @@ showStatus opts = do
         Build.PostBuilding _ postBuild ->
             let
                 testsRunning = Test.anyRunningTests postBuild.testSuites
-                commentsEvaluating = Eval.anyRunningComments postBuild.evalComments
+                commentsEvaluating = Eval.phasePending postBuild.evalComments
             in
                 if
                     | testsRunning && commentsEvaluating ->
@@ -205,11 +192,7 @@ showTests
        )
     => TestOptions -> Eff es ()
 showTests opts = do
-    SocketPath sockPath <- ask
-    result <-
-        case opts.wait of
-            WaitForBuild -> queryStatusWait sockPath
-            ShowCurrent -> queryStatus sockPath
+    result <- awaitBuildStatus opts.wait
     case result of
         Left err -> Console.putTextLn $ "Error: " <> err
         Right state ->
@@ -277,3 +260,147 @@ showSource queries = do
     case result of
         Left err -> Console.putTextLn $ "Error: " <> err
         Right results -> renderSourceResults results
+
+
+showEvalComments
+    :: ( Console :> es
+       , Exit :> es
+       , File :> es
+       , Reader SocketPath :> es
+       , UnixSocket :> es
+       )
+    => EvalCommentsOptions -> Eff es ()
+showEvalComments opts = do
+    when (opts.wait == WaitForBuild && opts.format == TextOutput) do
+        displayPendingBuildStatus
+    result <- awaitBuildStatus opts.wait
+    case opts.format of
+        TextOutput -> displayTextOutput result
+        JsonOutput -> displayJsonOutput result
+
+
+displayTextOutput
+    :: ( Console :> es
+       , Exit :> es
+       )
+    => Either Text BuildState -> Eff es ()
+displayTextOutput = \case
+    Left err -> do
+        Console.putTextLn $ "Error: " <> err
+        exitFailure
+    Right (BuildState _ phase _) -> case phase of
+        Build.Starting -> Console.putStrLn "Starting..."
+        Build.Building _ _ -> Console.putStrLn "Building..."
+        Build.PostBuilding _ postBuild -> txtEvalComments postBuild
+        Build.Finished _ postBuild -> txtEvalComments postBuild
+        Build.Failed err -> do
+            Console.putTextLn $ "Error: " <> err
+            exitFailure
+  where
+    txtEvalComments postBuild =
+        let evalutatingComments = Eval.phasePending postBuild.evalComments
+        in  if
+                | Tests.anyRunningTests postBuild.testSuites && evalutatingComments ->
+                    Console.putStrLn "Testing and evaluating comments..."
+                | Tests.anyRunningTests postBuild.testSuites -> Console.putStrLn "Testing..."
+                | evalutatingComments -> Console.putStrLn "Evaluating comments..."
+                | otherwise -> case postBuild.evalComments of
+                    Eval.Looking -> Console.putStrLn "Looking for eval comments..."
+                    Eval.NoneFound -> Console.putStrLn "No eval comments found"
+                    Eval.Found comments
+                        | Eval.anyRunningComments comments -> Console.putStrLn "Evaluating comments..."
+                        | otherwise ->
+                            Console.putTextLn
+                                . T.intercalate "\n\n"
+                                . toList
+                                $ showEvalRun <$> comments.getComments
+    showEvalRun run =
+        T.intercalate
+            "\n"
+            [ showEvalRunInfo run
+            , showEvalState run
+            ]
+    showEvalRunInfo evaluation =
+        T.intercalate
+            "\n"
+            [ toText evaluation.file <> ":" <> show evaluation.comment.lineNumber
+            , "Expression:"
+            , evaluation.comment.expression
+            ]
+    showEvalState evaluation =
+        case evaluation.state of
+            Eval.Pending -> "Pending..."
+            Eval.Completed output ->
+                T.intercalate
+                    "\n"
+                    [ "Output:"
+                    , output
+                    ]
+
+
+displayJsonOutput :: (Console :> es, Exit :> es) => Either Text BuildState -> Eff es ()
+displayJsonOutput = \case
+    Left err -> do
+        putJson $ Eval.Failed err
+        exitFailure
+    Right (BuildState _ phase _) -> case phase of
+        Build.Starting -> putJson Eval.Starting
+        Build.Building _ _ -> putJson Eval.Building
+        Build.Failed msg -> do
+            putJson $ Eval.Failed msg
+            exitFailure
+        Build.PostBuilding _ postBuild -> jsonEvalComments postBuild
+        Build.Finished _ postBuild -> jsonEvalComments postBuild
+  where
+    jsonEvalComments postBuild = case postBuild.evalComments of
+        Eval.Looking -> putJson Eval.Evaluating
+        Eval.NoneFound -> putJson $ Eval.NoEvalCommentsFound
+        Eval.Found comments
+            | Eval.anyRunningComments comments -> putJson Eval.Evaluating
+            | otherwise -> putJson $ Eval.Done comments
+    putJson = Console.putStrLn . toStrict . encode
+
+
+displayPendingBuildStatus
+    :: ( Console :> es
+       , File :> es
+       , Reader SocketPath :> es
+       , UnixSocket :> es
+       )
+    => Eff es ()
+displayPendingBuildStatus = do
+    SocketPath sockPath <- ask
+    current <- queryStatus sockPath
+    case current of
+        Right BuildState {phase = Build.Starting} -> Console.putStrLn "Starting..."
+        Right BuildState {phase = Build.Building _ _} -> Console.putStrLn "Building..."
+        Right BuildState {phase = Build.Finished _ postBuild} ->
+            displayPostBuildStatus postBuild
+        Right BuildState {phase = Build.PostBuilding _ postBuild} ->
+            displayPostBuildStatus postBuild
+        Right BuildState {phase = Build.Failed _} -> pure ()
+        Left _ -> pure ()
+  where
+    displayPostBuildStatus postBuild
+        | Tests.anyRunningTests postBuild.testSuites && evaluatingComments =
+            Console.putStrLn "Testing and evaluating comments..."
+        | Tests.anyRunningTests postBuild.testSuites =
+            Console.putStrLn "Testing..."
+        | evaluatingComments =
+            Console.putStrLn "Evaluating comments..."
+        | otherwise = pure ()
+      where
+        evaluatingComments = Eval.phasePending postBuild.evalComments
+
+
+awaitBuildStatus
+    :: ( File :> es
+       , Reader SocketPath :> es
+       , UnixSocket :> es
+       )
+    => WaitMode -> Eff es (Either Text BuildState)
+awaitBuildStatus wait = do
+    SocketPath sockPath <- ask
+    case wait of
+        WaitForBuild -> queryStatusWait sockPath
+        ShowCurrent -> queryStatus sockPath

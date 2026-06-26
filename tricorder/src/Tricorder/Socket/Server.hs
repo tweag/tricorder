@@ -247,7 +247,7 @@ respondDiagnostic idx h = do
     progress <- State.get
     case progress of
         Build.Finished result postBuild
-            | not $ Test.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
+            | not $ Test.anyRunningTests postBuild.testSuites && Eval.phasePending postBuild.evalComments ->
                 case result.diagnostics !!? (idx - 1) of
                     Nothing ->
                         sendJson h

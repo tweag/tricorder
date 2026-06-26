@@ -20,8 +20,19 @@ import Data.Text qualified as T
 
 import Tricorder.Build (BuildState (..))
 import Tricorder.CLI.Arguments (Command (..), LogMode (..))
-import Tricorder.CLI.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
-import Tricorder.CLI.Operations (showLog, showSource, showStatus, showTests)
+import Tricorder.CLI.Daemon
+    ( restartDaemon
+    , startDaemon
+    , stopDaemon
+    , waitForDaemon
+    )
+import Tricorder.CLI.Operations
+    ( showEvalComments
+    , showLog
+    , showSource
+    , showStatus
+    , showTests
+    )
 import Tricorder.CLI.UI (viewUi)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
@@ -122,3 +133,9 @@ run =
             restartDaemon force >>= \case
                 Just (Left reasons) -> traverse_ Console.putTextLn reasons
                 _ -> pass
+        EvalComments opts -> do
+            running <- isDaemonRunning
+            unless running do
+                startDaemon
+                void waitForDaemon
+            showEvalComments opts

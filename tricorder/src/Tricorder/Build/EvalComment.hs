@@ -1,5 +1,6 @@
 module Tricorder.Build.EvalComment
     ( Phase (..)
+    , phasePending
     , Comments (..)
     , anyRunningComments
     , Evaluation (..)
@@ -10,8 +11,10 @@ module Tricorder.Build.EvalComment
     , multiLineEvalCommentP
     , blockCommentEvalP
     , State (..)
+    , JsonOutput (..)
     ) where
 
+import Atelier.Types.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withObject, (.:))
 import GHC.Generics (Generically (..))
 import Text.Megaparsec
@@ -40,16 +43,20 @@ data Phase
     deriving (FromJSON, ToJSON) via Generically Phase
 
 
+phasePending :: Phase -> Bool
+phasePending = \case
+    Looking -> True
+    NoneFound -> False
+    Found comments -> anyRunningComments comments
+
+
 data Comments = Comments {getComments :: NonEmpty Evaluation}
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically Comments
 
 
-anyRunningComments :: Phase -> Bool
-anyRunningComments = \case
-    Looking -> True
-    Found comments -> any ((== Pending) . (.state)) $ comments.getComments
-    NoneFound -> False
+anyRunningComments :: Comments -> Bool
+anyRunningComments = any ((== Pending) . (.state)) . (.getComments)
 
 
 data Evaluation = Evaluation
@@ -198,3 +205,14 @@ instance FromJSON State where
                 output <- o .: "output"
                 pure $ Completed output
             _ -> fail "invalid 'state' property"
+
+
+data JsonOutput
+    = Starting
+    | Building
+    | Failed Text
+    | Evaluating
+    | NoEvalCommentsFound
+    | Done Comments
+    deriving stock (Generic)
+    deriving (ToJSON) via QuietSnake JsonOutput

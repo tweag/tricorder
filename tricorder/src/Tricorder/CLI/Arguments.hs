@@ -5,6 +5,7 @@ module Tricorder.CLI.Arguments
     , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
+    , EvalCommentsOptions (..)
     , Verbosity (..)
     , WaitMode (..)
     , parseArguments
@@ -89,6 +90,12 @@ data TestOptions = TestOptions
     }
 
 
+data EvalCommentsOptions = EvalCommentsOptions
+    { wait :: WaitMode
+    , format :: OutputFormat
+    }
+
+
 data Command
     = Start
     | Stop Force
@@ -98,6 +105,7 @@ data Command
     | Log LogMode
     | Source [SourceQuery]
     | Restart Force
+    | EvalComments EvalCommentsOptions
 
 
 runArguments :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
@@ -133,6 +141,7 @@ commandParser =
             <> command "log" (info logParser (progDesc "Show daemon log output"))
             <> command "source" (info sourceParser (progDesc "Print the Haskell source of one or more installed modules"))
             <> command "restart" (info restartParser (progDesc "Restart the daemon"))
+            <> command "eval-comments" (info evalCommentsParser (progDesc "Show eval comments from the latest build"))
         )
 
 
@@ -161,18 +170,8 @@ statusParser :: Parser Command
 statusParser =
     Status
         <$> ( StatusOptions
-                <$> flag
-                    ShowCurrent
-                    WaitForBuild
-                    ( long "wait"
-                        <> help "Block until the current build cycle completes"
-                    )
-                <*> flag
-                    TextOutput
-                    JsonOutput
-                    ( long "json"
-                        <> help "Output full build state as JSON"
-                    )
+                <$> waitParser
+                <*> jsonFormatToggleParser
                 <*> flag
                     Concise
                     Verbose
@@ -201,12 +200,7 @@ testParser =
                     ( long "failed"
                         <> help "Only show output from failed test suites"
                     )
-                <*> flag
-                    ShowCurrent
-                    WaitForBuild
-                    ( long "wait"
-                        <> help "Block until the current build cycle completes"
-                    )
+                <*> waitParser
             )
 
 
@@ -227,6 +221,35 @@ restartParser =
 
 forceParser :: String -> Parser Force
 forceParser helpText = flag NoForce Force $ long "force" <> help helpText
+
+
+evalCommentsParser :: Parser Command
+evalCommentsParser =
+    EvalComments
+        <$> ( EvalCommentsOptions
+                <$> waitParser
+                <*> jsonFormatToggleParser
+            )
+
+
+waitParser :: Parser WaitMode
+waitParser =
+    flag
+        ShowCurrent
+        WaitForBuild
+        ( long "wait"
+            <> help "Block until the current build cycle completes"
+        )
+
+
+jsonFormatToggleParser :: Parser OutputFormat
+jsonFormatToggleParser =
+    flag
+        TextOutput
+        JsonOutput
+        ( long "json"
+            <> help "Output full build state as JSON"
+        )
 
 
 queryReader :: ReadM SourceQuery
