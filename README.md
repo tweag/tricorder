@@ -39,6 +39,9 @@ every change, presents diagnostics, and runs the tests afterwards. However,
 - **Machine-readable output** - Using `tricorder status --json` we can get
   build information in a format appropriate for programmatic usage.
 
+For a deeper guide on the various features of Tricorder, see [Features of
+Tricorder](./docs/features-of-tricorder.md).
+
 ## Installing with cabal
 
 `tricorder` is published on
