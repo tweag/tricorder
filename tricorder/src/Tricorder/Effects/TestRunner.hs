@@ -54,12 +54,13 @@ import Tricorder.BuildState
     )
 import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
-import Tricorder.Effects.GhciSession.GhciProcess (GhciProcess, execGhci, terminateGhciProcess, withGhciProcess)
+import Tricorder.Effects.Repl (Repl)
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Command (..), Session (..), TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
+import Tricorder.Effects.Repl qualified as Repl
 import Tricorder.Effects.SessionStore qualified as SessionStore
 
 
@@ -97,7 +98,7 @@ runTestRunnerIO
     => Eff (TestRunner : es) a -> Eff es a
 runTestRunnerIO act = do
     ProjectRoot projectRoot <- ask
-    currentProcRef <- newTVarIO (Nothing :: Maybe GhciProcess)
+    currentProcRef <- newTVarIO (Nothing :: Maybe Repl)
     abortedRef <- newTVarIO False
     interpretWith_ act \case
         InterruptCurrent -> do
@@ -105,13 +106,13 @@ runTestRunnerIO act = do
             -- install their own SIGINT handlers that finalise the current
             -- run rather than aborting it. Each test runs in its own
             -- short-lived @cabal repl@ process, so killing it outright is
-            -- safe and gets a prompt abort. 'execGhci' then raises
+            -- safe and gets a prompt abort. 'Repl.exec' then raises
             -- 'UnexpectedExit', 'trySync' catches it, and the run loop
             -- short-circuits on @abortedRef@.
             mProc <- atomically do
                 writeTVar abortedRef True
                 readTVar currentProcRef
-            for_ mProc terminateGhciProcess
+            for_ mProc Repl.terminate
         ResetAbort -> atomically (writeTVar abortedRef False)
         IsAborted -> atomically (readTVar abortedRef)
         RunTestSuite target -> do
@@ -122,7 +123,7 @@ runTestRunnerIO act = do
                 Session {testTimeout} <- SessionStore.get
                 let onProgress = abortGatedProgress abortedRef target
                     noProgress = \_ -> pure ()
-                    -- Register the process as soon as 'setupGhciProcess'
+                    -- Register the process as soon as 'Repl.withRepl'
                     -- constructs it — before the initial @cabal repl@
                     -- compile drain runs. Without this, an interrupt that
                     -- arrives during that drain would find
@@ -133,12 +134,12 @@ runTestRunnerIO act = do
                     -- released.
                     onReady ghci = atomically (writeTVar currentProcRef (Just ghci))
                 -- Outer bracket: always clear 'currentProcRef' on exit,
-                -- whether 'withGhciProcess' completed normally or threw.
+                -- whether 'Repl.withRepl' completed normally or threw.
                 result <- trySync
                     $ bracket_
                         (pure ())
                         (atomically (writeTVar currentProcRef Nothing))
-                    $ withGhciProcess def (Command $ "cabal repl " <> target) projectRoot onProgress onReady \ghci _ ->
+                    $ Repl.withRepl def (Command $ "cabal repl " <> target) projectRoot onProgress onReady \ghci _ ->
                         atomically (readTVar abortedRef) >>= \case
                             -- An interrupt may have landed during the
                             -- @cabal repl@ load. The returned value is
@@ -146,9 +147,9 @@ runTestRunnerIO act = do
                             -- 'abortedRef'.
                             True -> pure (Right [])
                             False -> case testTimeout of
-                                TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
+                                TestTimeout secs | secs <= 0 -> Right <$> Repl.exec ghci ":main" noProgress
                                 TestTimeout secs ->
-                                    timeout (fromIntegral secs :: Second) (execGhci ghci ":main" noProgress) >>= \case
+                                    timeout (fromIntegral secs :: Second) (Repl.exec ghci ":main" noProgress) >>= \case
                                         Nothing -> pure (Left secs)
                                         Just ls -> pure (Right ls)
                 case result of

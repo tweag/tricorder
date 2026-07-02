@@ -1,24 +1,19 @@
-module Tricorder.Effects.GhciSession.GhciProcess
+module Tricorder.Effects.Repl
     ( Config (..)
-    , GhciProcess (..)
-    , GhciProcessError (..)
+    , Repl (..)
+    , ReplError (..)
     , SessionState (..)
     , InterruptDecision (..)
     , decideInterrupt
     , waitForBannerOrFail
-    , withGhciProcess
-    , execGhci
-    , interruptGhci
-    , terminateGhciProcess
-    , collectGhciResult
-    , reloadGhci
-    , addGhci
-    , unaddGhci
+    , withRepl
+    , exec
+    , interrupt
+    , terminate
     ) where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (BufferMode (..), File, Handle)
-import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process
     ( Process
     , RunningProcess
@@ -42,19 +37,13 @@ import Effectful.Exception (finally, throwIO, trySync)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.File qualified as File
-import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Process
 import Data.Text qualified as T
 
 import Tricorder.Effects.GhciSession.GhciParser
     ( GhciLoading (..)
-    , LoadResult (..)
-    , collectResult
     , parseProgressLine
-    , parseShowModules
-    , parseShowTargets
     , stripAnsi
-    , unattributedFailure
     )
 import Tricorder.Session (Command (..))
 
@@ -87,7 +76,7 @@ data SessionState = Idle Int | Busy Int
 -- | The outcome of consulting the 'SessionState' when an interrupt arrives.
 --
 -- 'NoOpIdle' means the GHCi session is at the prompt — sending SIGINT and a
--- sync marker would dirty the buffers and desync the next 'execGhci'.
+-- sync marker would dirty the buffers and desync the next 'exec'.
 -- 'SendInterruptFor n' means a command was in flight (state 'Busy n') and
 -- the caller should SIGINT the process group and re-write @markerFor n@ (that
 -- command's own marker) to unblock the in-progress 'drainUntil'.
@@ -97,7 +86,7 @@ data InterruptDecision
     deriving stock (Eq, Show)
 
 
--- | Pure state machine for 'interruptGhci'. Returns the new 'SessionState'
+-- | Pure state machine for 'interrupt'. Returns the new 'SessionState'
 -- to install along with the 'InterruptDecision' the caller should act on.
 decideInterrupt :: SessionState -> (SessionState, InterruptDecision)
 decideInterrupt s@(Idle _) = (s, NoOpIdle)
@@ -105,7 +94,7 @@ decideInterrupt (Busy n) = (Idle (n + 1), SendInterruptFor n)
 
 
 -- | A handle to a running GHCi subprocess.
-data GhciProcess = GhciProcess
+data Repl = Repl
     { stdin :: Handle
     , stdout :: Handle
     , stderr :: Handle
@@ -115,7 +104,7 @@ data GhciProcess = GhciProcess
 
 
 -- | Errors that can occur during GHCi process management.
-data GhciProcessError
+data ReplError
     = StartupTimeout
     | UnexpectedExit Text (Maybe Text)
     | -- | The build command exited (or printed nothing parseable) before GHCi
@@ -126,14 +115,14 @@ data GhciProcessError
     deriving stock (Eq, Show)
 
 
-instance Exception GhciProcessError
+instance Exception ReplError
 
 
 -- | Set up the GHCi protocol on an already-started process and return its
 -- handle together with the output captured during startup.
 --
--- The spawn and group teardown are owned by 'withGhciProcess'.
-setupGhciProcess
+-- The spawn and group teardown are owned by 'withRepl'.
+setupRepl
     :: ( Conc :> es
        , Concurrent :> es
        , File :> es
@@ -145,13 +134,13 @@ setupGhciProcess
     -- ^ Called as each @[N of M] Compiling …@ line is streamed during the
     -- initial-build drain, so the UI can update the progress bar live
     -- instead of replaying everything once compilation finishes.
-    -> (GhciProcess -> Eff es ())
-    -- ^ @onReady@. Called once the 'GhciProcess' is constructed but before the
+    -> (Repl -> Eff es ())
+    -- ^ @onReady@. Called once the 'Repl' is constructed but before the
     -- banner wait and initial-build drain — so callers can register the process
     -- for interruption while the slow @cabal repl@ startup (dependency build
     -- and recompilation) is still in progress.
-    -> Eff es (GhciProcess, [Text])
-setupGhciProcess config p onProgress onReady = do
+    -> Eff es (Repl, [Text])
+setupRepl config p onProgress onReady = do
     let inp = getStdin p
         out = getStdout p
         err = getStderr p
@@ -162,15 +151,15 @@ setupGhciProcess config p onProgress onReady = do
     -- Register the process for interruption before the (possibly slow) banner
     -- wait, so an interrupt during @cabal repl@ startup can terminate it.
     stateVar <- newTVarIO (Idle 0)
-    let ghciProcess =
-            GhciProcess
+    let repl =
+            Repl
                 { stdin = inp
                 , stdout = out
                 , stderr = err
                 , handle = p
                 , stateVar = stateVar
                 }
-    onReady ghciProcess
+    onReady repl
 
     -- Send a blank line to kick GHCi into producing output
     File.hPutTextLn inp ""
@@ -206,28 +195,28 @@ setupGhciProcess config p onProgress onReady = do
         pure (stdoutLines ++ stderrLines)
     atomically $ writeTVar stateVar (Idle 2)
 
-    pure (ghciProcess, initialLines)
+    pure (repl, initialLines)
 
 
 -- | Run a GHCi @cabal repl@ session for the duration of @action@.
 --
 -- The session runs in its own process group, so the whole group is torn down on
--- exit; 'quitGhci' first asks GHCi to @:quit@ for a graceful shutdown. The
+-- exit; 'quitRepl' first asks GHCi to @:quit@ for a graceful shutdown. The
 -- action receives the process handle and the output captured during startup.
--- See 'setupGhciProcess' for the @onProgress@ and @onReady@ callbacks.
-withGhciProcess
+-- See 'setupRepl' for the @onProgress@ and @onReady@ callbacks.
+withRepl
     :: (Conc :> es, Concurrent :> es, File :> es, Process :> es, Timeout :> es)
     => Config
     -> Command
     -> FilePath
     -> (GhciLoading -> Eff es ())
-    -> (GhciProcess -> Eff es ())
-    -> (GhciProcess -> [Text] -> Eff es a)
+    -> (Repl -> Eff es ())
+    -> (Repl -> [Text] -> Eff es a)
     -> Eff es a
-withGhciProcess config cmd dir onProgress onReady action =
+withRepl config cmd dir onProgress onReady action =
     Process.withProcessGroup processConfig \p -> do
-        (ghciProcess, initialLines) <- setupGhciProcess config p onProgress onReady
-        action ghciProcess initialLines `finally` quitGhci config ghciProcess
+        (repl, initialLines) <- setupRepl config p onProgress onReady
+        action repl initialLines `finally` quitRepl config repl
   where
     processConfig =
         setStdin createPipe
@@ -241,25 +230,25 @@ withGhciProcess config cmd dir onProgress onReady action =
 -- lines. The @onProgress@ callback fires for each @[N of M] Compiling …@ line
 -- as it arrives, so reload/add/unadd progress is streamed live to the UI.
 -- Pass @\\_ -> pure ()@ for commands that do not trigger compilation.
-execGhci
+exec
     :: ( Conc :> es
        , Concurrent :> es
        , File :> es
        )
-    => GhciProcess -> Text -> (GhciLoading -> Eff es ()) -> Eff es [Text]
-execGhci ghciProcess command onProgress = do
+    => Repl -> Text -> (GhciLoading -> Eff es ()) -> Eff es [Text]
+exec repl command onProgress = do
     n <- atomically do
-        readTVar ghciProcess.stateVar >>= \case
-            Idle n -> writeTVar ghciProcess.stateVar (Busy n) $> n
+        readTVar repl.stateVar >>= \case
+            Idle n -> writeTVar repl.stateVar (Busy n) $> n
             Busy _ -> retry
-    doExec n `finally` atomically (writeTVar ghciProcess.stateVar (Idle (n + 1)))
+    doExec n `finally` atomically (writeTVar repl.stateVar (Idle (n + 1)))
   where
     doExec n = do
         let marker = markerFor n
             hook = progressLineHook onProgress
-        File.hPutTextLn ghciProcess.stdin command
-        File.hFlush ghciProcess.stdin
-        sendSyncCommand ghciProcess.stdin marker
+        File.hPutTextLn repl.stdin command
+        File.hFlush repl.stdin
+        sendSyncCommand repl.stdin marker
         -- Scoped so that an exception from one drain (e.g. 'UnexpectedExit'
         -- when the underlying process is terminated mid-command) is
         -- contained here, re-raised by 'await', and caught by the caller's
@@ -268,8 +257,8 @@ execGhci ghciProcess command onProgress = do
         -- tears down the whole builder loop instead of just failing this
         -- one command.
         (stdoutLines, stderrLines) <- Conc.scoped do
-            stdoutThread <- Conc.fork $ drainUntil ghciProcess.stdout marker hook
-            stderrThread <- Conc.fork $ drainUntil ghciProcess.stderr marker hook
+            stdoutThread <- Conc.fork $ drainUntil repl.stdout marker hook
+            stderrThread <- Conc.fork $ drainUntil repl.stderr marker hook
             (,) <$> Conc.await stdoutThread <*> Conc.await stderrThread
         pure (stdoutLines ++ stderrLines)
 
@@ -285,41 +274,41 @@ execGhci ghciProcess command onProgress = do
 --
 -- When GHCi is 'Idle' this is a true no-op: sending SIGINT and a sync marker to
 -- an idle GHCi leaves leftover marker output in the buffers.
-interruptGhci :: (Concurrent :> es, File :> es, Process :> es) => GhciProcess -> Eff es ()
-interruptGhci ghciProcess = do
+interrupt :: (Concurrent :> es, File :> es, Process :> es) => Repl -> Eff es ()
+interrupt repl = do
     decision <- atomically do
-        s <- readTVar ghciProcess.stateVar
+        s <- readTVar repl.stateVar
         let (s', d) = decideInterrupt s
-        writeTVar ghciProcess.stateVar s'
+        writeTVar repl.stateVar s'
         pure d
     case decision of
         NoOpIdle -> pure ()
         SendInterruptFor n -> do
-            Process.interruptProcessGroup ghciProcess.handle
-            sendSyncCommand ghciProcess.stdin (markerFor n)
+            Process.interruptProcessGroup repl.handle
+            sendSyncCommand repl.stdin (markerFor n)
 
 
 -- | Forcefully terminate a GHCi process and its whole group.
 --
--- Stronger than 'interruptGhci': intended for one-shot processes (such as the
+-- Stronger than 'interrupt': intended for one-shot processes (such as the
 -- per-suite @cabal repl test:…@ used by the test runner) where SIGINT is
 -- insufficient — test frameworks like @hspec@ and @tasty@ install SIGINT
 -- handlers that finalise the current run rather than aborting it. Safe to call
 -- from another thread while the session is running.
-terminateGhciProcess :: (Process :> es) => GhciProcess -> Eff es ()
-terminateGhciProcess ghciProcess =
-    Process.terminateProcessGroup ghciProcess.handle
+terminate :: (Process :> es) => Repl -> Eff es ()
+terminate repl =
+    Process.terminateProcessGroup repl.handle
 
 
 -- | Ask GHCi to @:quit@ and wait briefly for it to exit cleanly, letting it
--- shut down gracefully before the enclosing 'withGhciProcess' tears down the
+-- shut down gracefully before the enclosing 'withRepl' tears down the
 -- group. Never throws.
-quitGhci :: (File :> es, Process :> es, Timeout :> es) => Config -> GhciProcess -> Eff es ()
-quitGhci config ghciProcess = do
+quitRepl :: (File :> es, Process :> es, Timeout :> es) => Config -> Repl -> Eff es ()
+quitRepl config repl = do
     void $ trySync $ do
-        File.hPutTextLn ghciProcess.stdin ":quit"
-        File.hFlush ghciProcess.stdin
-    void $ timeout config.shutdownTimeout (Process.waitExitCode ghciProcess.handle)
+        File.hPutTextLn repl.stdin ":quit"
+        File.hFlush repl.stdin
+    void $ timeout config.shutdownTimeout (Process.waitExitCode repl.handle)
 
 
 -- ---------------------------------------------------------------------------
@@ -475,77 +464,3 @@ renderCapturedLines capturedRev =
 startupExitedMessage :: SomeException -> Text
 startupExitedMessage ex =
     "Build command exited before GHCi started: " <> toText (displayException ex)
-
-
--- | Parse already-drained GHCi output lines into a 'LoadResult', fetching the
--- current module list via @:show modules@.
---
--- Progress is emitted live by 'drainUntil' as lines arrive, so no replay
--- callback is needed here — this function only assembles the final result.
-collectGhciResult
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
-    => GhciProcess
-    -> [Text]
-    -> FilePath
-    -> Eff es LoadResult
-collectGhciResult process lines' projectRoot = do
-    let noProgress = \_ -> pure ()
-    moduleLines <- execGhci process ":show modules" noProgress
-    targetLines <- execGhci process ":show targets" noProgress
-    let result =
-            collectResult
-                projectRoot
-                lines'
-                (parseShowModules moduleLines)
-                (parseShowTargets targetLines)
-    -- A failed load with no located error produces only the synthetic
-    -- 'unattributedFailure'. The parsed diagnostics tell the user nothing in
-    -- that case, so log the raw GHCi output — it's the only way to see what
-    -- actually went wrong, and the synthetic diagnostic points here.
-    when (any (== unattributedFailure) result.diagnostics)
-        $ Log.info
-        $ "GHCi reported a failed load with no located error. Full GHCi output:\n"
-            <> T.unlines lines'
-    pure result
-
-
--- | Execute @:reload@ and return the assembled 'LoadResult'. Progress events
--- fire live via @onProgress@ as each @[N of M] Compiling …@ line is read.
-reloadGhci
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
-    => GhciProcess
-    -> FilePath
-    -> (GhciLoading -> Eff es ())
-    -> Eff es LoadResult
-reloadGhci process projectRoot onProgress = do
-    reloadLines <- execGhci process ":reload" onProgress
-    collectGhciResult process reloadLines projectRoot
-
-
--- | Execute @:add@ for the given file and return the assembled 'LoadResult'.
--- Progress events fire live via @onProgress@ as compilation proceeds.
-addGhci
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
-    => GhciProcess
-    -> FilePath -- the file to :add
-    -> FilePath -- projectRoot
-    -> (GhciLoading -> Eff es ())
-    -> Eff es LoadResult
-addGhci process filePath projectRoot onProgress = do
-    addLines <- execGhci process (":add " <> T.pack filePath) onProgress
-    collectGhciResult process addLines projectRoot
-
-
--- | Execute @:unadd@ for the given module and return the assembled
--- 'LoadResult'. Progress events fire live via @onProgress@ as compilation
--- proceeds.
-unaddGhci
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
-    => GhciProcess
-    -> Text -- the module name to :unadd
-    -> FilePath -- projectRoot
-    -> (GhciLoading -> Eff es ())
-    -> Eff es LoadResult
-unaddGhci process moduleName projectRoot onProgress = do
-    unaddLines <- execGhci process (":unadd " <> moduleName) onProgress
-    collectGhciResult process unaddLines projectRoot

@@ -1,4 +1,4 @@
-module Unit.Tricorder.Effects.GhciSession.GhciProcessSpec (spec_GhciProcess) where
+module Unit.Tricorder.Effects.ReplSpec (spec_Repl) where
 
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)
@@ -42,23 +42,23 @@ import Data.Text qualified as T
 import System.Process qualified as Process
 import System.Timeout qualified
 
-import Tricorder.Effects.GhciSession.GhciProcess
-    ( GhciProcess (..)
-    , GhciProcessError (..)
-    , InterruptDecision (..)
+import Tricorder.Effects.Repl
+    ( InterruptDecision (..)
+    , Repl (..)
+    , ReplError (..)
     , SessionState (..)
     , decideInterrupt
-    , execGhci
+    , exec
     , waitForBannerOrFail
     )
 
 
-spec_GhciProcess :: Spec
-spec_GhciProcess = do
+spec_Repl :: Spec
+spec_Repl = do
     describe "decideInterrupt" testDecideInterrupt
-    describe "execGhci" testExecGhciScope
-    describe "execGhci (stale marker desync)" testExecGhciStaleMarker
-    describe "execGhci (sync marker scope independence)" testSyncMarkerScopeIndependent
+    describe "exec" testExecGhciScope
+    describe "exec (stale marker desync)" testExecGhciStaleMarker
+    describe "exec (sync marker scope independence)" testSyncMarkerScopeIndependent
     describe "waitForBannerOrFail" testWaitForBannerOrFail
     describe "withProcessGroup (process group)" testWithProcessGroupCleanup
     describe "terminateProcessGroup (process group)" testTerminateProcessGroup
@@ -67,9 +67,9 @@ spec_GhciProcess = do
 -- | Regression for the touch-during-reload desync. Interrupting a *Busy* GHCi
 -- (a reload in flight) leaves a stale sync marker in the stdout/stderr buffers
 -- ahead of the next command's real output. Because 'drainUntil' used to stop on
--- ANY marker-prefix line, the next 'execGhci' matched that stale marker and
+-- ANY marker-prefix line, the next 'exec' matched that stale marker and
 -- returned *before its command ran* — surfacing as @All good. (0 modules)@ (or,
--- on the other timing, a hang). 'execGhci' must skip markers that aren't its
+-- on the other timing, a hang). 'exec' must skip markers that aren't its
 -- own and stop only on the marker it is waiting for.
 testExecGhciStaleMarker :: Spec
 testExecGhciStaleMarker =
@@ -77,7 +77,7 @@ testExecGhciStaleMarker =
         (stdinR, stdinW) <- Process.createPipe
         (stdoutR, stdoutW) <- Process.createPipe
         (stderrR, stderrW) <- Process.createPipe
-        -- A dummy process handle to fill the record; 'execGhci' never uses it.
+        -- A dummy process handle to fill the record; 'exec' never uses it.
         p <-
             startProcess
                 $ setStdin createPipe
@@ -87,7 +87,7 @@ testExecGhciStaleMarker =
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 9)
         let gp =
-                GhciProcess
+                Repl
                     { stdin = stdinW
                     , stdout = stdoutR
                     , stderr = stderrR
@@ -106,14 +106,14 @@ testExecGhciStaleMarker =
                 $ do
                     -- A stale 'marker 5' (left by a prior interrupted reload)
                     -- precedes the fresh command's real output + its 'marker 9'
-                    -- (state is 'Idle 9', so 'execGhci' waits for marker 9).
+                    -- (state is 'Idle 9', so 'exec' waits for marker 9).
                     for_ [marker 5, "out-line", marker 9] (File.hPutTextLn stdoutW)
                     for_ [marker 5, "err-line", marker 9] (File.hPutTextLn stderrW)
                     File.hClose stdoutW
                     File.hClose stderrW
                     -- Keep the stdin read-end alive across the write inside
-                    -- 'execGhci' (otherwise it is GC-finalised → broken pipe).
-                    r <- execGhci gp "reload" (\_ -> pure ())
+                    -- 'exec' (otherwise it is GC-finalised → broken pipe).
+                    r <- exec gp "reload" (\_ -> pure ())
                     File.hClose stdinR
                     pure r
         _ <- (Right <$> stopProcess p) `catch` \(_ :: SomeException) -> pure (Left ())
@@ -129,7 +129,7 @@ testExecGhciStaleMarker =
 -- only fully-qualified 'System.IO.hPutStrLn' statements (which survive the
 -- emptied scope), one per stream, with no bare names or operators.
 --
--- We assert on exactly what 'execGhci' writes to GHCi's stdin.
+-- We assert on exactly what 'exec' writes to GHCi's stdin.
 testSyncMarkerScopeIndependent :: Spec
 testSyncMarkerScopeIndependent =
     it "writes the finish marker using only fully-qualified names (no bare putStrLn / >>)" do
@@ -145,7 +145,7 @@ testSyncMarkerScopeIndependent =
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 9)
         let gp =
-                GhciProcess
+                Repl
                     { stdin = stdinW
                     , stdout = stdoutR
                     , stderr = stderrR
@@ -167,7 +167,7 @@ testSyncMarkerScopeIndependent =
                     File.hPutTextLn stderrW marker
                     File.hClose stdoutW
                     File.hClose stderrW
-                    _ <- execGhci gp ":reload" (\_ -> pure ())
+                    _ <- exec gp ":reload" (\_ -> pure ())
                     File.hClose stdinW
                     let readAll acc =
                             trySync (File.hGetLine stdinR) >>= \case
@@ -335,7 +335,7 @@ testDecideInterrupt :: Spec
 testDecideInterrupt = do
     -- Regression: an idle GHCi must not be SIGINT'd, since the matching
     -- sync-marker write would leave a stale marker line in stdout/stderr
-    -- that the next 'execGhci' drain would match instead of the fresh one,
+    -- that the next 'exec' drain would match instead of the fresh one,
     -- desyncing the protocol and reporting "0 modules" or hanging.
     it "is a no-op when the session is Idle" do
         decideInterrupt (Idle 7) `shouldBe` (Idle 7, NoOpIdle)
@@ -351,14 +351,14 @@ testDecideInterrupt = do
         decideInterrupt (Busy 0) `shouldBe` (Idle 1, SendInterruptFor 0)
 
 
--- | Pins down the 'Conc.scoped' fix in 'execGhci': when the drain forks
+-- | Pins down the 'Conc.scoped' fix in 'exec': when the drain forks
 -- raise 'UnexpectedExit' (because the underlying process exited and EOF'd
--- the pipes), the exception must be CONTAINED inside 'execGhci' and
+-- the pipes), the exception must be CONTAINED inside 'exec' and
 -- surfaced via the caller's 'trySync' — not propagated to the ambient
--- 'Conc.scoped' that called 'execGhci'.
+-- 'Conc.scoped' that called 'exec'.
 --
--- Without the inner 'Conc.scoped' in 'execGhci', Ki propagates an
--- exception from a forked thread to its owning scope. If 'execGhci' forks
+-- Without the inner 'Conc.scoped' in 'exec', Ki propagates an
+-- exception from a forked thread to its owning scope. If 'exec' forks
 -- its drains directly into the ambient scope (the original bug), the
 -- ambient scope is torn down — siblings die, the whole builder cycle
 -- unwinds, and the daemon ends up in the "Restarting builder..." state
@@ -367,7 +367,7 @@ testExecGhciScope :: Spec
 testExecGhciScope =
     -- Spawn a real subprocess that exits immediately ('true'). Its
     -- stdout/stderr pipes EOF as soon as the child exits, which makes
-    -- 'drainUntil' inside 'execGhci' throw 'UnexpectedExit' — exactly the
+    -- 'drainUntil' inside 'exec' throw 'UnexpectedExit' — exactly the
     -- mid-command termination path the fix exists to handle.
     it "contains drain exceptions inside its own scope so siblings survive" do
         p <-
@@ -377,11 +377,11 @@ testExecGhciScope =
                 $ setStderr createPipe
                 $ shell "true"
         -- Wait for the child to actually exit so the pipes are EOF before
-        -- 'execGhci' starts draining (otherwise the drain blocks).
+        -- 'exec' starts draining (otherwise the drain blocks).
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 0)
         let gp =
-                GhciProcess
+                Repl
                     { stdin = getStdin p
                     , stdout = getStdout p
                     , stderr = getStderr p
@@ -404,10 +404,10 @@ testExecGhciScope =
                     sibling <- Conc.fork do
                         Delay.wait (50 :: Millisecond)
                         liftIO (writeIORef siblingDoneRef True)
-                    -- Drive 'execGhci' on a dead process; the drains should
+                    -- Drive 'exec' on a dead process; the drains should
                     -- raise 'UnexpectedExit', which 'trySync' must catch
                     -- here rather than letting Ki tear down the scope.
-                    execResult <- trySync (execGhci gp "cmd" (\_ -> pure ()))
+                    execResult <- trySync (exec gp "cmd" (\_ -> pure ()))
                     -- Wait for the sibling to run.
                     Conc.await sibling
                     pure execResult
@@ -419,4 +419,4 @@ testExecGhciScope =
         siblingDone `shouldBe` True
         case result of
             Left _ -> pure ()
-            Right _ -> expectationFailure "expected execGhci to raise UnexpectedExit"
+            Right _ -> expectationFailure "expected exec to raise UnexpectedExit"

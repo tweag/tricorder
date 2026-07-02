@@ -66,7 +66,7 @@ import Tricorder.Builder.Dispatch
 import Tricorder.Effects.BuildStore (BuildStore)
 import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
-import Tricorder.Effects.GhciSession.GhciProcess (GhciProcessError (..))
+import Tricorder.Effects.Repl (ReplError (..))
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Effects.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))

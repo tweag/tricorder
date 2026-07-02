@@ -45,9 +45,11 @@ import Tricorder.Effects.GhciSession.GhciParser
     , LoadResult (..)
     , LoadedModule (..)
     )
-import Tricorder.Effects.GhciSession.GhciProcess (addGhci, collectGhciResult, interruptGhci, reloadGhci, unaddGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Command)
+
+import Tricorder.Effects.GhciSession.Load qualified as Load
+import Tricorder.Effects.Repl qualified as Repl
 
 
 data GhciSession :: Effect where
@@ -71,8 +73,8 @@ makeEffect ''GhciSession
 
 -- | Scripted interpreter for testing.
 --
--- Each call to 'startGhci' or 'reloadGhci' pops the next result from the
--- pre-loaded list. 'Left' results are re-thrown as exceptions, simulating
+-- Each call to 'WithGhci' or the resulting 'reload' pops the next result from
+-- the pre-loaded list. 'Left' results are re-thrown as exceptions, simulating
 -- GHCi crashes. 'stopGhci' is always a no-op.
 runGhciSessionScripted :: forall es a. [Either SomeException LoadResult] -> Eff (GhciSession : es) a -> Eff es a
 runGhciSessionScripted results = reinterpret (evalState results) $ \env ->
@@ -100,8 +102,8 @@ runGhciSessionScripted results = reinterpret (evalState results) $ \env ->
                                     }
 
 
--- | GHCi session manager backed by 'Tricorder.Effects.GhciSession.GhciProcess'
--- and 'Tricorder.Effects.GhciSession.GhciParser'.
+-- | GHCi session manager backed by 'Tricorder.Effects.Repl' and the load
+-- interpretation in 'Tricorder.Effects.GhciSession.Load'.
 runGhciSession
     :: ( BuildStore :> es
        , Conc :> es
@@ -119,17 +121,17 @@ runGhciSession = interpret $ \env -> \case
                     Building
                         $ Just
                         $ BuildProgress {compiled = loading.index, total = loading.total}
-        withGhciProcess def cmd dir onProgress (\_ -> pure ()) \process startupLines ->
+        Repl.withRepl def cmd dir onProgress (\_ -> pure ()) \repl startupLines ->
             localLift env (ConcUnlift Persistent Unlimited) \liftEff ->
                 localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
-                    let doReload = liftEff $ reloadGhci process dir onProgress
-                    initialResult <- unlift $ liftEff $ collectGhciResult process startupLines dir
+                    let doReload = liftEff $ Load.reload repl dir onProgress
+                    initialResult <- unlift $ liftEff $ Load.collectLoadResult repl startupLines dir
                     unlift
                         $ handler
                             initialResult
                             Controls
                                 { reload = doReload
-                                , interrupt = liftEff (interruptGhci process)
-                                , add = \fp -> liftEff $ addGhci process fp dir onProgress
-                                , unadd = \mn -> liftEff $ unaddGhci process mn dir onProgress
+                                , interrupt = liftEff (Repl.interrupt repl)
+                                , add = \fp -> liftEff $ Load.add repl fp dir onProgress
+                                , unadd = \mn -> liftEff $ Load.unadd repl mn dir onProgress
                                 }
