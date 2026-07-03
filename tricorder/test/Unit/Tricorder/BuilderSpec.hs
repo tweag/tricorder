@@ -48,12 +48,14 @@ import Tricorder.BuildState
 import Tricorder.Builder
     ( BuildConfig (..)
     , EnteringNewPhase (..)
+    , GhciSessionHooks (..)
     , NewLoadResult (..)
     , compileLoadResultsIntoBuildResults
     , onRestart
     , reloadOnSourceChange
     , requestTestRunsForNewBuildResults
     , setNewPhase
+    , watchSourceChanges
     )
 import Tricorder.Builder.Dispatch
     ( BuilderState (..)
@@ -1088,6 +1090,168 @@ testEventCoalescing = do
         runs <- STM.atomically (readTVar cycleRunsRef)
         -- 1 in-flight + 1 coalesced trailing = 2.
         runs `shouldBe` 2
+
+    -- Same scenario, but driving the REAL 'watchSourceChanges' rather than a
+    -- hand-rolled mirror of its coalescing pattern. A 'status --wait' caller is
+    -- registered (hasWaiters = True), so 'interruptCurrent' is a no-op and the
+    -- in-flight cycle cannot be dropped. Four source changes arrive spaced wider
+    -- than the 200ms debounce window while the first cycle is still running;
+    -- they must collapse into AT MOST ONE trailing cycle.
+    it "coalesces through watchSourceChanges while a waiter gates interruptCurrent" do
+        cycleRunsRef <- newTVarIO (0 :: Int)
+        releaseFirst <- STM.newEmptyTMVarIO @()
+        isFirstRef <- newTVarIO True
+        let blockingHooks =
+                GhciSessionHooks
+                    { onStart = pure ()
+                    , onInitialLoad = \_ _ -> pure ()
+                    , onStartupFail = \_ -> pure ()
+                    , onSourceChange = \_ _ _ -> do
+                        atomically (modifyTVar' cycleRunsRef (+ 1))
+                        -- The first cycle blocks (simulating an uninterruptible
+                        -- in-flight build); later cycles return immediately.
+                        wasFirst <- atomically (STM.swapTVar isFirstRef False)
+                        when wasFirst $ atomically (STM.takeTMVar releaseFirst)
+                    }
+            -- interruptCurrent is gated to a no-op by the waiter, so these are
+            -- never invoked; wrap the bottoms in 'pure' (Controls is StrictData).
+            noopCtrls =
+                Controls
+                    { reload = pure (error "watchSourceChanges test must not reload")
+                    , interrupt = pure ()
+                    , add = \_ -> pure (error "watchSourceChanges test must not add")
+                    , unadd = \_ -> pure (error "watchSourceChanges test must not unadd")
+                    }
+        result <-
+            runEff
+                . runConcurrent
+                . runTracingNoOp
+                . runClockConst epoch
+                . runChan
+                . runDelay
+                . evalState (BuildId 1)
+                . runLogNoOp
+                . runBuildStoreWaiterPresent
+                . runTestRunnerScripted []
+                . runPubSub @SourceChangeDetected
+                . runErrorNoCallStack @StopSignal
+                . runConc
+                . runDebounce @Text
+                $ Conc.scoped do
+                    Conc.fork_ (watchSourceChanges blockingHooks (def @BuildConfig) noopCtrls)
+                    -- Let the listener subscribe before publishing.
+                    Delay.wait (50 :: Millisecond)
+                    -- Four events spaced wider than the 200ms debounce window,
+                    -- so debounce fires each callback separately. The first is
+                    -- the in-flight cycle; the rest must coalesce into one.
+                    publish (SourceChangeDetected "/x" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/y" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/z" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/w" Modified)
+                    Delay.wait (300 :: Millisecond)
+                    -- Release the in-flight cycle; the trailing cycle drains.
+                    atomically (STM.putTMVar releaseFirst ())
+                    Delay.wait (300 :: Millisecond)
+                    throwError StopSignal
+        case result of
+            Left StopSignal -> pure ()
+            Right () -> pure ()
+        runs <- STM.atomically (readTVar cycleRunsRef)
+        -- 1 in-flight + 1 coalesced trailing = 2. Without the single-slot
+        -- coalescing, each debounced event spawns its own cycle → 4.
+        runs `shouldBe` 2
+
+    -- The single worker also guarantees build/test cycles run STRICTLY ONE AT
+    -- A TIME: 'onSourceChange' (the real reload → Testing → Done pipeline) is
+    -- driven by a single fork draining the register, so a slow cycle blocks the
+    -- next until it finishes. That serialization is what keeps phase writes from
+    -- interleaving — two cycles racing their Building/Testing/Done transitions is
+    -- how the daemon strands on a non-terminal phase (the "stuck Building" class
+    -- of failure).
+    --
+    -- Here each cycle takes 400ms; events arrive 250ms apart (wider than the
+    -- 200ms debounce, so each fires its own callback). With serialization at
+    -- most one cycle is ever in flight. Without it, later callbacks start while
+    -- an earlier cycle is still running.
+    it "runs at most one build cycle at a time (no interleaved cycles)" do
+        activeRef <- newTVarIO (0 :: Int)
+        maxConcurrentRef <- newTVarIO (0 :: Int)
+        let recordingHooks =
+                GhciSessionHooks
+                    { onStart = pure ()
+                    , onInitialLoad = \_ _ -> pure ()
+                    , onStartupFail = \_ -> pure ()
+                    , onSourceChange = \_ _ _ -> do
+                        atomically do
+                            n <- (+ 1) <$> readTVar activeRef
+                            writeTVar activeRef n
+                            modifyTVar' maxConcurrentRef (max n)
+                        -- Simulate a cycle that takes longer than the gap
+                        -- between events, so overlap is observable if cycles
+                        -- are not serialized.
+                        Delay.wait (400 :: Millisecond)
+                        atomically (modifyTVar' activeRef (subtract 1))
+                    }
+            noopCtrls =
+                Controls
+                    { reload = pure (error "serialization test must not reload")
+                    , interrupt = pure ()
+                    , add = \_ -> pure (error "serialization test must not add")
+                    , unadd = \_ -> pure (error "serialization test must not unadd")
+                    }
+        result <-
+            runEff
+                . runConcurrent
+                . runTracingNoOp
+                . runClockConst epoch
+                . runChan
+                . runDelay
+                . evalState (BuildId 1)
+                . runLogNoOp
+                . runBuildStoreWaiterPresent
+                . runTestRunnerScripted []
+                . runPubSub @SourceChangeDetected
+                . runErrorNoCallStack @StopSignal
+                . runConc
+                . runDebounce @Text
+                $ Conc.scoped do
+                    Conc.fork_ (watchSourceChanges recordingHooks (def @BuildConfig) noopCtrls)
+                    Delay.wait (50 :: Millisecond)
+                    publish (SourceChangeDetected "/x" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/y" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/z" Modified)
+                    -- Let every cycle finish before stopping.
+                    Delay.wait (900 :: Millisecond)
+                    throwError StopSignal
+        case result of
+            Left StopSignal -> pure ()
+            Right () -> pure ()
+        maxConcurrent <- STM.atomically (readTVar maxConcurrentRef)
+        -- The single-worker design keeps this at 1. Running each debounced
+        -- event in its own fork lets cycles overlap → 2 (or more).
+        maxConcurrent `shouldBe` 1
+
+
+-- | A 'BuildStore' interpreter that reports a waiter is present, so
+-- 'interruptCurrent' short-circuits. Only 'HasWaiters' is reachable from the
+-- 'watchSourceChanges' coalescing path; the rest are trapped.
+runBuildStoreWaiterPresent
+    :: Eff (BuildStore.BuildStore : es) a -> Eff es a
+runBuildStoreWaiterPresent = interpret_ \case
+    BuildStore.HasWaiters -> pure True
+    BuildStore.SetPhase _ _ -> error "runBuildStoreWaiterPresent: SetPhase unsupported"
+    BuildStore.MarkDirty _ -> error "runBuildStoreWaiterPresent: MarkDirty unsupported"
+    BuildStore.GetState -> error "runBuildStoreWaiterPresent: GetState unsupported"
+    BuildStore.ModifyPhase _ -> error "runBuildStoreWaiterPresent: ModifyPhase unsupported"
+    BuildStore.WaitUntilDone -> error "runBuildStoreWaiterPresent: WaitUntilDone unsupported"
+    BuildStore.WaitForNext _ -> error "runBuildStoreWaiterPresent: WaitForNext unsupported"
+    BuildStore.WaitForAnyChange _ -> error "runBuildStoreWaiterPresent: WaitForAnyChange unsupported"
+    BuildStore.WaitDirty -> error "runBuildStoreWaiterPresent: WaitDirty unsupported"
 
 
 -- | Pins down the abort path on every source change: when no 'status --wait'
