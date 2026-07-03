@@ -15,7 +15,18 @@ import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Test.Hspec
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildProgress (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..), TestRun (..), TestRunCompletion (..))
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildProgress (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , DaemonInfo (..)
+    , PostBuild (..)
+    , TestPhase (..)
+    , TestRun (..)
+    , TestRunCompletion (..)
+    )
 import Tricorder.Effects.BuildStore (getState)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Effects.TestRunner
@@ -234,10 +245,8 @@ testAbortGatedProgress = do
         finalRuns <- runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith startingRuns
-                        }
+                $ PostBuild Testing
+                $ partialResultWith startingRuns
             for_ loadings (abortGatedProgress abortedRef "test:foo")
             phaseTestRuns <$> getState
         finalRuns `shouldBe` startingRuns
@@ -245,14 +254,10 @@ testAbortGatedProgress = do
     it "flips behaviour mid-run if abortedRef is set between updates" do
         abortedRef <- newTVarIO False
         finalRuns <- runStore do
-            BuildStore.setPhase
-                (BuildId 1)
+            BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith startingRuns
-                        }
-
+                $ PostBuild Testing
+                $ partialResultWith startingRuns
             -- This one applies.
             abortGatedProgress abortedRef "test:foo" (mkLoading 3 10)
             -- Simulate the interrupt firing.
@@ -273,10 +278,8 @@ testAbortGatedProgress = do
         runStore do
             BuildStore.setPhase (BuildId 1)
                 $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith runs
-                        }
+                $ PostBuild Testing
+                $ partialResultWith runs
             abortGatedProgress abortedRef "test:foo" loading
             phaseTestRuns <$> getState
 

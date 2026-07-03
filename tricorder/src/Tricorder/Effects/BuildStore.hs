@@ -11,23 +11,41 @@ module Tricorder.Effects.BuildStore
     , waitDirty
     , hasWaiters
 
+      -- * Intermediate interpreters
+    , withPostBuildPhase
+
       -- * Interpreters
     , runBuildStoreScripted
     , runBuildStore
+    , runBuildStoreState
     ) where
 
 import Atelier.Effects.Input (Input, input)
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
-import Effectful.Concurrent.STM (TChan, TVar, atomically, dupTChan, modifyTVar, newBroadcastTChan, newTVar, readTChan, readTVar, retry, writeTChan, writeTVar)
-import Effectful.Dispatch.Dynamic (interpretWith_, reinterpret)
+import Effectful.Concurrent.STM
+    ( TChan
+    , TVar
+    , atomically
+    , dupTChan
+    , modifyTVar
+    , newBroadcastTChan
+    , newTVar
+    , readTChan
+    , readTVar
+    , retry
+    , writeTChan
+    , writeTVar
+    )
+import Effectful.Dispatch.Dynamic (interpretWith_, interpret_, reinterpret)
 import Effectful.Exception (bracket_)
-import Effectful.State.Static.Shared (State, evalState, get, put)
+import Effectful.State.Static.Shared (State, evalState, get, modify, put)
 import Effectful.TH (makeEffect)
 
 import Tricorder.BuildState
     ( BuildId
     , BuildPhase (..)
+    , BuildResult
     , BuildState (..)
     , ChangeKind (..)
     , DaemonInfo (..)
@@ -35,6 +53,7 @@ import Tricorder.BuildState
     , TestPhase (..)
     , initialBuildState
     )
+import Tricorder.Effects.PostBuildStore (PostBuildStore (..))
 
 
 data BuildStore :: Effect where
@@ -62,6 +81,29 @@ data BuildStore :: Effect where
 
 
 makeEffect ''BuildStore
+
+
+withPostBuildPhase :: (BuildStore :> es) => BuildResult -> Eff (PostBuildStore : es) a -> Eff es a
+withPostBuildPhase initialBuildResult =
+    interpret_ \case
+        SetTestPhase tp -> modifyPhase \state -> case state.phase of
+            BuildComplete pb ->
+                BuildComplete pb {testPhase = tp}
+            _ ->
+                BuildComplete
+                    PostBuild
+                        { testPhase = tp
+                        , result = initialBuildResult
+                        }
+        UpdateBuildResult f -> modifyPhase \state -> case state.phase of
+            BuildComplete pb ->
+                BuildComplete pb {result = f pb.result}
+            _ ->
+                BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , result = f initialBuildResult
+                        }
 
 
 -- | Mutable state shared between the production interpreters and writers
@@ -216,3 +258,16 @@ runBuildStore eff = do
         MarkDirty ck -> atomically (modifyTVar refs.dirtyRef (max (Just ck)))
         WaitDirty -> takeDirty refs.dirtyRef
         HasWaiters -> fmap (> 0) $ atomically (readTVar refs.waitersRef)
+
+
+runBuildStoreState :: (State BuildState :> es) => Eff (BuildStore : es) a -> Eff es a
+runBuildStoreState = interpret_ \case
+    GetState -> get
+    ModifyPhase f -> modify \s -> s {phase = f s}
+    WaitUntilDone -> get
+    WaitForNext _ -> get
+    WaitForAnyChange _ -> get
+    SetPhase buildId phase -> modify \s -> s {buildId, phase}
+    MarkDirty _ -> pure ()
+    WaitDirty -> error "runBuildStoreState: waitDirty not supported"
+    HasWaiters -> pure False

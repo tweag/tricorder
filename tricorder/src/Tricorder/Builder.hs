@@ -47,7 +47,6 @@ import Tricorder.BuildState
     , BuildResult (..)
     , CabalChangeDetected (..)
     , Diagnostic (..)
-    , PostBuild (..)
     , Severity (..)
     , SourceChangeDetected (..)
     , TestPhase (..)
@@ -67,13 +66,23 @@ import Tricorder.Effects.BuildStore (BuildStore)
 import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Effects.GhciSession.GhciProcess (GhciProcessError (..))
+import Tricorder.Effects.PostBuildStore (PostBuildStore)
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Effects.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command (..), Session (..), Target, TestTargets, WatchDirs, getTestTargets, renderTarget)
+import Tricorder.Session
+    ( Command (..)
+    , Session (..)
+    , Target
+    , TestTargets
+    , WatchDirs
+    , getTestTargets
+    , renderTarget
+    )
 
 import Tricorder.Effects.BuildStore qualified as BuildStore
 import Tricorder.Effects.GhciSession qualified as GhciSession
+import Tricorder.Effects.PostBuildStore qualified as PostBuild
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.Effects.TestRunner qualified as TestRunner
 
@@ -480,14 +489,15 @@ afterLoad
     :: ( BuildStore :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , TestRunner :> es
        )
     => BuildConfig -> NewLoadResult -> Eff es ()
 afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
-    requestTestRunsForNewBuildResults config buildResult
+    when (all ((/= SError) . (.severity)) buildResult.diagnostics)
+        $ BuildStore.withPostBuildPhase buildResult do
+            requestTestRunsForNewBuildResults config.testTargets
 
 
 compileLoadResultsIntoBuildResults
@@ -524,26 +534,21 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
 
 
 requestTestRunsForNewBuildResults
-    :: ( BuildStore :> es
-       , Log :> es
-       , State BuildId :> es
+    :: ( Log :> es
+       , PostBuildStore :> es
        , TestRunner :> es
        )
-    => BuildConfig
-    -> BuildResult
+    => TestTargets
     -> Eff es ()
-requestTestRunsForNewBuildResults config partialResult = do
-    buildId <- get
-    runTestsIfClean config buildId partialResult >>= \case
-        Nothing -> Log.info "Test run aborted by source change; skipping Done transition."
-        Just testRuns ->
-            setNewPhase
-                $ EnteringNewPhase buildId
-                $ BuildComplete
-                    PostBuild
-                        { testPhase = DoneTesting
-                        , result = partialResult {testRuns}
-                        }
+requestTestRunsForNewBuildResults testTargets = case nonEmpty testTargets.getTestTargets of
+    Nothing ->
+        PostBuild.setTestPhase DoneTesting
+    Just tts ->
+        runTestsIfClean tts >>= \case
+            Nothing -> Log.info "Test run aborted by source change; skipping Done transition."
+            Just testRuns -> do
+                PostBuild.setTestPhase DoneTesting
+                PostBuild.updateBuildResult \br -> br {testRuns}
 
 
 -- Run all configured test suites if the build has no errors.
@@ -553,34 +558,26 @@ requestTestRunsForNewBuildResults config partialResult = do
 -- (the caller should not transition to a Done phase in that case). Returns
 -- 'Just' with the collected results otherwise.
 runTestsIfClean
-    :: ( BuildStore :> es
-       , Log :> es
+    :: ( Log :> es
+       , PostBuildStore :> es
        , TestRunner :> es
        )
-    => BuildConfig
-    -> BuildId
-    -> BuildResult
+    => NonEmpty Target
     -> Eff es (Maybe [TestRun])
-runTestsIfClean (BuildConfig {testTargets}) bid partialResult
-    | null targetNames || any (\d -> d.severity == SError) partialResult.diagnostics = pure (Just [])
-    | otherwise = do
-        TestRunner.resetAbort
-        setNewPhase
-            $ EnteringNewPhase bid
-            $ BuildComplete
-                PostBuild
-                    { testPhase = Testing
-                    , result = partialResult {testRuns = map (`TestRunning` Nothing) targetNames}
-                    }
+runTestsIfClean testTargets = do
+    TestRunner.resetAbort
+    PostBuild.setTestPhase Testing
+    PostBuild.updateBuildResult \br ->
+        br {testRuns = map (`TestRunning` Nothing) targetNames}
 
-        Log.info $ "Running " <> show (length targetNames) <> " test suite(s)"
+    Log.info $ "Running " <> show (length targetNames) <> " test suite(s)"
 
-        let initial = (\t -> (t, TestRunning t Nothing)) <$> targetNames
-        runLoop initial targetNames
+    let initial = (\t -> (t, TestRunning t Nothing)) <$> targetNames
+    runLoop initial targetNames
   where
     -- The runner consumes the @test:@ targets as cabal/ghci arguments, so
     -- render the structured targets to their textual form at this boundary.
-    targetNames = map renderTarget testTargets.getTestTargets
+    targetNames = map renderTarget $ toList testTargets
     runLoop acc [] = pure (Just (snd <$> acc))
     runLoop acc (target : rest) = do
         Log.info $ "Running tests: " <> target
@@ -590,14 +587,7 @@ runTestsIfClean (BuildConfig {testTargets}) bid partialResult
             pure Nothing
         else do
             let acc' = insert target result acc
-            setNewPhase
-                $ EnteringNewPhase bid
-                $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResult {testRuns = snd <$> acc'}
-                        }
-
+            PostBuild.updateBuildResult \br -> br {testRuns = snd <$> acc'}
             runLoop acc' rest
 
     insert _ _ [] = []

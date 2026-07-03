@@ -1,4 +1,4 @@
-module Unit.Tricorder.BuildStoreSpec (spec_BuildStore) where
+module Unit.Tricorder.Effects.BuildStoreSpec (spec_BuildStore) where
 
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Delay (Delay, runDelay)
@@ -7,26 +7,40 @@ import Control.Concurrent (threadDelay)
 import Data.Time (UTCTime (..), fromGregorian)
 import Effectful (IOE, runEff, runPureEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
+import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.State.Static.Shared (State, execState, modify)
 import Test.Hspec
 
 import Atelier.Effects.Conc qualified as Conc
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..))
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , DaemonInfo (..)
+    , PostBuild (..)
+    , TestPhase (..)
+    )
 import Tricorder.Effects.BuildStore
-    ( BuildStore
+    ( BuildStore (..)
     , getState
     , runBuildStore
     , runBuildStoreScripted
     , setPhase
     , waitForNext
     , waitUntilDone
+    , withPostBuildPhase
     )
+
+import Tricorder.Effects.PostBuildStore qualified as PostBuild
 
 
 spec_BuildStore :: Spec
 spec_BuildStore = do
     describe "runBuildStoreScripted" testScripted
     describe "runBuildStoreSTM" testSTM
+    describe "withPostBuildPhase" testWithPostBuildPhase
 
 
 --------------------------------------------------------------------------------
@@ -149,8 +163,112 @@ testSTM = do
 
 
 --------------------------------------------------------------------------------
+-- PostBuildStore interpreter test
+--------------------------------------------------------------------------------
+
+testWithPostBuildPhase :: Spec
+testWithPostBuildPhase = do
+    describe "with Done build phase" do
+        let runTest = runTest' doneBuildState
+        describe "setTestPhase" $ it "sets test phase" do
+            let actualState = runTest $ PostBuild.setTestPhase DoneTesting
+            actualState
+                `shouldBe` doneBuildState
+                    { phase =
+                        BuildComplete
+                            PostBuild
+                                { testPhase = DoneTesting
+                                , result = emptyBuildResult
+                                }
+                    }
+        describe "updateBuildResult" $ it "updates the build result" do
+            let actualState = runTest $ PostBuild.updateBuildResult \br -> br {moduleCount = 99}
+            actualState
+                `shouldBe` doneBuildState
+                    { phase =
+                        BuildComplete
+                            PostBuild
+                                { testPhase = Testing
+                                , result = emptyBuildResult {moduleCount = 99}
+                                }
+                    }
+
+    describe "with non-Done build phase" do
+        let runTest = runTest' buildingBuildState
+        describe "setTestPhase" do
+            it "sets the build phase to Done and sets test phase" do
+                let actualState = runTest $ PostBuild.setTestPhase DoneTesting
+                actualState
+                    `shouldBe` doneBuildState
+                        { phase =
+                            BuildComplete
+                                PostBuild
+                                    { testPhase = DoneTesting
+                                    , result = emptyBuildResult
+                                    }
+                        }
+        describe "updateBuildResult" do
+            it "sets the build phase to Done and updates the build result from the initial build result" do
+                let actualState = runTest $ PostBuild.updateBuildResult \br -> br {moduleCount = 99}
+                actualState
+                    `shouldBe` doneBuildState
+                        { phase =
+                            BuildComplete
+                                PostBuild
+                                    { testPhase = Testing
+                                    , result = emptyBuildResult {moduleCount = 99}
+                                    }
+                        }
+  where
+    runTest' bs =
+        runPureEff
+            . execState bs
+            . runBuildStoreSimple
+            . withPostBuildPhase emptyBuildResult
+    runBuildStoreSimple :: (State BuildState :> es) => Eff (BuildStore : es) a -> Eff es a
+    runBuildStoreSimple = interpret_ \case
+        ModifyPhase f -> modify \s -> s {phase = f s}
+        _ -> error "runBuildStoreSimple: Unsupported operation"
+
+
+--------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
+
+buildingBuildState :: BuildState
+buildingBuildState =
+    BuildState
+        { buildId = BuildId 1
+        , phase = Building Nothing
+        , daemonInfo = emptyDaemonInfo
+        }
+
+
+doneBuildState :: BuildState
+doneBuildState =
+    BuildState
+        { buildId = BuildId 1
+        , phase =
+            BuildComplete
+                PostBuild
+                    { testPhase =
+                        Testing
+                    , result = emptyBuildResult
+                    }
+        , daemonInfo = emptyDaemonInfo
+        }
+
+
+emptyBuildResult :: BuildResult
+emptyBuildResult =
+    BuildResult
+        { completedAt = epoch
+        , duration = 0
+        , moduleCount = 0
+        , diagnostics = []
+        , testRuns = []
+        }
+
 
 emptyDaemonInfo :: DaemonInfo
 emptyDaemonInfo =

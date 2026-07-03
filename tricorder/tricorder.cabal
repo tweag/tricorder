@@ -46,6 +46,7 @@ library tricorder-internal
       Tricorder.Effects.GhciSession.GhciProcess
       Tricorder.Effects.GhcPkg
       Tricorder.Effects.Logging
+      Tricorder.Effects.PostBuildStore
       Tricorder.Effects.SessionStore
       Tricorder.Effects.TestRunner
       Tricorder.Effects.UnixSocket
@@ -219,8 +220,8 @@ test-suite tricorder-test
   other-modules:
       Unit.Tricorder.BuilderSpec
       Unit.Tricorder.BuildStateSpec
-      Unit.Tricorder.BuildStoreSpec
       Unit.Tricorder.CLI.RenderSpec
+      Unit.Tricorder.Effects.BuildStoreSpec
       Unit.Tricorder.Effects.GhciSession.GhciParserSpec
       Unit.Tricorder.Effects.GhciSession.GhciProcessSpec
       Unit.Tricorder.Effects.GhciSessionSpec
