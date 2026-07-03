@@ -15,16 +15,7 @@ import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Test.Hspec
 
-import Tricorder.BuildState
-    ( BuildId (..)
-    , BuildPhase (..)
-    , BuildProgress (..)
-    , BuildResult (..)
-    , BuildState (..)
-    , DaemonInfo (..)
-    , TestRun (..)
-    , TestRunCompletion (..)
-    )
+import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildProgress (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..), TestRun (..), TestRunCompletion (..))
 import Tricorder.Effects.BuildStore (getState)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Effects.TestRunner
@@ -241,7 +232,12 @@ testAbortGatedProgress = do
         abortedRef <- newTVarIO True
         let loadings = [mkLoading i 10 | i <- [1 .. 5]]
         finalRuns <- runStore do
-            BuildStore.setPhase (BuildId 1) (Testing (partialResultWith startingRuns))
+            BuildStore.setPhase (BuildId 1)
+                $ BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , result = partialResultWith startingRuns
+                        }
             for_ loadings (abortGatedProgress abortedRef "test:foo")
             phaseTestRuns <$> getState
         finalRuns `shouldBe` startingRuns
@@ -249,7 +245,14 @@ testAbortGatedProgress = do
     it "flips behaviour mid-run if abortedRef is set between updates" do
         abortedRef <- newTVarIO False
         finalRuns <- runStore do
-            BuildStore.setPhase (BuildId 1) (Testing (partialResultWith startingRuns))
+            BuildStore.setPhase
+                (BuildId 1)
+                $ BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , result = partialResultWith startingRuns
+                        }
+
             -- This one applies.
             abortGatedProgress abortedRef "test:foo" (mkLoading 3 10)
             -- Simulate the interrupt firing.
@@ -268,7 +271,12 @@ testAbortGatedProgress = do
     runProgress aborted loading runs = do
         abortedRef <- newTVarIO aborted
         runStore do
-            BuildStore.setPhase (BuildId 1) (Testing (partialResultWith runs))
+            BuildStore.setPhase (BuildId 1)
+                $ BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , result = partialResultWith runs
+                        }
             abortGatedProgress abortedRef "test:foo" loading
             phaseTestRuns <$> getState
 
@@ -302,7 +310,7 @@ testAbortGatedProgress = do
 
     phaseTestRuns :: BuildState -> [TestRun]
     phaseTestRuns s = case s.phase of
-        Testing r -> r.testRuns
+        BuildComplete (PostBuild Testing r) -> r.testRuns
         _ -> []
 
     epoch :: UTCTime

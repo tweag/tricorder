@@ -17,7 +17,7 @@ import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
 import Data.ByteString.Lazy qualified as BSL
 
-import Tricorder.BuildState (BuildPhase (..), BuildResult (..), BuildState (..), Diagnostic)
+import Tricorder.BuildState (BuildPhase (..), BuildResult (..), BuildState (..), Diagnostic, PostBuild (..), TestPhase (..))
 import Tricorder.Effects.BuildStore (BuildStore, getState, waitForAnyChange, waitUntilDone)
 import Tricorder.Effects.GhcPkg (GhcPkg)
 import Tricorder.Effects.UnixSocket
@@ -192,8 +192,8 @@ respondWhenDone h = awaitResult >>= sendJson h
         case s.phase of
             Building _ -> waitUntilDone
             Restarting -> waitUntilDone
-            Testing _ -> waitUntilDone
-            Done _ -> awaitBuildStart (5 :: Int) s
+            BuildComplete (PostBuild Testing _) -> waitUntilDone
+            BuildComplete (PostBuild DoneTesting _) -> awaitBuildStart (5 :: Int) s
             BuildFailed _ -> pure s
 
     -- Poll up to n × 50ms for a build to start, then wait for it to finish.
@@ -204,8 +204,8 @@ respondWhenDone h = awaitResult >>= sendJson h
         case s'.phase of
             Building _ -> waitUntilDone
             Restarting -> waitUntilDone
-            Testing _ -> waitUntilDone
-            Done _ -> awaitBuildStart (n - 1) s'
+            BuildComplete (PostBuild Testing _) -> waitUntilDone
+            BuildComplete (PostBuild DoneTesting _) -> awaitBuildStart (n - 1) s'
             BuildFailed _ -> pure s'
 
 
@@ -226,7 +226,7 @@ respondDiagnostic :: (BuildStore :> es, UnixSocket :> es) => Int -> Handle -> Ef
 respondDiagnostic idx h = do
     state <- getState
     case state.phase of
-        Done r -> case r.diagnostics !!? (idx - 1) of
+        BuildComplete (PostBuild DoneTesting r) -> case r.diagnostics !!? (idx - 1) of
             Nothing ->
                 sendJson h
                     $ ErrorResponse
@@ -239,7 +239,7 @@ respondDiagnostic idx h = do
         BuildFailed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         Building _ -> sendJson h $ ErrorResponse "Build in progress"
         Restarting -> sendJson h $ ErrorResponse "Build in progress"
-        Testing _ -> sendJson h $ ErrorResponse "Build in progress"
+        BuildComplete (PostBuild Testing _) -> sendJson h $ ErrorResponse "Build in progress"
 
 
 -- | Look up source for each requested module and send the results as a JSON array.

@@ -11,7 +11,7 @@ import Test.Hspec
 
 import Atelier.Effects.Conc qualified as Conc
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), DaemonInfo (..))
+import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..))
 import Tricorder.Effects.BuildStore
     ( BuildStore
     , getState
@@ -140,12 +140,12 @@ testSTM = do
                     setPhase (BuildId 1) donePhase
                     setPhase (BuildId 2) (Building Nothing)
                 waitUntilDone
-            -- The waiter must report Done(1), NOT skip past it and report
-            -- the later Done(2) (or block forever).
+            -- The waiter must report BuildComplete(1), NOT skip past it and
+            -- report the later BuildComplete(2) (or block forever).
             result.buildId `shouldBe` BuildId 1
             case result.phase of
-                Done _ -> pure ()
-                p -> expectationFailure $ "expected Done phase, got: " <> show p
+                BuildComplete _ -> pure ()
+                p -> expectationFailure $ "expected BuildComplete phase, got: " <> show p
 
 
 --------------------------------------------------------------------------------
@@ -153,7 +153,14 @@ testSTM = do
 --------------------------------------------------------------------------------
 
 emptyDaemonInfo :: DaemonInfo
-emptyDaemonInfo = DaemonInfo {targets = [], watchDirs = [], sockPath = "", logFile = "", metricsPort = Nothing}
+emptyDaemonInfo =
+    DaemonInfo
+        { targets = []
+        , watchDirs = []
+        , sockPath = ""
+        , logFile = ""
+        , metricsPort = Nothing
+        }
 
 
 buildingAt :: Int -> BuildState
@@ -161,7 +168,16 @@ buildingAt n = BuildState (BuildId n) (Building Nothing) emptyDaemonInfo
 
 
 donePhase :: BuildPhase
-donePhase = Done (BuildResult {completedAt = epoch, duration = 0, moduleCount = 0, diagnostics = [], testRuns = []})
+donePhase =
+    BuildComplete
+        $ PostBuild DoneTesting
+        $ BuildResult
+            { completedAt = epoch
+            , duration = 0
+            , moduleCount = 0
+            , diagnostics = []
+            , testRuns = []
+            }
 
 
 doneAt :: Int -> BuildState

@@ -46,6 +46,8 @@ import Tricorder.BuildState
     , BuildProgress (..)
     , BuildResult (..)
     , BuildState (..)
+    , PostBuild (..)
+    , TestPhase (..)
     , TestRun (..)
     , TestRunCompletion (..)
     , TestRunError (..)
@@ -233,12 +235,12 @@ reportTestProgress
     :: (BuildStore :> es) => Text -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
     modifyPhase \state -> case state.phase of
-        Testing partialResult ->
+        BuildComplete (PostBuild Testing partialResult) ->
             let progress = BuildProgress {compiled = loading.index, total = loading.total}
                 updateRun (TestRunning t _) | t == target = TestRunning t (Just progress)
                 updateRun r = r
                 newRuns = map updateRun partialResult.testRuns
-            in  Testing partialResult {testRuns = newRuns}
+            in  BuildComplete (PostBuild Testing partialResult {testRuns = newRuns})
         other -> other
 
 

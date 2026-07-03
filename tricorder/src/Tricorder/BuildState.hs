@@ -9,6 +9,8 @@ module Tricorder.BuildState
     ( BuildId (..)
     , BuildState (..)
     , BuildPhase (..)
+    , PostBuild (..)
+    , TestPhase (..)
     , BuildProgress (..)
     , BuildResult (..)
     , TestRun (..)
@@ -34,6 +36,7 @@ import Atelier.Time (Millisecond)
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Time (UTCTime)
 import Effectful.Reader.Static (Reader, ask)
+import GHC.Generics (Generically (..))
 import System.FilePath (makeRelative)
 
 import Tricorder.Effects.SessionStore (SessionStore)
@@ -160,11 +163,23 @@ data BuildProgress = BuildProgress
 data BuildPhase
     = Building (Maybe BuildProgress)
     | Restarting
-    | Testing BuildResult
-    | Done BuildResult
+    | BuildComplete PostBuild
     | BuildFailed Text
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON, ToJSON)
+
+
+data PostBuild = PostBuild
+    { testPhase :: TestPhase
+    , result :: BuildResult
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically PostBuild
+
+
+data TestPhase = Testing | DoneTesting
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically TestPhase
 
 
 data BuildState = BuildState
@@ -209,8 +224,8 @@ instance ToJSON Severity where
 stateLabel :: BuildPhase -> Text
 stateLabel (Building _) = "building"
 stateLabel Restarting = "restarting"
-stateLabel (Testing _) = "testing"
-stateLabel (Done result)
+stateLabel (BuildComplete (PostBuild Testing _)) = "testing"
+stateLabel (BuildComplete (PostBuild _ result))
     | any (\m -> m.severity == SError) result.diagnostics = "error"
     | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
     | otherwise = "ok"

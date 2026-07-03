@@ -34,9 +34,11 @@ import Tricorder.BuildState
     , BuildResult (..)
     , BuildState (..)
     , Diagnostic (..)
+    , PostBuild (..)
     , Severity (..)
     , TestCase (..)
     , TestCaseOutcome (..)
+    , TestPhase (..)
     , TestRun (..)
     , TestRunCompletion (..)
     , TestRunError (..)
@@ -81,7 +83,7 @@ showStatus opts = do
         case current of
             Right BuildState {phase = Building _} -> Console.putStrLn "Building..."
             Right BuildState {phase = Restarting} -> Console.putStrLn "Restarting..."
-            Right BuildState {phase = Testing _} -> Console.putStrLn "Testing..."
+            Right BuildState {phase = BuildComplete (PostBuild Testing _)} -> Console.putStrLn "Testing..."
             _ -> pure ()
     result <-
         case opts.wait of
@@ -100,9 +102,9 @@ showStatus opts = do
     renderText verbosity expand state = case state.phase of
         Building _ -> Console.putStrLn "Building..."
         Restarting -> Console.putStrLn "Restarting..."
-        Testing _ -> Console.putStrLn "Testing..."
         BuildFailed msg -> reportBuildFailed msg
-        Done r -> do
+        BuildComplete (PostBuild Testing _) -> Console.putStrLn "Testing..."
+        BuildComplete (PostBuild _ r) -> do
             tz <- currentTimeZone
             case expand of
                 Just n ->
@@ -209,8 +211,7 @@ showTests opts = do
             case state.phase of
                 Building _ -> Console.putStrLn "Build in progress, no test results yet."
                 Restarting -> Console.putStrLn "Daemon restarting, no test results yet."
-                Testing r -> renderTestRuns r.testRuns
-                Done r -> renderTestRuns r.testRuns
+                BuildComplete r -> renderTestRuns r.result.testRuns
                 BuildFailed msg -> reportBuildFailed msg
   where
     renderTestRuns [] = Console.putStrLn "No test results."

@@ -47,8 +47,10 @@ import Tricorder.BuildState
     , BuildResult (..)
     , CabalChangeDetected (..)
     , Diagnostic (..)
+    , PostBuild (..)
     , Severity (..)
     , SourceChangeDetected (..)
+    , TestPhase (..)
     , TestRun (..)
     )
 import Tricorder.Builder.Dispatch
@@ -535,7 +537,13 @@ requestTestRunsForNewBuildResults config partialResult = do
     runTestsIfClean config buildId partialResult >>= \case
         Nothing -> Log.info "Test run aborted by source change; skipping Done transition."
         Just testRuns ->
-            setNewPhase $ EnteringNewPhase buildId $ Done partialResult {testRuns}
+            setNewPhase
+                $ EnteringNewPhase buildId
+                $ BuildComplete
+                    PostBuild
+                        { testPhase = DoneTesting
+                        , result = partialResult {testRuns}
+                        }
 
 
 -- Run all configured test suites if the build has no errors.
@@ -559,7 +567,11 @@ runTestsIfClean (BuildConfig {testTargets}) bid partialResult
         TestRunner.resetAbort
         setNewPhase
             $ EnteringNewPhase bid
-            $ Testing partialResult {testRuns = map (`TestRunning` Nothing) targetNames}
+            $ BuildComplete
+                PostBuild
+                    { testPhase = Testing
+                    , result = partialResult {testRuns = map (`TestRunning` Nothing) targetNames}
+                    }
 
         Log.info $ "Running " <> show (length targetNames) <> " test suite(s)"
 
@@ -580,7 +592,12 @@ runTestsIfClean (BuildConfig {testTargets}) bid partialResult
             let acc' = insert target result acc
             setNewPhase
                 $ EnteringNewPhase bid
-                $ Testing partialResult {testRuns = snd <$> acc'}
+                $ BuildComplete
+                    PostBuild
+                        { testPhase = Testing
+                        , result = partialResult {testRuns = snd <$> acc'}
+                        }
+
             runLoop acc' rest
 
     insert _ _ [] = []
