@@ -348,15 +348,6 @@ recoverFromStartupFailure ex = do
 
 -- | Level 3 — the inner loop. Wait for source changes and drive one build/test
 -- cycle ('onSourceChange') per change.
---
--- Coalesce debounced source-change events through a single-slot register: the
--- debounced listener writes the latest event into the slot, and a single worker
--- fork drains it. Events that arrive while the worker is processing the previous
--- one simply overwrite the slot, so a burst of N touches collapses into exactly
--- one trailing cycle (carrying the most recent event) rather than queueing N
--- back-to-back cycles. This matters whenever 'interruptCurrent' can't drop the
--- in-flight cycle promptly — e.g. when a 'status --wait' caller has registered
--- as a waiter, gating 'interruptCurrent' to a no-op.
 watchSourceChanges
     :: ( BuildStore :> es
        , Conc :> es
@@ -376,10 +367,25 @@ watchSourceChanges hooks config controls = Conc.scoped do
     Log.debug $ "Builder: waiting for dirty flag (build #" <> show n <> ")"
     forever $ Conc.scoped do
         pending <- atomically (newTVar @(Maybe SourceChangeDetected) Nothing)
+        -- Write the latest event into a `TVar`, and a single worker fork
+        -- drains it when it is ready to process a new event. Events that
+        -- arrive while the worker is processing the previous one simply
+        -- overwrite the slot, so a burst of N touches collapses into exactly
+        -- one trailing cycle (carrying the most recent event) rather than
+        -- queueing N back-to-back cycles. This matters whenever
+        -- 'interruptCurrent' can't drop the in-flight cycle promptly — e.g.
+        -- when a 'status --wait' caller has registered as a waiter, gating
+        -- 'interruptCurrent' to a no-op.
         Conc.fork_ $ Sub.listen_ \ev ->
-            debounced 200 "source_change_reloader"
-                $ atomically (writeTVar pending (Just ev))
-        Conc.fork_ $ Sub.listen_ \_ -> interruptCurrent controls
+            debounced 200 "source_change_reloader" do
+                atomically (writeTVar pending (Just ev))
+                -- Interrupts the currently running build as long as there are
+                -- no waiters.
+                interruptCurrent controls
+        -- The worker that actually handles each event. This only loops when
+        -- `hooks.onSourceChange` returns, which it will do once it completes
+        -- or when it is interrupted. Only one worker should be running at any
+        -- given time.
         Conc.fork_ $ forever do
             ev <- atomically do
                 readTVar pending >>= \case
