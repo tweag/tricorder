@@ -23,8 +23,9 @@ import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
+import Atelier.Effects.Publishing (Sub)
 import Atelier.Effects.Timeout (Timeout, timeout)
-import Control.Concurrent.STM (TVar, readTVar, writeTVar)
+import Control.Concurrent.STM (TVar, modifyTVar', readTVar, stateTVar, writeTVar)
 import Control.Exception (throwIO)
 import Data.Default (def)
 import Data.Time.Units (Second)
@@ -32,13 +33,16 @@ import Effectful (Effect, IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (atomically, newTVarIO)
 import Effectful.Dispatch.Dynamic (interpretWith_, reinterpret)
-import Effectful.Exception (bracket_, trySync)
+import Effectful.Exception (bracket_, finally, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, get, put)
 import Effectful.TH (makeEffect)
 
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing qualified as Sub
 import Data.List qualified as List
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.BuildState
@@ -46,6 +50,7 @@ import Tricorder.BuildState
     , BuildProgress (..)
     , BuildResult (..)
     , BuildState (..)
+    , CabalChangeDetected
     , PostBuild (..)
     , TestPhase (..)
     , TestRun (..)
@@ -85,7 +90,8 @@ makeEffect ''TestRunner
 -- process for each suite, feeds @:main\\n:quit\\n@ to stdin, captures combined
 -- stdout+stderr, and detects the outcome via 'detectOutcome'.
 runTestRunnerIO
-    :: ( BuildStore :> es
+    :: forall es a
+     . ( BuildStore :> es
        , Conc :> es
        , Concurrent :> es
        , File :> es
@@ -93,6 +99,7 @@ runTestRunnerIO
        , Process :> es
        , Reader ProjectRoot :> es
        , SessionStore :> es
+       , Sub CabalChangeDetected :> es
        , Timeout :> es
        )
     => Eff (TestRunner : es) a -> Eff es a
@@ -100,15 +107,178 @@ runTestRunnerIO act = do
     ProjectRoot projectRoot <- ask
     currentProcRef <- newTVarIO (Nothing :: Maybe Repl)
     abortedRef <- newTVarIO False
-    interpretWith_ act \case
+    -- Turbo mode: one long-lived @cabal repl@ session per suite, kept between
+    -- runs and driven with @:reload@ + @:main@. The stored action stops the
+    -- session (terminates its group and awaits the teardown).
+    turboCacheRef <- newTVarIO (Map.empty :: Map Text (Repl, Eff es ()))
+    -- The scope turbo sessions are forked into. Captured here — outside the
+    -- transient per-build-cycle scopes that 'runTestSuite' runs under — so a
+    -- session survives across runs yet is still cancelled when this scope closes
+    -- on daemon shutdown. Nothing is forked into the caller's transient scope.
+    poolScope <- Conc.currentScope
+
+    let
+        -- Terminate a cached turbo session (prompt even if it is wedged
+        -- mid-@:main@) and retire its background thread. Wrapped in 'trySync'
+        -- so one stuck teardown can neither strand the rest of a sweep nor
+        -- abort a respawn.
+        stopSession :: (Repl, Eff es ()) -> Eff es ()
+        stopSession (repl, stop) = void $ trySync (Repl.terminate repl >> stop)
+
+        -- Stop and drop every cached turbo session. Runs on interpreter
+        -- teardown (daemon shutdown) so we don't leak @cabal repl@ processes.
+        sweepTurbo :: Eff es ()
+        sweepTurbo = do
+            entries <- atomically $ stateTVar turboCacheRef \m -> (Map.elems m, Map.empty)
+            for_ entries stopSession
+
+        -- Evict one cached turbo session. The next run for that suite respawns
+        -- a fresh one.
+        evictTurbo :: Text -> Eff es ()
+        evictTurbo target = do
+            entry <- atomically $ stateTVar turboCacheRef \m ->
+                (Map.lookup target m, Map.delete target m)
+            for_ entry stopSession
+
+        -- Get a ready turbo session for the suite, spawning one if absent. A
+        -- reused session is @:reload@ed to pick up edits; if that fails it is
+        -- evicted and respawned so this run still produces a result.
+        --
+        -- [tag:turbo_cabal_staleness] @:reload@ rebuilds only the target's own
+        -- modules — not sibling/dependency packages, which the session loaded as
+        -- prebuilt artifacts. So a change *outside* the target (a dependency
+        -- package's source, or a @.cabal@) is not seen by a reused session. Two
+        -- things bound the staleness: a @.cabal@ change is swept proactively
+        -- (see the 'CabalChangeDetected' listener), and a dependency change that
+        -- makes @:main@ fail to compile triggers a fresh-session retry (see
+        -- 'runTurboAttempt'). A dependency change that alters *behaviour* without
+        -- breaking compilation is the residual gap — restart the daemon to be
+        -- sure. This is inherent to reusing a non-multi-repl @cabal repl@.
+        --
+        -- Returns the session and whether it was reused (@True@) rather than
+        -- freshly spawned (@False@) — the caller uses that to decide whether a
+        -- crash is worth a fresh-session retry.
+        acquireTurbo :: Text -> Command -> (GhciLoading -> Eff es ()) -> Eff es (Repl, Bool)
+        acquireTurbo target cmd onProgress = do
+            let register repl = atomically (writeTVar currentProcRef (Just repl))
+                spawn = do
+                    (repl, _initial, stop) <-
+                        Repl.spawnPersistentRepl poolScope def cmd projectRoot onProgress register
+                    atomically $ modifyTVar' turboCacheRef (Map.insert target (repl, stop))
+                    pure (repl, False)
+            cached <- atomically $ Map.lookup target <$> readTVar turboCacheRef
+            case cached of
+                Nothing -> spawn
+                Just (repl, _stop) -> do
+                    register repl
+                    trySync (Repl.exec repl ":reload" onProgress) >>= \case
+                        Right _ -> pure (repl, True)
+                        Left (_ :: SomeException) -> evictTurbo target >> spawn
+
+        -- Run @:main@ under the configured timeout, short-circuiting if an
+        -- interrupt has already landed. 'Left' is a timeout (seconds); 'Right'
+        -- is the captured output. Shared by the turbo and one-shot paths.
+        runMain :: Repl -> TestTimeout -> Eff es (Either Int [Text])
+        runMain repl testTimeout =
+            atomically (readTVar abortedRef) >>= \case
+                -- An interrupt landed; the run loop discards the value once it
+                -- sees 'abortedRef', so short-circuit without running @:main@.
+                True -> pure (Right [])
+                False -> case testTimeout of
+                    TestTimeout secs | secs <= 0 -> Right <$> Repl.exec repl ":main" noProgress
+                    TestTimeout secs ->
+                        timeout (fromIntegral secs :: Second) (Repl.exec repl ":main" noProgress) >>= \case
+                            Nothing -> pure (Left secs)
+                            Just ls -> pure (Right ls)
+          where
+            noProgress = \_ -> pure ()
+
+        timedOut :: Text -> Int -> Eff es TestRun
+        timedOut target secs = do
+            Log.warn $ "Test suite " <> target <> " timed out after " <> show secs <> "s"
+            pure $ TestRunErrored $ TestRunError {target, message = "Test suite timed out after " <> show secs <> "s"}
+
+        runTurbo :: Text -> TestTimeout -> Eff es TestRun
+        runTurbo target testTimeout =
+            -- Clear 'currentProcRef' when the run ends so a later
+            -- 'InterruptCurrent' (fired on the next source change) does not
+            -- terminate the now-idle cached session. The session itself lives
+            -- on in 'turboCacheRef'.
+            bracket_ (pure ()) (atomically (writeTVar currentProcRef Nothing))
+                $ runTurboAttempt target testTimeout True
+
+        -- One turbo run, with a single fresh-session retry guarded by
+        -- @allowRespawn@. Tests only run after a clean build, so if a *reused*
+        -- session's @:main@ ends in a compile crash the session must be stale
+        -- — e.g. a dependency package changed and @:reload@ (which rebuilds only
+        -- the target's own modules) didn't pick it up. In that case we evict and
+        -- retry once against a fresh session, which rebuilds its dependencies.
+        -- A crash on a *fresh* session is a genuine failure and is reported.
+        runTurboAttempt :: Text -> TestTimeout -> Bool -> Eff es TestRun
+        runTurboAttempt target testTimeout allowRespawn = do
+            let cmd = Command $ "cabal repl " <> target
+                onProgress = abortGatedProgress abortedRef target
+            result <- trySync do
+                (repl, reused) <- acquireTurbo target cmd onProgress
+                (reused,) <$> runMain repl testTimeout
+            case result of
+                -- The session died mid-command (or setup failed); drop it so the
+                -- next run respawns.
+                Left ex ->
+                    evictTurbo target
+                        >> pure (TestRunErrored (TestRunError {target, message = show ex}))
+                -- A stuck session can't be reused; evict it.
+                Right (_, Left secs) -> evictTurbo target >> timedOut target secs
+                Right (reused, Right mainLines) ->
+                    case testRunFromOutput target mainLines of
+                        run@(TestRunErrored _)
+                            | allowRespawn && reused ->
+                                evictTurbo target >> runTurboAttempt target testTimeout False
+                            | otherwise -> pure run
+                        -- Pass/fail: the session stays cached and healthy for the
+                        -- next @:reload@.
+                        run -> pure run
+
+        -- Normal (non-turbo) mode: a fresh short-lived @cabal repl@ per run.
+        runOneShot :: Text -> TestTimeout -> Eff es TestRun
+        runOneShot target testTimeout = do
+            let onProgress = abortGatedProgress abortedRef target
+                -- Register the process as soon as 'Repl.withRepl' constructs it
+                -- — before the initial @cabal repl@ compile drain runs. Without
+                -- this, an interrupt during that drain would find
+                -- 'currentProcRef' empty and have nothing to kill, so the new
+                -- build's cycle would wait several seconds for the doomed
+                -- @cabal repl@ to finish compiling before releasing the lock.
+                onReady ghci = atomically (writeTVar currentProcRef (Just ghci))
+            -- Outer bracket: always clear 'currentProcRef' on exit, whether
+            -- 'Repl.withRepl' completed normally or threw.
+            result <- trySync
+                $ bracket_
+                    (pure ())
+                    (atomically (writeTVar currentProcRef Nothing))
+                $ Repl.withRepl def (Command $ "cabal repl " <> target) projectRoot onProgress onReady \ghci _ ->
+                    runMain ghci testTimeout
+            case result of
+                Left ex -> pure $ TestRunErrored $ TestRunError {target, message = show ex}
+                Right (Left secs) -> timedOut target secs
+                Right (Right mainLines) -> pure $ testRunFromOutput target mainLines
+
+    -- Proactively invalidate cached turbo sessions on a @.cabal@ change: a
+    -- persistent @cabal repl@ won't reconfigure on @:reload@, so evict them all
+    -- and let the next run respawn against the new config — mirroring how the
+    -- build session restarts on the same event [ref:turbo_cabal_staleness]. The
+    -- listener lives in 'poolScope', so it is cancelled on shutdown.
+    void $ Conc.forkIn poolScope $ Sub.listen_ @CabalChangeDetected \_ -> sweepTurbo
+
+    flip finally sweepTurbo $ interpretWith_ act \case
         InterruptCurrent -> do
             -- Terminate (not just SIGINT) the test process: hspec/tasty
             -- install their own SIGINT handlers that finalise the current
-            -- run rather than aborting it. Each test runs in its own
-            -- short-lived @cabal repl@ process, so killing it outright is
-            -- safe and gets a prompt abort. 'Repl.exec' then raises
+            -- run rather than aborting it, so killing it outright is the only
+            -- way to get a prompt abort. 'Repl.exec' then raises
             -- 'UnexpectedExit', 'trySync' catches it, and the run loop
-            -- short-circuits on @abortedRef@.
+            -- short-circuits on @abortedRef@. Under turbo the terminated
+            -- session is evicted and respawned on the next run.
             mProc <- atomically do
                 writeTVar abortedRef True
                 readTVar currentProcRef
@@ -120,59 +290,8 @@ runTestRunnerIO act = do
             if alreadyAborted then
                 pure $ TestRunErrored $ TestRunError {target, message = "Test run aborted"}
             else do
-                Session {testTimeout} <- SessionStore.get
-                let onProgress = abortGatedProgress abortedRef target
-                    noProgress = \_ -> pure ()
-                    -- Register the process as soon as 'Repl.withRepl'
-                    -- constructs it — before the initial @cabal repl@
-                    -- compile drain runs. Without this, an interrupt that
-                    -- arrives during that drain would find
-                    -- 'currentProcRef' empty and have nothing to kill, so
-                    -- the new build's cycle would have to wait several
-                    -- seconds for the doomed @cabal repl@ to finish
-                    -- compiling its test code before the cycle lock was
-                    -- released.
-                    onReady ghci = atomically (writeTVar currentProcRef (Just ghci))
-                -- Outer bracket: always clear 'currentProcRef' on exit,
-                -- whether 'Repl.withRepl' completed normally or threw.
-                result <- trySync
-                    $ bracket_
-                        (pure ())
-                        (atomically (writeTVar currentProcRef Nothing))
-                    $ Repl.withRepl def (Command $ "cabal repl " <> target) projectRoot onProgress onReady \ghci _ ->
-                        atomically (readTVar abortedRef) >>= \case
-                            -- An interrupt may have landed during the
-                            -- @cabal repl@ load. The returned value is
-                            -- discarded by the run loop once it sees
-                            -- 'abortedRef'.
-                            True -> pure (Right [])
-                            False -> case testTimeout of
-                                TestTimeout secs | secs <= 0 -> Right <$> Repl.exec ghci ":main" noProgress
-                                TestTimeout secs ->
-                                    timeout (fromIntegral secs :: Second) (Repl.exec ghci ":main" noProgress) >>= \case
-                                        Nothing -> pure (Left secs)
-                                        Just ls -> pure (Right ls)
-                case result of
-                    Left ex ->
-                        pure $ TestRunErrored $ TestRunError {target, message = show ex}
-                    Right (Left secs) -> do
-                        Log.warn $ "Test suite " <> target <> " timed out after " <> show secs <> "s"
-                        pure $ TestRunErrored $ TestRunError {target, message = "Test suite timed out after " <> show secs <> "s"}
-                    Right (Right mainLines) ->
-                        pure
-                            $ let output = T.unlines mainLines
-                              in  case detectOutcome output of
-                                    GhciCrashed msg ->
-                                        TestRunErrored $ TestRunError {target, message = msg}
-                                    outcome ->
-                                        TestRunCompleted
-                                            $ TestRunCompletion
-                                                { target
-                                                , passed = outcome == GhciPassed
-                                                , output
-                                                , testCases = parseHspecOutput output
-                                                , duration = parseHspecDuration output
-                                                }
+                Session {turboTests, testTimeout} <- SessionStore.get
+                if turboTests then runTurbo target testTimeout else runOneShot target testTimeout
 
 
 -- | Scripted interpreter for testing.
@@ -243,6 +362,26 @@ reportTestProgress target loading =
                 newRuns = map updateRun partialResult.testRuns
             in  BuildComplete (PostBuild Testing partialResult {testRuns = newRuns})
         other -> other
+
+
+-- | Assemble a 'TestRun' from a suite's captured @:main@ output, classifying
+-- the outcome with 'detectOutcome'. A crash (compile error or @main@ not in
+-- scope) becomes a 'TestRunErrored'; anything else a 'TestRunCompleted' whose
+-- @passed@ reflects the exit code. Shared by the turbo and one-shot paths.
+testRunFromOutput :: Text -> [Text] -> TestRun
+testRunFromOutput target mainLines =
+    let output = T.unlines mainLines
+    in  case detectOutcome output of
+            GhciCrashed msg -> TestRunErrored $ TestRunError {target, message = msg}
+            outcome ->
+                TestRunCompleted
+                    $ TestRunCompletion
+                        { target
+                        , passed = outcome == GhciPassed
+                        , output
+                        , testCases = parseHspecOutput output
+                        , duration = parseHspecDuration output
+                        }
 
 
 data GhciOutcome

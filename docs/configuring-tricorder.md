@@ -21,6 +21,7 @@ session:
   test_targets: [test:foo]
   repl_build_dir: /tmp
   test_timeout: 10
+  turbo_tests: false
 ```
 
 - `command`: Build command to use to enter the cabal repl. If not specified,
@@ -46,6 +47,17 @@ session:
 - `test_timeout`: Number of seconds each test target is granted before it is
   considered "timed out". Defaults to `10` seconds. Set to `0` to disable the
   timeout.
+- `turbo_tests`: Keep a long-lived `cabal repl` session per test suite and drive
+  it with `:reload` + `:main` on each run, instead of spawning a fresh process
+  every time. Repeated runs are much faster because they skip `cabal repl`
+  startup and only recompile what changed. A session is respawned automatically
+  if it dies, if reloading it fails, or if a `.cabal` file changes. Note that
+  `:reload` only rebuilds the test suite's own modules, so a change to a
+  *dependency package's* source is only picked up when it breaks compilation (a
+  fresh session is then retried); a dependency change that alters behaviour
+  without breaking compilation may run stale until the daemon is restarted. Best
+  suited to single-package projects, or editing the test suite's own package.
+  Defaults to `false`.
 
 ## CLI configuration
 
