@@ -12,7 +12,7 @@ import Data.IORef qualified as IORef
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Atelier.Effects.Conc (Conc, await, awaitAll, fork, forkTry, fork_, runConc, scoped)
+import Atelier.Effects.Conc (Conc, await, awaitAll, currentScope, fork, forkIn, forkTry, fork_, runConc, scoped)
 import Atelier.Effects.Delay (Delay, runDelay)
 import Atelier.Time (Millisecond)
 
@@ -66,6 +66,29 @@ spec_Conc = do
                 finalCount <- atomically $ readTVar counter
 
                 liftIO $ finalCount `shouldBe` countAfter
+
+    describe "forkIn (captured scope)" do
+        it "keeps a thread alive across a nested scope it was spawned from" $ runTest do
+            counter <- newTVarIO (0 :: Int)
+            outerScope <- currentScope
+
+            let waitFor n = atomically do
+                    v <- readTVar counter
+                    if v >= n then pure v else retry
+
+            -- Spawn into the OUTER scope from inside a nested scope, then let
+            -- the nested scope exit. A plain 'fork' here would be cancelled with
+            -- the nested scope; 'forkIn outerScope' must outlive it.
+            scoped do
+                _ <- forkIn outerScope $ forever $ atomically $ modifyTVar' counter (+ 1)
+                _ <- waitFor 1
+                pure ()
+
+            -- The nested scope has exited; the forkIn thread must still be
+            -- advancing the counter.
+            countAfter <- waitFor 1
+            finalCount <- waitFor (countAfter + 1)
+            liftIO $ finalCount `shouldSatisfy` (> countAfter)
 
     describe "fork and await" do
         it "returns the result of the forked computation" do

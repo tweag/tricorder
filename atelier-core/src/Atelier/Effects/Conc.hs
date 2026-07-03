@@ -19,6 +19,8 @@ module Atelier.Effects.Conc
       -- * Scope
     , Scope (..)
     , scoped
+    , currentScope
+    , forkIn
     , restartableForkWith
     , restartableForkLoop
 
@@ -74,6 +76,14 @@ data Conc :: Effect where
     -- | Open a nursery scope. Threads forked inside it are awaited or cancelled
     -- when the action returns.
     Scoped :: m a -> Conc m a
+    -- | The scope that 'fork' targets right now. Capture it to 'forkIn' later
+    -- from a more deeply-nested scope — e.g. a long-lived background session
+    -- spawned on demand from inside transient per-request scopes.
+    CurrentScope :: Conc m Scope
+    -- | Fork an action into a previously-captured 'Scope' rather than the
+    -- current one. The thread is bound to that scope — cancelled when it
+    -- closes — so it can outlive the nested scopes it was spawned from.
+    ForkIn :: Scope -> m a -> Conc m (Thread a)
 
 
 -- | A concurrency scope (nursery) that forked threads are bound to.
@@ -128,6 +138,11 @@ runConcBase (Scope scope0) = interpret $ handler @es scope0
         ForkTry action ->
             localUnliftIO env concStrat \unlift ->
                 fmap Thread . liftIO . Ki.forkTry scope $ unlift action
+        CurrentScope ->
+            pure (Scope scope)
+        ForkIn (Scope target) action ->
+            localUnliftIO env concStrat \unlift ->
+                fmap Thread . liftIO . Ki.fork target $ unlift action
         Await (Thread thread) ->
             runConcurrent . atomically $ Ki.await thread
         AwaitAll ->
