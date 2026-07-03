@@ -40,6 +40,7 @@ library tricorder-internal
       Tricorder.Effects.Brick
       Tricorder.Effects.BrickChan
       Tricorder.Effects.BuildStore
+      Tricorder.Effects.Cabal
       Tricorder.Effects.GhciSession
       Tricorder.Effects.GhciSession.GhciParser
       Tricorder.Effects.GhciSession.GhciProcess

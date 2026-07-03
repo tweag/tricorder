@@ -1,11 +1,5 @@
 -- | A pure, lexical source slicer.
 --
--- Given a module's raw source text and a symbol name, 'sliceSymbol' returns the
--- top-level declaration that introduces that symbol: the declaration head, any
--- type signature directly above it, and the contiguous doc-comment block above
--- that — terminating at the blank line or the next top-level declaration that
--- ends it.
---
 -- It is deliberately /lexical/. It reasons about column-0 anchors, leading
 -- keywords, and blank-line boundaries; it never builds a real Haskell AST. That
 -- keeps it robust to CPP, unknown language extensions, and exotic syntax: a
@@ -24,28 +18,24 @@ import Data.Text qualified as T
 
 -- | Slice the declaration that introduces @symbol@ from @source@.
 --
--- Casing of @symbol@ selects the search. An uppercase initial looks for a
--- type-level declaration (@data@ \/ @newtype@ \/ @type@ \/ @type family@ \/
--- @data family@ \/ @class@) and, failing that, the @data@ \/ @newtype@ block
--- that defines it as a constructor. A lowercase or symbolic initial looks for a
--- value binding (including operators in @(op)@ form). Returns 'Nothing' when no
--- introducing declaration is found.
+-- Returns the top-level declaration that introduces the symbol: the declaration
+-- head, any type signature directly above it, and the contiguous doc-comment
+-- block above that — terminating at the blank line or the next top-level
+-- declaration that ends it. 'Nothing' when no introducing declaration is found.
 sliceSymbol :: Text -> Text -> Maybe Text
 sliceSymbol symbol source
     | T.null symbol = Nothing
     | otherwise =
         let ls = T.lines source
-        in  if isTypeQuery symbol then
+        in  if isTypeSymbol symbol then
                 sliceType symbol ls <|> sliceConstructor symbol ls
             else
                 sliceValue symbol ls
 
 
--- | Does the query name a type-level entity? Decided purely by the first
--- character: uppercase means a type, class, or constructor; anything else
--- (lowercase or an operator symbol) means a value binding.
-isTypeQuery :: Text -> Bool
-isTypeQuery = maybe False (isUpper . fst) . T.uncons
+-- | Evaluate whether the symbol references a type-level entity.
+isTypeSymbol :: Text -> Bool
+isTypeSymbol = maybe False (isUpper . fst) . T.uncons
 
 
 -- ── Value bindings ─────────────────────────────────────────────────────────

@@ -13,15 +13,13 @@ import Atelier.Effects.Cache (Cache, cacheInsert, cacheLookup)
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Process (Process)
 import Data.Aeson (FromJSON, ToJSON)
-import Effectful.Reader.Static (Reader, ask)
 
 import Atelier.Effects.Log qualified as Log
 
+import Tricorder.Effects.Cabal (Cabal)
 import Tricorder.Effects.GhcPkg (GhcPkg)
 import Tricorder.GhcPkg.Types (ModuleName (..), PackageId (..), SourceQuery (..))
-import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.SourceLookup.Slice (sliceSymbol)
 import Tricorder.SourceLookup.Tarball
     ( TarballOutcome (..)
@@ -58,14 +56,13 @@ data ModuleSourceResult
 -- steps are cached, so the fetch + read cost is paid at most once per
 -- (package, query).
 lookupModuleSource
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Env :> es
        , FileSystem :> es
        , GhcPkg :> es
        , Log :> es
-       , Process :> es
-       , Reader ProjectRoot :> es
        )
     => SourceQuery
     -> Eff es ModuleSourceResult
@@ -82,7 +79,7 @@ lookupModuleSource query = do
                 Nothing -> serveFromTarball query p
 
 
--- | Resolve a module to its package, consulting the module→package cache first.
+-- | Resolve a module to its package, consulting the module -> package cache first.
 resolvePackage
     :: (Cache ModuleName PackageId :> es, GhcPkg :> es, Log :> es)
     => ModuleName
@@ -103,19 +100,16 @@ resolvePackage modName = do
 -- | Locate (or fetch) the package's tarball, read the module member, and slice
 -- the requested symbol if any. Caches and returns the result.
 serveFromTarball
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Env :> es
        , FileSystem :> es
-       , Log :> es
-       , Process :> es
-       , Reader ProjectRoot :> es
        )
     => SourceQuery
     -> PackageId
     -> Eff es ModuleSourceResult
-serveFromTarball query p = do
-    ProjectRoot projectRoot <- ask
-    obtainTarball projectRoot p >>= \case
+serveFromTarball query p =
+    obtainTarball p >>= \case
         -- A failed `cabal fetch` is transient (offline, stale index), so return
         -- unavailable WITHOUT caching: a later lookup retries once the network or
         -- index recovers, rather than serving the negative for the whole window.

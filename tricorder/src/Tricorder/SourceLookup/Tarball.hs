@@ -1,13 +1,5 @@
 -- | Locate, fetch, and read a package's source from its Hackage sdist tarball
 -- in cabal's global package cache.
---
--- The cache holds one @\<pkg\>-\<ver\>.tar.gz@ per resolved package at a
--- predictable path. On a hit we read a single module member in-process (no
--- network, no extraction to disk). On a miss we warm the cache with
--- @cabal fetch --no-dependencies@ — the exact version @ghc-pkg@ reports — and
--- read the now-present tarball. Every step degrades to 'Nothing' rather than
--- throwing, so a missing index, an offline machine, a yanked version, or a
--- corrupt archive surfaces as "no source", never a crash.
 module Tricorder.SourceLookup.Tarball
     ( -- * High-level
       TarballOutcome (..)
@@ -30,20 +22,17 @@ import Atelier.Effects.FileSystem
     , listDirectory
     , readFileLbs
     )
-import Atelier.Effects.Log (Log)
-import Atelier.Effects.Process (Process, proc, readProcessStdout, setWorkingDir)
 import Data.Char (isUpper)
 import Effectful.Exception (trySync)
-import System.Exit (ExitCode (..))
 import System.FilePath (splitDirectories, (</>))
 
-import Atelier.Effects.Log qualified as Log
 import Codec.Archive.Tar qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Data.Text qualified as T
 
+import Tricorder.Effects.Cabal (Cabal, FetchResult (..), fetchSource)
 import Tricorder.GhcPkg.Types (ModuleName (..), PackageId (..))
 
 
@@ -56,42 +45,39 @@ hackageRepo = "hackage.haskell.org"
 
 -- | The result of locating (and, if needed, fetching) a package's tarball.
 data TarballOutcome
-    = -- | The tarball is present at this path.
-      TarballAt FilePath
-    | -- | No tarball, but the lookup completed cleanly: a deterministic negative
-      -- (the package is not on any configured repository, or is yanked). Safe to
-      -- cache.
+    = TarballAt FilePath
+    | -- | No tarball, though the lookup completed cleanly (absent from every
+      -- configured repository, or yanked).
       TarballAbsent
-    | -- | The on-demand @cabal fetch@ itself failed (offline, stale index, …): a
-      -- /transient/ negative that must not be cached, lest a brief network blip
-      -- pin unavailability for the whole cache window.
+    | -- | The on-demand @cabal fetch@ itself failed (offline, stale index, …).
       TarballFetchFailed
     deriving stock (Eq, Show)
 
 
 -- | Locate @pkgId@'s sdist tarball in the cabal cache, fetching it on demand if
--- absent. Distinguishes a genuinely-absent package from a failed fetch so the
--- caller can decide what is cacheable.
+-- absent.
 --
--- @projectRoot@ is the working directory for @cabal fetch@, so it picks up the
--- project's configured repositories (e.g. CHaP) and constraints.
+-- The cache holds one @\<pkg\>-\<ver\>.tar.gz@ per resolved package at a
+-- predictable path. On a hit we return that path directly. On a miss we warm
+-- the cache with @cabal fetch --no-dependencies@ — the exact version @ghc-pkg@
+-- reports — and look again. The outcome distinguishes a genuine absence from a
+-- transient fetch failure.
 obtainTarball
-    :: (Env :> es, FileSystem :> es, Log :> es, Process :> es)
-    => FilePath
-    -> PackageId
+    :: (Cabal :> es, Env :> es, FileSystem :> es)
+    => PackageId
     -> Eff es TarballOutcome
-obtainTarball projectRoot pkgId = do
+obtainTarball pkgId = do
     found <- findTarball pkgId
     case found of
         Just path -> pure (TarballAt path)
         Nothing -> do
-            fetched <- fetchPackage projectRoot pkgId
+            fetched <- fetchSource pkgId
             refound <- findTarball pkgId
             pure $ case refound of
                 Just path -> TarballAt path
-                Nothing
-                    | fetched -> TarballAbsent
-                    | otherwise -> TarballFetchFailed
+                Nothing -> case fetched of
+                    Fetched -> TarballAbsent
+                    FetchFailed -> TarballFetchFailed
 
 
 -- | Read a single module's source from a tarball, in-process. 'Nothing' when
@@ -113,7 +99,7 @@ readModuleMember tarball modName = do
 findTarball :: (Env :> es, FileSystem :> es) => PackageId -> Eff es (Maybe FilePath)
 findTarball pkgId = do
     env <- getEnvironment
-    candidates <- concat <$> mapM basePaths (cabalPackagesDirs env)
+    candidates <- concat <$> traverse basePaths (cabalPackagesDirs env)
     firstExisting candidates
   where
     basePaths base = do
@@ -162,29 +148,6 @@ cabalPackagesDirs env =
                 , h </> ".cabal" </> "packages"
                 ]
         _ -> []
-
-
--- ── Fetch ──────────────────────────────────────────────────────────────────
-
--- | Warm the cache with @cabal fetch --no-dependencies \<pkgId\>@, run in
--- @projectRoot@. Returns whether the fetch exited cleanly: 'False' on a non-zero
--- exit or an exception (offline, stale index, yanked), so the caller can treat
--- that failure as transient rather than caching it.
-fetchPackage :: (Log :> es, Process :> es) => FilePath -> PackageId -> Eff es Bool
-fetchPackage projectRoot pkgId = do
-    Log.info $ "Source: cabal fetch " <> unPackageId pkgId
-    let cfg =
-            setWorkingDir projectRoot
-                $ proc "cabal" ["fetch", "--no-dependencies", toString (unPackageId pkgId)]
-    result <- trySync (readProcessStdout cfg)
-    case result of
-        Right (ExitSuccess, _) -> pure True
-        Right (ExitFailure _, _) -> do
-            Log.warn $ "Source: cabal fetch failed for " <> unPackageId pkgId
-            pure False
-        Left e -> do
-            Log.warn $ "Source: cabal fetch failed for " <> unPackageId pkgId <> ": " <> show e
-            pure False
 
 
 -- ── Pure helpers ───────────────────────────────────────────────────────────

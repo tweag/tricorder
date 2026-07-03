@@ -4,13 +4,11 @@ import Atelier.Effects.Cache (Cache, runCacheForever)
 import Atelier.Effects.Env (Env, runEnvConst)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Log (Log, runLogNoOp)
-import Atelier.Effects.Process (Process, runProcessReadWith)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, evalState, gets, modify)
-import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import Test.Hspec
 
@@ -23,6 +21,7 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
+import Tricorder.Effects.Cabal (Cabal, FetchResult (..), runCabalFetchWith)
 import Tricorder.Effects.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 import Tricorder.GhcPkg.Types (ModuleName, PackageId, SourceQuery (..))
 import Tricorder.Runtime (ProjectRoot (..))
@@ -107,7 +106,7 @@ spec_SourceLookup = describe "lookupModuleSource" do
         fetchCount <- IORef.newIORef (0 :: Int)
         let failingFetch = do
                 liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                pure (ExitFailure 1, "")
+                pure FetchFailed
         (r1, r2) <-
             runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
                 r1 <- lookupModuleSource (wholeModule "Data.Aeson")
@@ -188,30 +187,31 @@ symbol m s = SourceQuery {moduleName = m, function = Just s}
 --------------------------------------------------------------------------------
 
 -- | The action a faked @cabal fetch@ runs: 'noFetch' leaves the filesystem
--- untouched (modelling a failed fetch); 'fetchProduces' inserts a file.
-noFetch :: Eff es (ExitCode, LByteString)
-noFetch = pure (ExitSuccess, "")
+-- untouched (a clean fetch that produces no tarball); 'fetchProduces' inserts a
+-- file. A failed fetch is modelled by returning 'FetchFailed' directly.
+noFetch :: Eff es FetchResult
+noFetch = pure Fetched
 
 
 fetchProduces
     :: (State (Map FilePath LByteString) :> es)
-    => FilePath -> LByteString -> Eff es (ExitCode, LByteString)
+    => FilePath -> LByteString -> Eff es FetchResult
 fetchProduces path bytes = do
     modify (Map.insert path bytes)
-    pure (ExitSuccess, "")
+    pure Fetched
 
 
 runTest
     :: [GhcPkgScript]
     -> Map FilePath LByteString
-    -> Eff '[FileSystem, State (Map FilePath LByteString), Log, Concurrent, IOE] (ExitCode, LByteString)
+    -> Eff '[FileSystem, State (Map FilePath LByteString), Log, Concurrent, IOE] FetchResult
     -> Eff
         '[ Cache ModuleName PackageId
          , Cache (PackageId, SourceQuery) ModuleSourceResult
          , GhcPkg
          , Env
          , Reader ProjectRoot
-         , Process
+         , Cabal
          , FileSystem
          , State (Map FilePath LByteString)
          , Log
@@ -226,7 +226,7 @@ runTest pkgScript initialFs onFetch action =
         . runLogNoOp
         . evalState initialFs
         . runFileSystemFake
-        . runProcessReadWith onFetch
+        . runCabalFetchWith onFetch
         . runReader (ProjectRoot "/proj")
         . runEnvConst [("HOME", "/h")]
         . runGhcPkgScripted pkgScript

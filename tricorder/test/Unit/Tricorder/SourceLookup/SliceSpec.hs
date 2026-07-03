@@ -53,6 +53,17 @@ valueBindings = describe "value bindings" do
         sliceSymbol "isJust" source
             `shouldBe` Just "isJust :: Maybe a -> Bool\nisJust (Just _) = True\nisJust Nothing = False"
 
+    it "keeps a multi-line line-comment doc block" do
+        let source =
+                src
+                    [ "-- | The answer to everything,"
+                    , "-- computed once."
+                    , "answer :: Int"
+                    , "answer = 42"
+                    ]
+        sliceSymbol "answer" source
+            `shouldBe` Just "-- | The answer to everything,\n-- computed once.\nanswer :: Int\nanswer = 42"
+
     it "slices an operator binding in (op) form" do
         let source =
                 src
@@ -95,6 +106,17 @@ compactDeclarations = describe "adjacent declarations without blank lines" do
                     ]
         sliceSymbol "bar" source `shouldBe` Just "-- | doc for bar\nbar = 2"
 
+    it "keeps a multi-line doc block but not a preceding declaration" do
+        let source =
+                src
+                    [ "foo = 1"
+                    , "-- | doc for bar,"
+                    , "-- second line."
+                    , "bar = 2"
+                    ]
+        sliceSymbol "bar" source
+            `shouldBe` Just "-- | doc for bar,\n-- second line.\nbar = 2"
+
 
 typeDeclarations :: Spec
 typeDeclarations = describe "type declarations" do
@@ -109,6 +131,17 @@ typeDeclarations = describe "type declarations" do
                     ]
         sliceSymbol "Value" source
             `shouldBe` Just "-- | A JSON value.\ndata Value = Null | Bool Bool\n    deriving (Show)"
+
+    it "keeps a multi-line block doc comment on a data declaration" do
+        let source =
+                src
+                    [ "{- | A JSON value,"
+                    , "   as parsed. -}"
+                    , "data Value = Null | Bool Bool"
+                    , ""
+                    ]
+        sliceSymbol "Value" source
+            `shouldBe` Just "{- | A JSON value,\n   as parsed. -}\ndata Value = Null | Bool Bool"
 
     it "slices a newtype" do
         sliceSymbol "Age" (src ["newtype Age = Age Int", ""])
@@ -180,6 +213,17 @@ constructors = describe "constructor queries" do
                     ]
         sliceSymbol "Just" source
             `shouldBe` Just "-- | Optionality.\ndata Maybe a = Nothing | Just a"
+
+    it "keeps a multi-line doc block above the enclosing data block" do
+        let source =
+                src
+                    [ "-- | Optionality,"
+                    , "-- the Maybe type."
+                    , "data Maybe a = Nothing | Just a"
+                    , ""
+                    ]
+        sliceSymbol "Just" source
+            `shouldBe` Just "-- | Optionality,\n-- the Maybe type.\ndata Maybe a = Nothing | Just a"
 
     it "returns the enclosing GADT block for a GADT constructor" do
         let source =

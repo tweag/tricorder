@@ -30,6 +30,7 @@ import Atelier.Effects.Log qualified as Log
 import Tricorder.BuildState (BuildId (..), runDaemonInfo)
 import Tricorder.Config (restartOnConfigChange, runLoadedConfig)
 import Tricorder.Effects.BuildStore (runBuildStore)
+import Tricorder.Effects.Cabal (runCabalIO)
 import Tricorder.Effects.GhcPkg (runGhcPkgIO)
 import Tricorder.Effects.GhciSession (runGhciSession)
 import Tricorder.Effects.Logging (runLogging)
@@ -90,6 +91,7 @@ main =
         . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @SourceLookup.ModuleSourceResult
         . runBuildStore
         . runProcessIO
+        . runCabalIO
         . runEnv
         . runMetricsServerIO
         . runTestRunnerIO

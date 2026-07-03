@@ -28,6 +28,7 @@ module Atelier.Effects.Process
 
       -- * Operations
     , readProcessStdout
+    , readProcess
     , runProcess
     , readProcessSafe
     , withProcessGroup
@@ -38,7 +39,6 @@ module Atelier.Effects.Process
 
       -- * Interpreters
     , runProcessIO
-    , runProcessReadWith
     ) where
 
 import Control.Exception (IOException, catch)
@@ -85,6 +85,9 @@ getStderr (RunningProcess p) = TP.getStderr p
 data Process :: Effect where
     -- | Run a process to completion, returning its exit code and captured stdout.
     ReadProcessStdout :: ProcessConfig i o e -> Process m (ExitCode, LByteString)
+    -- | Run a process to completion, capturing both stdout and stderr along with
+    -- its exit code.
+    ReadProcess :: ProcessConfig i o e -> Process m (ExitCode, LByteString, LByteString)
     -- | Run a process to completion, returning only its exit code. Unlike
     -- 'ReadProcessStdout' this does not capture stdout.
     RunProcess :: ProcessConfig i o e -> Process m ExitCode
@@ -155,24 +158,10 @@ readProcessSafe cmd args = do
         _ -> Nothing
 
 
--- | Interpret 'Process' for tests: every 'readProcessStdout' yields the result
--- of @onRead@, and the process-lifecycle operations are unsupported. @onRead@
--- runs in the remaining effects, so it can model a command's observable side
--- effect — e.g. mutating a fake filesystem to mimic @cabal fetch@ populating a
--- cache. Use this when the unit under test shells out solely via
--- 'readProcessStdout'.
-runProcessReadWith
-    :: Eff es (ExitCode, LByteString)
-    -> Eff (Process : es) a
-    -> Eff es a
-runProcessReadWith onRead = interpret_ \case
-    ReadProcessStdout _ -> onRead
-    _ -> error "runProcessReadWith: only readProcessStdout is supported"
-
-
 runProcessIO :: (IOE :> es) => Eff (Process : es) a -> Eff es a
 runProcessIO = interpret_ \case
     ReadProcessStdout cfg -> liftIO $ TP.readProcessStdout cfg
+    ReadProcess cfg -> liftIO $ TP.readProcess cfg
     RunProcess cfg -> liftIO $ TP.runProcess cfg
     GetExecutablePath -> liftIO Env.getExecutablePath
     StartProcess cfg -> liftIO $ RunningProcess <$> TP.startProcess cfg
