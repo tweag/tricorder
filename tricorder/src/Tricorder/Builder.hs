@@ -5,9 +5,11 @@ module Tricorder.Builder
       -- * Internals exposed for testing
     , NewLoadResult (..)
     , EnteringNewPhase (..)
+    , GhciSessionHooks (..)
     , compileLoadResultsIntoBuildResults
     , requestTestRunsForNewBuildResults
     , buildWithGhciOnChange
+    , watchSourceChanges
     , interruptCurrent
     , onRestart
     , reloadOnSourceChange
