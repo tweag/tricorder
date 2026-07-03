@@ -3,7 +3,7 @@ module Unit.Tricorder.SessionSpec (spec_Session) where
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (runFileSystemState)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
-import Data.Aeson (Value (Null))
+import Data.Aeson (Value (Null), eitherDecode)
 import Data.Default (Default (..))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Distribution.Types.GenericPackageDescription (GenericPackageDescription)
@@ -52,6 +52,7 @@ spec_Session = do
     describe "compareTargets" testCompareTargets
     describe "definesCustomPrelude" testDefinesCustomPrelude
     describe "loadSession" testLoadSession
+    describe "Config FromJSON" testConfigFromJSON
 
 
 testParseTarget :: Spec
@@ -488,6 +489,23 @@ testLoadSession = do
             . runReader (ProjectRoot "/")
             . runReader (LoadedConfig Null)
             $ loadSession
+
+
+testConfigFromJSON :: Spec
+testConfigFromJSON = do
+    describe "turbo_tests" do
+        it "defaults to False when omitted" do
+            decodedTurbo "{}" `shouldBe` Right False
+
+        it "parses an explicit true" do
+            decodedTurbo "{\"turbo_tests\": true}" `shouldBe` Right True
+
+        it "parses an explicit false" do
+            decodedTurbo "{\"turbo_tests\": false}" `shouldBe` Right False
+  where
+    -- Pin the decode target to 'Config' so the field access resolves.
+    decodedTurbo :: LByteString -> Either String Bool
+    decodedTurbo bs = (.turboTests) <$> (eitherDecode bs :: Either String Config)
 
 
 testDefinesCustomPrelude :: Spec

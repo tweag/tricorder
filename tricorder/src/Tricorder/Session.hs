@@ -78,6 +78,10 @@ data Session = Session
     , watchExclusionPatterns :: WatchExclusionPatterns
     , replBuildDir :: ReplBuildDir
     , testTimeout :: TestTimeout
+    , turboTests :: Bool
+    -- ^ Keep a long-lived @cabal repl@ session per test suite and drive it with
+    -- @:reload@ + @:main@ instead of spawning a fresh process each run. Much
+    -- faster on repeated runs; off by default.
     }
 
 
@@ -94,6 +98,7 @@ instance Default Session where
             , watchExclusionPatterns = WatchExclusionPatterns []
             , replBuildDir = ReplBuildDir "/tmp"
             , testTimeout = TestTimeout 10
+            , turboTests = False
             }
 
 
@@ -105,6 +110,7 @@ data Config = Config
     , testTargets :: Maybe [Text]
     , replBuildDir :: FilePath
     , testTimeout :: Int
+    , turboTests :: Bool
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via WithDefaults (QuietSnake Config)
@@ -120,6 +126,7 @@ instance Default Config where
             , testTargets = Nothing
             , replBuildDir = "dist-newstyle/tricorder"
             , testTimeout = 10
+            , turboTests = False
             }
 
 
@@ -623,4 +630,5 @@ loadSession = do
             , testTargets
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
+            , turboTests = cfgFile.turboTests
             }
