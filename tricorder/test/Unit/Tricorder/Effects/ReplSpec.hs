@@ -69,16 +69,10 @@ spec_Repl = do
     describe "spawnPersistentRepl" testSpawnPersistentRepl
 
 
--- | The persistent turbo-mode session must (1) survive across many 'exec'
--- calls — the whole point of turbo mode — and (2) tear down its /entire/
--- process group when @stop@ is called, leaking neither the GHCi leader nor any
--- child it spawned.
---
--- We stand in a small shell for GHCi: it prints a version banner, forks a
--- long-lived child (whose pid it announces), then echoes each sync marker it
--- is asked to write back on both streams — enough of the protocol for
--- 'spawnPersistentRepl' + 'exec' to drive it. After @stop@, the child must be
--- gone.
+-- | The persistent turbo-mode session must survive across many 'exec' calls and
+-- tear down its /entire/ process group on @stop@, leaking neither the GHCi
+-- leader nor any child it spawned. 'fakeGhci' stands in for GHCi; after @stop@,
+-- its child must be gone.
 testSpawnPersistentRepl :: Spec
 testSpawnPersistentRepl =
     it "survives repeated execs and tears down its whole group on stop" do

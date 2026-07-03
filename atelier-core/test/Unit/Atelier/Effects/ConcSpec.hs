@@ -76,9 +76,9 @@ spec_Conc = do
                     v <- readTVar counter
                     if v >= n then pure v else retry
 
-            -- Spawn into the OUTER scope from inside a nested scope, then let
-            -- the nested scope exit. A plain 'fork' here would be cancelled with
-            -- the nested scope; 'forkIn outerScope' must outlive it.
+            -- Spawn into the OUTER scope from inside a nested scope, then let it
+            -- exit. A plain 'fork' would be cancelled with the nested scope;
+            -- 'forkIn outerScope' must outlive it.
             scoped do
                 _ <- forkIn outerScope $ forever $ atomically $ modifyTVar' counter (+ 1)
                 _ <- waitFor 1

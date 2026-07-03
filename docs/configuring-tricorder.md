@@ -50,14 +50,11 @@ session:
 - `turbo_tests`: Keep a long-lived `cabal repl` session per test suite and drive
   it with `:reload` + `:main` on each run, instead of spawning a fresh process
   every time. Repeated runs are much faster because they skip `cabal repl`
-  startup and only recompile what changed. A session is respawned automatically
-  if it dies, if reloading it fails, or if a `.cabal` file changes. Note that
-  `:reload` only rebuilds the test suite's own modules, so a change to a
-  *dependency package's* source is only picked up when it breaks compilation (a
-  fresh session is then retried); a dependency change that alters behaviour
-  without breaking compilation may run stale until the daemon is restarted. Best
-  suited to single-package projects, or editing the test suite's own package.
-  Defaults to `false`.
+  startup and only recompile what changed. Sessions are respawned automatically
+  when they would otherwise go stale: `:reload` rebuilds a suite's own modules,
+  and an edit to anything *outside* the suite's own `hs-source-dirs` (a
+  dependency package, a `.cabal` file) evicts the session so the next run
+  rebuilds against the change. Defaults to `false`.
 
 ## CLI configuration
 

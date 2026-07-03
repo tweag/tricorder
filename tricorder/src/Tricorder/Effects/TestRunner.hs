@@ -37,6 +37,7 @@ import Effectful.Exception (bracket_, finally, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, get, put)
 import Effectful.TH (makeEffect)
+import System.FilePath (addTrailingPathSeparator, normalise)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
@@ -52,6 +53,7 @@ import Tricorder.BuildState
     , BuildState (..)
     , CabalChangeDetected
     , PostBuild (..)
+    , SourceChangeDetected (..)
     , TestPhase (..)
     , TestRun (..)
     , TestRunCompletion (..)
@@ -100,6 +102,7 @@ runTestRunnerIO
        , Reader ProjectRoot :> es
        , SessionStore :> es
        , Sub CabalChangeDetected :> es
+       , Sub SourceChangeDetected :> es
        , Timeout :> es
        )
     => Eff (TestRunner : es) a -> Eff es a
@@ -107,57 +110,61 @@ runTestRunnerIO act = do
     ProjectRoot projectRoot <- ask
     currentProcRef <- newTVarIO (Nothing :: Maybe Repl)
     abortedRef <- newTVarIO False
-    -- Turbo mode: one long-lived @cabal repl@ session per suite, kept between
-    -- runs and driven with @:reload@ + @:main@. The stored action stops the
-    -- session (terminates its group and awaits the teardown).
+    -- Turbo mode: one long-lived session per suite, driven with @:reload@ +
+    -- @:main@. The stored action stops the session and awaits its teardown.
     turboCacheRef <- newTVarIO (Map.empty :: Map Text (Repl, Eff es ()))
-    -- The scope turbo sessions are forked into. Captured here — outside the
-    -- transient per-build-cycle scopes that 'runTestSuite' runs under — so a
-    -- session survives across runs yet is still cancelled when this scope closes
-    -- on daemon shutdown. Nothing is forked into the caller's transient scope.
+    -- The scope turbo sessions are forked into: captured outside the transient
+    -- per-build-cycle scopes so a session survives across runs, yet is still
+    -- cancelled when this scope closes on daemon shutdown.
     poolScope <- Conc.currentScope
 
     let
-        -- Terminate a cached turbo session (prompt even if it is wedged
-        -- mid-@:main@) and retire its background thread. Wrapped in 'trySync'
-        -- so one stuck teardown can neither strand the rest of a sweep nor
-        -- abort a respawn.
+        -- Terminate a cached session and retire its background thread. 'trySync'
+        -- so one stuck teardown can neither strand a sweep nor abort a respawn.
         stopSession :: (Repl, Eff es ()) -> Eff es ()
         stopSession (repl, stop) = void $ trySync (Repl.terminate repl >> stop)
 
-        -- Stop and drop every cached turbo session. Runs on interpreter
-        -- teardown (daemon shutdown) so we don't leak @cabal repl@ processes.
+        -- Stop and drop every cached session; runs on daemon shutdown.
         sweepTurbo :: Eff es ()
         sweepTurbo = do
             entries <- atomically $ stateTVar turboCacheRef \m -> (Map.elems m, Map.empty)
             for_ entries stopSession
 
-        -- Evict one cached turbo session. The next run for that suite respawns
-        -- a fresh one.
+        -- Evict one cached session; the next run for that suite respawns.
         evictTurbo :: Text -> Eff es ()
         evictTurbo target = do
             entry <- atomically $ stateTVar turboCacheRef \m ->
                 (Map.lookup target m, Map.delete target m)
             for_ entry stopSession
 
-        -- Get a ready turbo session for the suite, spawning one if absent. A
-        -- reused session is @:reload@ed to pick up edits; if that fails it is
-        -- evicted and respawned so this run still produces a result.
+        -- Evict cached sessions that do not own the changed file: a change in a
+        -- suite's own @hs-source-dirs@ is handled by @:reload@, but a change
+        -- elsewhere may be a dependency that a single-target @:reload@ cannot
+        -- rebuild, so respawn [ref:turbo_cabal_staleness]. Over-inclusive but
+        -- safe: an unrelated change costs at most one respawn.
+        evictForeignChange :: FilePath -> Eff es ()
+        evictForeignChange path = do
+            Session {testTargetSourceDirs} <- SessionStore.get
+            targets <- atomically $ Map.keys <$> readTVar turboCacheRef
+            for_ targets \target -> do
+                let ownDirs = Map.findWithDefault [] target testTargetSourceDirs
+                unless (any (`fileWithinDir` path) ownDirs) (evictTurbo target)
+
+        -- Get a ready session for the suite, spawning one if absent. A reused
+        -- session is @:reload@ed to pick up edits; if that fails it is evicted
+        -- and respawned. Returns the session and whether it was reused, which the
+        -- caller uses to decide whether a crash warrants a fresh-session retry.
         --
         -- [tag:turbo_cabal_staleness] @:reload@ rebuilds only the target's own
-        -- modules — not sibling/dependency packages, which the session loaded as
-        -- prebuilt artifacts. So a change *outside* the target (a dependency
-        -- package's source, or a @.cabal@) is not seen by a reused session. Two
-        -- things bound the staleness: a @.cabal@ change is swept proactively
-        -- (see the 'CabalChangeDetected' listener), and a dependency change that
-        -- makes @:main@ fail to compile triggers a fresh-session retry (see
-        -- 'runTurboAttempt'). A dependency change that alters *behaviour* without
-        -- breaking compilation is the residual gap — restart the daemon to be
-        -- sure. This is inherent to reusing a non-multi-repl @cabal repl@.
-        --
-        -- Returns the session and whether it was reused (@True@) rather than
-        -- freshly spawned (@False@) — the caller uses that to decide whether a
-        -- crash is worth a fresh-session retry.
+        -- modules, not its dependency packages (loaded as prebuilt artifacts), so
+        -- a change outside the target is invisible to a reused session. Three
+        -- guards keep sessions fresh: a @.cabal@ change sweeps all sessions
+        -- ('CabalChangeDetected'); a source change outside the suite's own
+        -- @hs-source-dirs@ evicts it ('evictForeignChange'); and a dependency
+        -- change that breaks compilation triggers a fresh-session retry
+        -- ('runTurboAttempt'). This staleness is inherent to reusing a
+        -- non-multi-repl @cabal repl@ — multi-repl fixes reloads but cannot run
+        -- @:main@ before GHC 9.14.
         acquireTurbo :: Text -> Command -> (GhciLoading -> Eff es ()) -> Eff es (Repl, Bool)
         acquireTurbo target cmd onProgress = do
             let register repl = atomically (writeTVar currentProcRef (Just repl))
@@ -181,8 +188,7 @@ runTestRunnerIO act = do
         runMain :: Repl -> TestTimeout -> Eff es (Either Int [Text])
         runMain repl testTimeout =
             atomically (readTVar abortedRef) >>= \case
-                -- An interrupt landed; the run loop discards the value once it
-                -- sees 'abortedRef', so short-circuit without running @:main@.
+                -- Interrupt already landed; short-circuit without running @:main@.
                 True -> pure (Right [])
                 False -> case testTimeout of
                     TestTimeout secs | secs <= 0 -> Right <$> Repl.exec repl ":main" noProgress
@@ -201,19 +207,16 @@ runTestRunnerIO act = do
         runTurbo :: Text -> TestTimeout -> Eff es TestRun
         runTurbo target testTimeout =
             -- Clear 'currentProcRef' when the run ends so a later
-            -- 'InterruptCurrent' (fired on the next source change) does not
-            -- terminate the now-idle cached session. The session itself lives
-            -- on in 'turboCacheRef'.
+            -- 'InterruptCurrent' does not terminate the now-idle cached session,
+            -- which lives on in 'turboCacheRef'.
             bracket_ (pure ()) (atomically (writeTVar currentProcRef Nothing))
                 $ runTurboAttempt target testTimeout True
 
         -- One turbo run, with a single fresh-session retry guarded by
-        -- @allowRespawn@. Tests only run after a clean build, so if a *reused*
-        -- session's @:main@ ends in a compile crash the session must be stale
-        -- — e.g. a dependency package changed and @:reload@ (which rebuilds only
-        -- the target's own modules) didn't pick it up. In that case we evict and
-        -- retry once against a fresh session, which rebuilds its dependencies.
-        -- A crash on a *fresh* session is a genuine failure and is reported.
+        -- @allowRespawn@. Tests only run after a clean build, so a compile crash
+        -- from a reused session means it is stale (a dependency changed that
+        -- @:reload@ missed): evict and retry once against a fresh session. A
+        -- crash on a fresh session is a genuine failure and is reported.
         runTurboAttempt :: Text -> TestTimeout -> Bool -> Eff es TestRun
         runTurboAttempt target testTimeout allowRespawn = do
             let cmd = Command $ "cabal repl " <> target
@@ -222,7 +225,7 @@ runTestRunnerIO act = do
                 (repl, reused) <- acquireTurbo target cmd onProgress
                 (reused,) <$> runMain repl testTimeout
             case result of
-                -- The session died mid-command (or setup failed); drop it so the
+                -- Session died mid-command (or setup failed); drop it so the
                 -- next run respawns.
                 Left ex ->
                     evictTurbo target
@@ -235,23 +238,19 @@ runTestRunnerIO act = do
                             | allowRespawn && reused ->
                                 evictTurbo target >> runTurboAttempt target testTimeout False
                             | otherwise -> pure run
-                        -- Pass/fail: the session stays cached and healthy for the
-                        -- next @:reload@.
+                        -- Pass/fail: the session stays cached for the next @:reload@.
                         run -> pure run
 
         -- Normal (non-turbo) mode: a fresh short-lived @cabal repl@ per run.
         runOneShot :: Text -> TestTimeout -> Eff es TestRun
         runOneShot target testTimeout = do
             let onProgress = abortGatedProgress abortedRef target
-                -- Register the process as soon as 'Repl.withRepl' constructs it
-                -- — before the initial @cabal repl@ compile drain runs. Without
-                -- this, an interrupt during that drain would find
-                -- 'currentProcRef' empty and have nothing to kill, so the new
-                -- build's cycle would wait several seconds for the doomed
-                -- @cabal repl@ to finish compiling before releasing the lock.
+                -- Register the process before the initial compile drain, so an
+                -- interrupt during that drain has something to kill instead of
+                -- waiting several seconds for the doomed @cabal repl@ to finish.
                 onReady ghci = atomically (writeTVar currentProcRef (Just ghci))
-            -- Outer bracket: always clear 'currentProcRef' on exit, whether
-            -- 'Repl.withRepl' completed normally or threw.
+            -- Always clear 'currentProcRef' on exit, whether 'Repl.withRepl'
+            -- completed normally or threw.
             result <- trySync
                 $ bracket_
                     (pure ())
@@ -263,21 +262,22 @@ runTestRunnerIO act = do
                 Right (Left secs) -> timedOut target secs
                 Right (Right mainLines) -> pure $ testRunFromOutput target mainLines
 
-    -- Proactively invalidate cached turbo sessions on a @.cabal@ change: a
-    -- persistent @cabal repl@ won't reconfigure on @:reload@, so evict them all
-    -- and let the next run respawn against the new config — mirroring how the
-    -- build session restarts on the same event [ref:turbo_cabal_staleness]. The
-    -- listener lives in 'poolScope', so it is cancelled on shutdown.
+    -- A @.cabal@ change is not picked up by @:reload@, so evict all sessions and
+    -- let the next run respawn against the new config [ref:turbo_cabal_staleness].
+    -- The listener lives in 'poolScope', cancelled on shutdown.
     void $ Conc.forkIn poolScope $ Sub.listen_ @CabalChangeDetected \_ -> sweepTurbo
+
+    -- A dependency's source change is invisible to a reused single-target session,
+    -- so evict any suite that does not own the changed file
+    -- [ref:turbo_cabal_staleness].
+    void $ Conc.forkIn poolScope $ Sub.listen_ @SourceChangeDetected \(SourceChangeDetected path _) ->
+        evictForeignChange path
 
     flip finally sweepTurbo $ interpretWith_ act \case
         InterruptCurrent -> do
-            -- Terminate (not just SIGINT) the test process: hspec/tasty
-            -- install their own SIGINT handlers that finalise the current
-            -- run rather than aborting it, so killing it outright is the only
-            -- way to get a prompt abort. 'Repl.exec' then raises
-            -- 'UnexpectedExit', 'trySync' catches it, and the run loop
-            -- short-circuits on @abortedRef@. Under turbo the terminated
+            -- Terminate (not just SIGINT) the test process: hspec/tasty install
+            -- SIGINT handlers that finalise the run rather than abort it, so an
+            -- outright kill is the only prompt abort. Under turbo the terminated
             -- session is evicted and respawned on the next run.
             mProc <- atomically do
                 writeTVar abortedRef True
@@ -305,10 +305,8 @@ runTestRunnerScripted
     -> Eff (TestRunner : es) a
     -> Eff es a
 runTestRunnerScripted results act = do
-    -- Mirror the IO interpreter's abort semantics so tests that drive
-    -- 'runTestsIfClean' through an interrupt can actually observe the
-    -- short-circuit via 'isAborted'. A hard-coded 'pure False' would
-    -- silently mask any regression in that flow.
+    -- Mirror the IO interpreter's abort semantics so tests driving an interrupt
+    -- can observe the short-circuit via 'isAborted'.
     abortedRef <- newTVarIO False
     reinterpret
         (evalState results)
@@ -362,6 +360,16 @@ reportTestProgress target loading =
                 newRuns = map updateRun partialResult.testRuns
             in  BuildComplete (PostBuild Testing partialResult {testRuns = newRuns})
         other -> other
+
+
+-- | Does @file@ lie within @dir@ (or equal it)? Compares normalised paths on a
+-- path-component boundary, so @\/a\/b@ does not spuriously match @\/a\/bcd@.
+fileWithinDir :: FilePath -> FilePath -> Bool
+fileWithinDir dir file =
+    let normalisedDir = normalise dir
+        normalisedFile = normalise file
+    in  normalisedDir == normalisedFile
+            || addTrailingPathSeparator normalisedDir `List.isPrefixOf` normalisedFile
 
 
 -- | Assemble a 'TestRun' from a suite's captured @:main@ output, classifying

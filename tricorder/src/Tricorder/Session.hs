@@ -22,6 +22,7 @@ module Tricorder.Session
     , discoverCabalFiles
     , allComponentTargets
     , resolveTestTargets
+    , resolveTestTargetSourceDirs
     , resolveWatchDirs
     , sourceDirsForTarget
     , compareTargets
@@ -63,6 +64,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 
 import Atelier.Effects.Log qualified as Log
 import Data.ByteString.Char8 qualified as BC
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Distribution.Types.BuildInfo.Lens qualified as Lens
 import Text.Regex.TDFA.Pattern qualified as Regex
@@ -82,6 +84,11 @@ data Session = Session
     -- ^ Keep a long-lived @cabal repl@ session per test suite and drive it with
     -- @:reload@ + @:main@ instead of spawning a fresh process each run. Much
     -- faster on repeated runs; off by default.
+    , testTargetSourceDirs :: Map Text [FilePath]
+    -- ^ Each test target's own @hs-source-dirs@ (absolute, normalised), keyed by
+    -- its rendered form. Turbo mode uses this to tell an edit to a suite's own
+    -- code (handled by @:reload@) from an edit to one of its dependencies (which
+    -- needs the session respawned).
     }
 
 
@@ -99,6 +106,7 @@ instance Default Session where
             , replBuildDir = ReplBuildDir "/tmp"
             , testTimeout = TestTimeout 10
             , turboTests = False
+            , testTargetSourceDirs = mempty
             }
 
 
@@ -545,6 +553,29 @@ resolveTestTargets cfg targets = case cfg.testTargets of
     Nothing -> projectTestTargets targets
 
 
+-- | Map each test target to the absolute, normalised @hs-source-dirs@ it owns,
+-- keyed by its rendered form. A suite that declares no @hs-source-dirs@ falls
+-- back to its package directory (cabal's default). Only the cabal file that
+-- actually declares the suite contributes, so an unrelated package never claims
+-- a target's dirs. Turbo mode uses this to distinguish an edit to a suite's own
+-- code (reload) from an edit to a dependency (respawn) [ref:turbo_cabal_staleness].
+resolveTestTargetSourceDirs :: [CabalFile] -> TestTargets -> Map Text [FilePath]
+resolveTestTargetSourceDirs cabalFiles (TestTargets targets) =
+    Map.fromList [(renderTarget t, ownDirs t) | t <- targets]
+  where
+    ownDirs t = nub $ concatMap (dirsInCabal t) cabalFiles
+    dirsInCabal t cabalFile
+        | ownsTest cabalFile.projectPackageDescription t =
+            let pkgDir = takeDirectory cabalFile.projectFilePath
+            in  case sourceDirsForTarget cabalFile.projectPackageDescription t of
+                    [] -> [normalise pkgDir]
+                    dirs -> normalise . (pkgDir </>) <$> dirs
+        | otherwise = []
+    ownsTest gpd (Qualified Test name) =
+        mkUnqualComponentName (toString name) `elem` map fst (condTestSuites gpd)
+    ownsTest _ _ = False
+
+
 resolveWatchExclusionPatterns :: [Text] -> Either Text WatchExclusionPatterns
 resolveWatchExclusionPatterns rawPatterns = do
     bimap show WatchExclusionPatterns
@@ -631,4 +662,5 @@ loadSession = do
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
             , turboTests = cfgFile.turboTests
+            , testTargetSourceDirs = resolveTestTargetSourceDirs projectFiles testTargets
             }

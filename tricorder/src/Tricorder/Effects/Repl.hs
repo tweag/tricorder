@@ -233,18 +233,15 @@ replProcessConfig cmd dir =
 
 
 -- | Start a GHCi session that outlives a single command, for reuse across many
--- 'exec' calls (turbo test mode). Where 'withRepl' brackets one short-lived
--- session, this returns the live 'Repl' plus a @stop@ action that tears its
--- process group down and blocks until it is fully reaped.
+-- 'exec' calls (turbo test mode). Unlike 'withRepl', which brackets one
+-- short-lived session, this returns the live 'Repl' plus a @stop@ action that
+-- tears down its process group and blocks until it is fully reaped.
 --
--- The session is held open by a background thread forked into @scope@ — a
--- long-lived 'Conc' scope captured by the caller (via 'Conc.currentScope').
--- Because the thread lives in that scope rather than the transient one this is
--- called from, it survives the per-build-cycle scopes it is spawned under, yet
--- is still structurally cancelled when @scope@ closes (daemon shutdown) — so it
--- cannot leak. @stop@ evicts it early: it is idempotent and awaits the
--- teardown, so a caller that evicts-then-respawns in a shared @--builddir@
--- never races the dying process.
+-- The session is held open by a background thread forked into @scope@ (a
+-- long-lived 'Conc' scope from 'Conc.currentScope'), so it survives the
+-- transient per-build-cycle scopes it is spawned under yet is still cancelled
+-- when @scope@ closes on shutdown. @stop@ is idempotent and awaits the teardown,
+-- so an evict-then-respawn in a shared @--builddir@ never races the dying process.
 spawnPersistentRepl
     :: (Conc :> es, Concurrent :> es, File :> es, Process :> es, Timeout :> es)
     => Scope
@@ -265,9 +262,8 @@ spawnPersistentRepl scope config cmd dir onProgress onReady = do
             -- Park until stopped; then quit GHCi gracefully before the
             -- enclosing 'withProcessGroup' reaps the group.
             takeMVar stopVar `finally` quitRepl config (fst replAndLines)
-        -- Setup threw before the session became ready: hand the error back so
-        -- the caller can surface it. If setup succeeded 'readyVar' is already
-        -- full and this 'tryPutMVar' is a no-op.
+        -- Setup threw before the session was ready: hand the error back. If setup
+        -- succeeded 'readyVar' is already full and this is a no-op.
         case outcome of
             Left e -> void $ tryPutMVar readyVar (Left e)
             Right () -> pure ()

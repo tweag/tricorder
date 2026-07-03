@@ -33,6 +33,7 @@ import Tricorder.Session
     , parseTestTargets
     , resolveCommand
     , resolveTargets
+    , resolveTestTargetSourceDirs
     , resolveTestTargets
     , resolveWatchDirs
     , sourceDirsForTarget
@@ -46,6 +47,7 @@ spec_Session = do
     describe "resolveTargets" testResolveTargets
     describe "resolveWatchDirs" testResolveWatchDirs
     describe "resolveTestTargets" testResolveTestTargets
+    describe "resolveTestTargetSourceDirs" testResolveTestTargetSourceDirs
     describe "parseTarget" testParseTarget
     describe "sourceDirsForTarget" testSourceDirsForTarget
     describe "allComponentTargets" testAllComponentTargets
@@ -544,6 +546,46 @@ testDefinesCustomPrelude = do
 
     it "returns False when the cabal file list is empty" do
         definesCustomPrelude [] (Qualified Lib "anything") `shouldBe` False
+
+
+testResolveTestTargetSourceDirs :: Spec
+testResolveTestTargetSourceDirs = do
+    it "maps each suite to its own package-relative hs-source-dirs" do
+        let dirs = resolveTestTargetSourceDirs multiCabalFiles (parseTestTargets ["test:pkg-a-test", "test:pkg-b-test"])
+        -- The dirs are already normalised, so the literals double as the
+        -- expected 'normalise' output.
+        Map.lookup "test:pkg-a-test" dirs `shouldBe` Just ["/pkg-a/test"]
+        Map.lookup "test:pkg-b-test" dirs `shouldBe` Just ["/pkg-b/test"]
+
+    it "returns no dirs for a suite that no cabal file declares" do
+        let dirs = resolveTestTargetSourceDirs multiCabalFiles (parseTestTargets ["test:ghost-test"])
+        Map.lookup "test:ghost-test" dirs `shouldBe` Just []
+
+    it "falls back to the package directory when a suite sets no hs-source-dirs" do
+        -- Without an explicit fallback such a suite would map to [], which would
+        -- make every source change look 'foreign' and evict the session on each
+        -- run — defeating turbo mode.
+        let dirs = resolveTestTargetSourceDirs [noDirsCabal] (parseTestTargets ["test:nodirs-test"])
+        (not . null <$> Map.lookup "test:nodirs-test" dirs) `shouldBe` Just True
+  where
+    noDirsCabal =
+        CabalFile "/nd/nodirs.cabal"
+            $ fromMaybe (error "noDirsCabal failed to parse")
+            $ parseGenericPackageDescriptionMaybe noDirsCabalText
+    noDirsCabalText =
+        encodeUtf8
+            $ T.unlines
+                [ "cabal-version: 2.0"
+                , "name:          nodirs"
+                , "version:       0.1.0.0"
+                , "build-type:    Simple"
+                , ""
+                , "test-suite nodirs-test"
+                , "  type: exitcode-stdio-1.0"
+                , "  main-is: Test.hs"
+                , "  build-depends: base"
+                , "  default-language: Haskell2010"
+                ]
 
 
 --------------------------------------------------------------------------------
