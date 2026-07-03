@@ -1164,6 +1164,78 @@ testEventCoalescing = do
         -- coalescing, each debounced event spawns its own cycle → 4.
         runs `shouldBe` 2
 
+    -- The single worker also guarantees build/test cycles run STRICTLY ONE AT
+    -- A TIME: 'onSourceChange' (the real reload → Testing → Done pipeline) is
+    -- driven by a single fork draining the register, so a slow cycle blocks the
+    -- next until it finishes. That serialization is what keeps phase writes from
+    -- interleaving — two cycles racing their Building/Testing/Done transitions is
+    -- how the daemon strands on a non-terminal phase (the "stuck Building" class
+    -- of failure).
+    --
+    -- Here each cycle takes 400ms; events arrive 250ms apart (wider than the
+    -- 200ms debounce, so each fires its own callback). With serialization at
+    -- most one cycle is ever in flight. Without it, later callbacks start while
+    -- an earlier cycle is still running.
+    it "runs at most one build cycle at a time (no interleaved cycles)" do
+        activeRef <- newTVarIO (0 :: Int)
+        maxConcurrentRef <- newTVarIO (0 :: Int)
+        let recordingHooks =
+                GhciSessionHooks
+                    { onStart = pure ()
+                    , onInitialLoad = \_ _ -> pure ()
+                    , onStartupFail = \_ -> pure ()
+                    , onSourceChange = \_ _ _ -> do
+                        atomically do
+                            n <- (+ 1) <$> readTVar activeRef
+                            writeTVar activeRef n
+                            modifyTVar' maxConcurrentRef (max n)
+                        -- Simulate a cycle that takes longer than the gap
+                        -- between events, so overlap is observable if cycles
+                        -- are not serialized.
+                        Delay.wait (400 :: Millisecond)
+                        atomically (modifyTVar' activeRef (subtract 1))
+                    }
+            noopCtrls =
+                Controls
+                    { reload = pure (error "serialization test must not reload")
+                    , interrupt = pure ()
+                    , add = \_ -> pure (error "serialization test must not add")
+                    , unadd = \_ -> pure (error "serialization test must not unadd")
+                    }
+        result <-
+            runEff
+                . runConcurrent
+                . runTracingNoOp
+                . runClockConst epoch
+                . runChan
+                . runDelay
+                . evalState (BuildId 1)
+                . runLogNoOp
+                . runBuildStoreWaiterPresent
+                . runTestRunnerScripted []
+                . runPubSub @SourceChangeDetected
+                . runErrorNoCallStack @StopSignal
+                . runConc
+                . runDebounce @Text
+                $ Conc.scoped do
+                    Conc.fork_ (watchSourceChanges recordingHooks (def @BuildConfig) noopCtrls)
+                    Delay.wait (50 :: Millisecond)
+                    publish (SourceChangeDetected "/x" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/y" Modified)
+                    Delay.wait (250 :: Millisecond)
+                    publish (SourceChangeDetected "/z" Modified)
+                    -- Let every cycle finish before stopping.
+                    Delay.wait (900 :: Millisecond)
+                    throwError StopSignal
+        case result of
+            Left StopSignal -> pure ()
+            Right () -> pure ()
+        maxConcurrent <- STM.atomically (readTVar maxConcurrentRef)
+        -- The single-worker design keeps this at 1. Running each debounced
+        -- event in its own fork lets cycles overlap → 2 (or more).
+        maxConcurrent `shouldBe` 1
+
 
 -- | A 'BuildStore' interpreter that reports a waiter is present, so
 -- 'interruptCurrent' short-circuits. Only 'HasWaiters' is reachable from the
