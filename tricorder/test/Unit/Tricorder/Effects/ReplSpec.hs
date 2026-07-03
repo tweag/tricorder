@@ -11,6 +11,7 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (newTVarIO)
 import Control.Exception (IOException, catch)
 import Data.Char (isDigit)
+import Data.Default (def)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Time.Units (Second)
 import Effectful (runEff)
@@ -43,14 +44,17 @@ import System.Process qualified as Process
 import System.Timeout qualified
 
 import Tricorder.Effects.Repl
-    ( InterruptDecision (..)
+    ( Config (..)
+    , InterruptDecision (..)
     , Repl (..)
     , ReplError (..)
     , SessionState (..)
     , decideInterrupt
     , exec
+    , spawnPersistentRepl
     , waitForBannerOrFail
     )
+import Tricorder.Session (Command (..))
 
 
 spec_Repl :: Spec
@@ -62,6 +66,81 @@ spec_Repl = do
     describe "waitForBannerOrFail" testWaitForBannerOrFail
     describe "withProcessGroup (process group)" testWithProcessGroupCleanup
     describe "terminateProcessGroup (process group)" testTerminateProcessGroup
+    describe "spawnPersistentRepl" testSpawnPersistentRepl
+
+
+-- | The persistent turbo-mode session must (1) survive across many 'exec'
+-- calls — the whole point of turbo mode — and (2) tear down its /entire/
+-- process group when @stop@ is called, leaking neither the GHCi leader nor any
+-- child it spawned.
+--
+-- We stand in a small shell for GHCi: it prints a version banner, forks a
+-- long-lived child (whose pid it announces), then echoes each sync marker it
+-- is asked to write back on both streams — enough of the protocol for
+-- 'spawnPersistentRepl' + 'exec' to drive it. After @stop@, the child must be
+-- gone.
+testSpawnPersistentRepl :: Spec
+testSpawnPersistentRepl =
+    it "survives repeated execs and tears down its whole group on stop" do
+        outcome <- System.Timeout.timeout 15_000_000 do
+            (firstRun, secondRun, initialLines) <-
+                runEff
+                    . runConcurrent
+                    . runTimeout
+                    . runDelay
+                    . runFile
+                    . runConc
+                    . runProcessIO
+                    $ do
+                        scope <- Conc.currentScope
+                        (repl, initialLines, stop) <-
+                            spawnPersistentRepl scope fakeGhciConfig fakeGhci "." (\_ -> pure ()) (\_ -> pure ())
+                        -- Two commands on the *same* session: proves it is
+                        -- reused rather than respawned.
+                        firstRun <- exec repl ":main" (\_ -> pure ())
+                        secondRun <- exec repl ":main" (\_ -> pure ())
+                        stop
+                        pure (firstRun, secondRun, initialLines)
+            case childPidFrom initialLines of
+                Nothing -> expectationFailure "could not capture the child pid from startup output"
+                Just childPid -> do
+                    died <- waitForProcessDeath childPid
+                    -- Never leak the child if the assertion fails.
+                    ignoring (signalProcess sigKILL (fromIntegral childPid))
+                    (firstRun, secondRun, died) `shouldBe` ([], [], True)
+        outcome `shouldSatisfy` isJust
+  where
+    childPidFrom =
+        listToMaybe . mapMaybe (parsePid . toString) . filter ("CHILDPID=" `T.isInfixOf`)
+
+
+fakeGhciConfig :: Config
+fakeGhciConfig = (def :: Config) {shutdownTimeout = 1}
+
+
+-- | A shell that impersonates just enough of the GHCi wire protocol for
+-- 'spawnPersistentRepl': banner, a child whose pid it announces, then a loop
+-- echoing every @#~TRI-FINISH-N~#@ sync marker it is asked to print back on
+-- both stdout and stderr. Lines it doesn't recognise (the @:set@ setup and the
+-- @:main@ command itself) are ignored.
+fakeGhci :: Command
+fakeGhci =
+    Command
+        $ toText
+        $ unwords
+            [ "echo 'GHCi, version 9.10.1';"
+            , "sleep 30 &"
+            , "echo \"CHILDPID=$!\";"
+            , "while IFS= read -r line; do"
+            , "case \"$line\" in"
+            , "*#~TRI-FINISH-*)"
+            , "rest=${line#*#~TRI-FINISH-};"
+            , "n=${rest%%~#*};"
+            , "printf '#~TRI-FINISH-%s~#\\n' \"$n\";"
+            , "printf '#~TRI-FINISH-%s~#\\n' \"$n\" >&2"
+            , ";; esac;"
+            , "done"
+            ]
 
 
 -- | Regression for the touch-during-reload desync. Interrupting a *Busy* GHCi

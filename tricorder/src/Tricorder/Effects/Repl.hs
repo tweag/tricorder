@@ -7,12 +7,13 @@ module Tricorder.Effects.Repl
     , decideInterrupt
     , waitForBannerOrFail
     , withRepl
+    , spawnPersistentRepl
     , exec
     , interrupt
     , terminate
     ) where
 
-import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Conc (Conc, Scope)
 import Atelier.Effects.File (BufferMode (..), File, Handle)
 import Atelier.Effects.Process
     ( Process
@@ -32,6 +33,7 @@ import Control.Concurrent.STM (TVar, modifyTVar', readTVar, retry, writeTVar)
 import Data.Default (Default (..))
 import Data.Time.Units (Second)
 import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent.MVar (newEmptyMVar, putMVar, readMVar, takeMVar, tryPutMVar)
 import Effectful.Concurrent.STM (atomically, newTVarIO)
 import Effectful.Exception (finally, throwIO, trySync)
 
@@ -214,16 +216,67 @@ withRepl
     -> (Repl -> [Text] -> Eff es a)
     -> Eff es a
 withRepl config cmd dir onProgress onReady action =
-    Process.withProcessGroup processConfig \p -> do
+    Process.withProcessGroup (replProcessConfig cmd dir) \p -> do
         (repl, initialLines) <- setupRepl config p onProgress onReady
         action repl initialLines `finally` quitRepl config repl
-  where
-    processConfig =
-        setStdin createPipe
-            $ setStdout createPipe
-            $ setStderr createPipe
-            $ setWorkingDir dir
-            $ shell (toString cmd.getCommand)
+
+
+-- | The @typed-process@ config for a @cabal repl@ session: all three streams
+-- piped and the working directory pinned to the project root.
+replProcessConfig :: Command -> FilePath -> Process.ProcessConfig Handle Handle Handle
+replProcessConfig cmd dir =
+    setStdin createPipe
+        $ setStdout createPipe
+        $ setStderr createPipe
+        $ setWorkingDir dir
+        $ shell (toString cmd.getCommand)
+
+
+-- | Start a GHCi session that outlives a single command, for reuse across many
+-- 'exec' calls (turbo test mode). Where 'withRepl' brackets one short-lived
+-- session, this returns the live 'Repl' plus a @stop@ action that tears its
+-- process group down and blocks until it is fully reaped.
+--
+-- The session is held open by a background thread forked into @scope@ — a
+-- long-lived 'Conc' scope captured by the caller (via 'Conc.currentScope').
+-- Because the thread lives in that scope rather than the transient one this is
+-- called from, it survives the per-build-cycle scopes it is spawned under, yet
+-- is still structurally cancelled when @scope@ closes (daemon shutdown) — so it
+-- cannot leak. @stop@ evicts it early: it is idempotent and awaits the
+-- teardown, so a caller that evicts-then-respawns in a shared @--builddir@
+-- never races the dying process.
+spawnPersistentRepl
+    :: (Conc :> es, Concurrent :> es, File :> es, Process :> es, Timeout :> es)
+    => Scope
+    -> Config
+    -> Command
+    -> FilePath
+    -> (GhciLoading -> Eff es ())
+    -> (Repl -> Eff es ())
+    -> Eff es (Repl, [Text], Eff es ())
+spawnPersistentRepl scope config cmd dir onProgress onReady = do
+    readyVar <- newEmptyMVar
+    stopVar <- newEmptyMVar
+    doneVar <- newEmptyMVar
+    void $ Conc.forkIn scope $ (`finally` putMVar doneVar ()) do
+        outcome <- trySync $ Process.withProcessGroup (replProcessConfig cmd dir) \p -> do
+            replAndLines <- setupRepl config p onProgress onReady
+            putMVar readyVar (Right replAndLines)
+            -- Park until stopped; then quit GHCi gracefully before the
+            -- enclosing 'withProcessGroup' reaps the group.
+            takeMVar stopVar `finally` quitRepl config (fst replAndLines)
+        -- Setup threw before the session became ready: hand the error back so
+        -- the caller can surface it. If setup succeeded 'readyVar' is already
+        -- full and this 'tryPutMVar' is a no-op.
+        case outcome of
+            Left e -> void $ tryPutMVar readyVar (Left e)
+            Right () -> pure ()
+    let stop = do
+            void $ tryPutMVar stopVar ()
+            readMVar doneVar
+    takeMVar readyVar >>= \case
+        Left e -> readMVar doneVar >> throwIO e
+        Right (repl, initialLines) -> pure (repl, initialLines, stop)
 
 
 -- | Execute a command in GHCi and return the combined stdout+stderr output
