@@ -38,6 +38,7 @@ module Atelier.Effects.Process
 
       -- * Interpreters
     , runProcessIO
+    , runProcessReadWith
     ) where
 
 import Control.Exception (IOException, catch)
@@ -152,6 +153,21 @@ readProcessSafe cmd args = do
     pure $ case result of
         Right (ExitSuccess, out) -> Just (decodeUtf8 out)
         _ -> Nothing
+
+
+-- | Interpret 'Process' for tests: every 'readProcessStdout' yields the result
+-- of @onRead@, and the process-lifecycle operations are unsupported. @onRead@
+-- runs in the remaining effects, so it can model a command's observable side
+-- effect — e.g. mutating a fake filesystem to mimic @cabal fetch@ populating a
+-- cache. Use this when the unit under test shells out solely via
+-- 'readProcessStdout'.
+runProcessReadWith
+    :: Eff es (ExitCode, LByteString)
+    -> Eff (Process : es) a
+    -> Eff es a
+runProcessReadWith onRead = interpret_ \case
+    ReadProcessStdout _ -> onRead
+    _ -> error "runProcessReadWith: only readProcessStdout is supported"
 
 
 runProcessIO :: (IOE :> es) => Eff (Process : es) a -> Eff es a

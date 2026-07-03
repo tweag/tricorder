@@ -8,6 +8,7 @@ import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Debounce (runDebounce)
 import Atelier.Effects.Delay (runDelay)
+import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (runExit)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
@@ -86,9 +87,10 @@ main =
         . runPubSub @BuildState.SourceChangeDetected
         . runDaemonInfo
         . runCacheTtl @GhcPkg.ModuleName @GhcPkg.PackageId
-        . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @(Text, [SourceLookup.ReExport])
+        . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @SourceLookup.ModuleSourceResult
         . runBuildStore
         . runProcessIO
+        . runEnv
         . runMetricsServerIO
         . runTestRunnerIO
         . runGhcPkgIO
