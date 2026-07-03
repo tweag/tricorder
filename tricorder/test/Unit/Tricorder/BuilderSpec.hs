@@ -32,19 +32,7 @@ import Control.Concurrent.STM qualified as STM
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.BuildState
-    ( BuildId (..)
-    , BuildPhase (..)
-    , BuildResult (..)
-    , BuildState (..)
-    , CabalChangeDetected (..)
-    , DaemonInfo (..)
-    , Diagnostic (..)
-    , Severity (..)
-    , SourceChangeDetected (..)
-    , TestRun (..)
-    , TestRunCompletion (..)
-    )
+import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), CabalChangeDetected (..), DaemonInfo (..), Diagnostic (..), PostBuild (..), Severity (..), SourceChangeDetected (..), TestPhase (..), TestRun (..), TestRunCompletion (..))
 import Tricorder.Builder
     ( BuildConfig (..)
     , EnteringNewPhase (..)
@@ -179,7 +167,7 @@ testBuildWithGhciRecovery = do
         length [() | EnteringNewPhase _ (BuildFailed _) <- phases] `shouldBe` 1
         -- The source change drove a second, successful launch to completion.
         -- With the bug the builder is parked, so no Done is ever emitted.
-        length [() | EnteringNewPhase _ (Done _) <- phases] `shouldSatisfy` (>= 1)
+        length [() | EnteringNewPhase _ (BuildComplete _) <- phases] `shouldSatisfy` (>= 1)
   where
     successLoad =
         LoadResult
@@ -310,11 +298,11 @@ testReloadOnSourceChange = do
             $ reloadOnSourceChange (def @BuildConfig) ctrls event
 
     flow lr =
-        [ EnteringNewPhase (BuildId 1) (Building Nothing)
-        , EnteringNewPhase (BuildId 1) (Done (resultFor lr))
+        [ EnteringNewPhase (BuildId 1) $ Building Nothing
+        , EnteringNewPhase (BuildId 1) $ BuildComplete $ PostBuild DoneTesting (resultFor lr)
         ]
 
-    buildResultsFrom phases = [r | EnteringNewPhase _ (Done r) <- phases]
+    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete (PostBuild _ r)) <- phases]
 
     resultFor lr =
         BuildResult
@@ -459,13 +447,21 @@ testRequestTestRunsForNewBuildResults = do
     describe "when there are no test targets" $ it "should skip testing" do
         phases <- runTest (parseTestTargets []) [] expected
         length phases `shouldBe` 1
-        phases `shouldMatchList` [EnteringNewPhase (BuildId 1) $ Done expected]
+        phases
+            `shouldMatchList` [ EnteringNewPhase (BuildId 1)
+                                    $ BuildComplete
+                                    $ PostBuild DoneTesting expected
+                              ]
 
     describe "when there are errors" $ it "should skip testing" do
         let expected' = expected {BuildState.diagnostics = [errMsg]}
         phases <- runTest (parseTestTargets ["test:foo"]) [] expected'
         length phases `shouldBe` 1
-        phases `shouldMatchList` [EnteringNewPhase (BuildId 1) $ Done expected']
+        phases
+            `shouldMatchList` [ EnteringNewPhase (BuildId 1)
+                                    $ BuildComplete
+                                    $ PostBuild DoneTesting expected'
+                              ]
 
     it "should emit EnteringNewPhase events for each test target" do
         phases <-
@@ -523,7 +519,7 @@ testRequestTestRunsForNewBuildResults = do
         -- aborted before completing the second suite. A Done here would
         -- briefly publish a half-finished testRuns list that a
         -- 'status --wait' caller could observe.
-        length [() | EnteringNewPhase _ (Done _) <- phases] `shouldBe` 0
+        length [() | EnteringNewPhase _ (BuildComplete (PostBuild DoneTesting _)) <- phases] `shouldBe` 0
         -- Sanity: only the initial Testing transition was published; the
         -- run loop short-circuited after the first 'isAborted' check, so
         -- the post-foo Testing update never fired.
@@ -547,8 +543,8 @@ testRequestTestRunsForNewBuildResults = do
                 partial
 
     mkPhase = EnteringNewPhase (BuildId 1)
-    mkTesting = mkPhase . Testing
-    mkDone = mkPhase . Done
+    mkTesting = mkPhase . BuildComplete . PostBuild Testing
+    mkDone = mkPhase . BuildComplete . PostBuild DoneTesting
     buildWithTests testRuns = expected {testRuns}
 
     expected =

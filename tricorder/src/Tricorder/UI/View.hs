@@ -40,6 +40,7 @@ import Tricorder.BuildState
     , BuildState (..)
     , DaemonInfo (..)
     , Diagnostic (..)
+    , PostBuild (..)
     , Severity (..)
     , TestCase (..)
     , TestCaseOutcome (..)
@@ -259,8 +260,7 @@ viewBuildPhase tz = \case
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    Testing result -> vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns result.testRuns]
-    Done result -> vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns result.testRuns]
+    BuildComplete build -> vBoxSpaced 1 [viewBuildResult tz build.result, viewTestRuns build.result.testRuns]
     BuildFailed msg -> viewBuildFailed msg
 
 
@@ -392,8 +392,7 @@ viewBuildPhaseLine tz = \case
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    Testing result -> viewBuildResultLine tz result
-    Done result -> viewBuildResultLine tz result
+    BuildComplete build -> viewBuildResultLine tz build.result
     BuildFailed _ -> err $ txt "Build command failed"
 
 
@@ -418,8 +417,7 @@ viewBuildResultLine tz result
 
 
 phaseTestRuns :: BuildPhase -> [TestRun]
-phaseTestRuns (Testing r) = r.testRuns
-phaseTestRuns (Done r) = r.testRuns
+phaseTestRuns (BuildComplete r) = r.result.testRuns
 phaseTestRuns _ = []
 
 

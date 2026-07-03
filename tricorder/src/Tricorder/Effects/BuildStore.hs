@@ -31,6 +31,8 @@ import Tricorder.BuildState
     , BuildState (..)
     , ChangeKind (..)
     , DaemonInfo (..)
+    , PostBuild (..)
+    , TestPhase (..)
     , initialBuildState
     )
 
@@ -96,8 +98,8 @@ isBuilding :: BuildState -> Bool
 isBuilding s = case s.phase of
     Building _ -> True
     Restarting -> True
-    Testing _ -> True
-    Done _ -> False
+    BuildComplete (PostBuild Testing _) -> True
+    BuildComplete (PostBuild DoneTesting _) -> False
     BuildFailed _ -> False
 
 
