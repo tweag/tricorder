@@ -17,10 +17,13 @@ newtype PackageId = PackageId {unPackageId :: Text}
     deriving newtype (Eq, FromJSON, Hashable, IsString, Ord, Show, ToJSON)
 
 
--- | A query for module source: optionally scoped to a single top-level binding.
+-- | A query for module source: optionally scoped to a single top-level symbol.
 data SourceQuery = SourceQuery
     { moduleName :: ModuleName
-    , function :: Maybe Text -- Nothing = whole module, Just fn = single binding
+    , function :: Maybe Text
+    -- ^ The symbol to slice: 'Nothing' is the whole module; @'Just' name@ is a
+    -- single top-level declaration — a value binding, or (by initial casing) a
+    -- type, class, or constructor.
     }
     deriving stock (Eq, Generic, Show)
     deriving anyclass (FromJSON, Hashable, ToJSON)

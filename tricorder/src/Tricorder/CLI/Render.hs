@@ -11,14 +11,13 @@ import Atelier.Effects.Console (Console)
 import Atelier.Time (Millisecond, toMicroseconds)
 
 import Atelier.Effects.Console qualified as Console
-import Data.Text qualified as T
 
 import Tricorder.BuildState
     ( Diagnostic (..)
     , Severity (..)
     )
 import Tricorder.GhcPkg.Types (ModuleName (..), PackageId (..))
-import Tricorder.SourceLookup (ModuleSourceResult (..), ReExport (..), SourceQuery (..))
+import Tricorder.SourceLookup (ModuleSourceResult (..), SourceQuery (..))
 
 
 formatDuration :: Millisecond -> Text
@@ -56,27 +55,22 @@ diagnosticBlock d = diagnosticLine d <> "\n" <> d.text
 renderSourceResults :: (Console :> es) => [ModuleSourceResult] -> Eff es ()
 renderSourceResults results = mapM_ renderOne results
   where
-    renderOne (SourceFound query src reExports) = do
+    renderOne (SourceFound query src) = do
         when (length results > 1) $ Console.putTextLn $ header query
         Console.putText src
-        unless (null reExports || isJust query.function)
-            $ Console.putTextLn
-            $ "\n-- Re-exports: " <> T.intercalate ", " (map renderReExport reExports)
         when (length results > 1) $ Console.putStrLn ""
     renderOne (SourceNotFound query) =
         Console.putTextLn
             $ "Not found: "
                 <> unModuleName query.moduleName
                 <> " (module not in any installed package)"
-    renderOne (SourceNoHaddock query pkgId) =
+    renderOne (SourceUnavailable query pkgId) =
         Console.putTextLn
             $ "No source available: "
                 <> unModuleName query.moduleName
-                <> " (package "
+                <> " (could not locate or fetch a source tarball for "
                 <> unPackageId pkgId
-                <> " was built without documentation; try `cabal get "
-                <> unPackageId pkgId
-                <> "`)"
+                <> ")"
     renderOne (FunctionNotFound query) =
         Console.putTextLn
             $ "tricorder: "
@@ -89,6 +83,3 @@ renderSourceResults results = mapM_ renderOne results
         "-- "
             <> unModuleName query.moduleName
             <> maybe "" ("#" <>) query.function
-
-    renderReExport (ReExportModule m) = "module " <> m
-    renderReExport (ReExportName name src) = name <> " (from " <> src <> ")"

@@ -28,6 +28,7 @@ module Atelier.Effects.Process
 
       -- * Operations
     , readProcessStdout
+    , readProcess
     , runProcess
     , readProcessSafe
     , withProcessGroup
@@ -84,6 +85,9 @@ getStderr (RunningProcess p) = TP.getStderr p
 data Process :: Effect where
     -- | Run a process to completion, returning its exit code and captured stdout.
     ReadProcessStdout :: ProcessConfig i o e -> Process m (ExitCode, LByteString)
+    -- | Run a process to completion, capturing both stdout and stderr along with
+    -- its exit code.
+    ReadProcess :: ProcessConfig i o e -> Process m (ExitCode, LByteString, LByteString)
     -- | Run a process to completion, returning only its exit code. Unlike
     -- 'ReadProcessStdout' this does not capture stdout.
     RunProcess :: ProcessConfig i o e -> Process m ExitCode
@@ -157,6 +161,7 @@ readProcessSafe cmd args = do
 runProcessIO :: (IOE :> es) => Eff (Process : es) a -> Eff es a
 runProcessIO = interpret_ \case
     ReadProcessStdout cfg -> liftIO $ TP.readProcessStdout cfg
+    ReadProcess cfg -> liftIO $ TP.readProcess cfg
     RunProcess cfg -> liftIO $ TP.runProcess cfg
     GetExecutablePath -> liftIO Env.getExecutablePath
     StartProcess cfg -> liftIO $ RunningProcess <$> TP.startProcess cfg

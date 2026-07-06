@@ -4,6 +4,7 @@ import Atelier.Component (Component (..), Trigger, defaultComponent)
 import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay, wait)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit, exitSuccess)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Log (Log)
@@ -19,6 +20,7 @@ import Data.ByteString.Lazy qualified as BSL
 
 import Tricorder.BuildState (BuildPhase (..), BuildResult (..), BuildState (..), Diagnostic, PostBuild (..), TestPhase (..))
 import Tricorder.Effects.BuildStore (BuildStore, getState, waitForAnyChange, waitUntilDone)
+import Tricorder.Effects.Cabal (Cabal)
 import Tricorder.Effects.GhcPkg (GhcPkg)
 import Tricorder.Effects.UnixSocket
     ( UnixSocket
@@ -39,7 +41,7 @@ import Tricorder.Socket.Protocol
     , StatusQuery (..)
     , Waiters (..)
     )
-import Tricorder.SourceLookup (ModuleName, PackageId, ReExport, lookupModuleSource)
+import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
 import Tricorder.Effects.BuildStore qualified as BuildStore
@@ -54,10 +56,12 @@ data SocketRemoved = SocketRemoved
 -- Listens on a Unix socket and responds to status/watch/source queries.
 component
     :: ( BuildStore :> es
-       , Cache (PackageId, SourceQuery) (Text, [ReExport]) :> es
+       , Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
@@ -78,10 +82,12 @@ component =
 
 acceptTrigger
     :: ( BuildStore :> es
-       , Cache (PackageId, SourceQuery) (Text, [ReExport]) :> es
+       , Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
@@ -101,9 +107,11 @@ acceptTrigger = do
 
 handleConnection
     :: ( BuildStore :> es
-       , Cache (PackageId, SourceQuery) (Text, [ReExport]) :> es
+       , Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
@@ -127,9 +135,11 @@ handleConnection h = do
 
 dispatch
     :: ( BuildStore :> es
-       , Cache (PackageId, SourceQuery) (Text, [ReExport]) :> es
+       , Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
@@ -244,8 +254,10 @@ respondDiagnostic idx h = do
 
 -- | Look up source for each requested module and send the results as a JSON array.
 respondSource
-    :: ( Cache (PackageId, SourceQuery) (Text, [ReExport]) :> es
+    :: ( Cabal :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
+       , Env :> es
        , FileSystem :> es
        , GhcPkg :> es
        , Log :> es

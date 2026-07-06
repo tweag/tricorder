@@ -8,6 +8,7 @@ import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Debounce (runDebounce)
 import Atelier.Effects.Delay (runDelay)
+import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (runExit)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
@@ -29,6 +30,7 @@ import Atelier.Effects.Log qualified as Log
 import Tricorder.BuildState (BuildId (..), runDaemonInfo)
 import Tricorder.Config (restartOnConfigChange, runLoadedConfig)
 import Tricorder.Effects.BuildStore (runBuildStore)
+import Tricorder.Effects.Cabal (runCabalIO)
 import Tricorder.Effects.GhcPkg (runGhcPkgIO)
 import Tricorder.Effects.GhciSession (runGhciSession)
 import Tricorder.Effects.Logging (runLogging)
@@ -86,9 +88,11 @@ main =
         . runPubSub @BuildState.SourceChangeDetected
         . runDaemonInfo
         . runCacheTtl @GhcPkg.ModuleName @GhcPkg.PackageId
-        . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @(Text, [SourceLookup.ReExport])
+        . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @SourceLookup.ModuleSourceResult
         . runBuildStore
         . runProcessIO
+        . runCabalIO
+        . runEnv
         . runMetricsServerIO
         . runTestRunnerIO
         . runGhcPkgIO

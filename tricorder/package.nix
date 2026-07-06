@@ -68,12 +68,14 @@ in
         "regex-tdfa"
         "relude"
         "stm"
+        "tar"
         "text"
         "time"
         "time-units"
         "vty"
         "vty-crossplatform"
         "yaml"
+        "zlib"
       ];
     };
   };
@@ -126,13 +128,16 @@ in
         "atelier-core"
         "Cabal-syntax"
         "aeson"
+        "bytestring"
         "containers"
         "data-default"
         "effectful"
+        "filepath"
         "hspec"
         "process"
         "regex-tdfa"
         "stm"
+        "tar"
         "tasty"
         "tasty-discover"
         "tasty-hspec"
@@ -142,6 +147,7 @@ in
         "typed-process"
         "unagi-chan"
         "unix"
+        "zlib"
       ];
     };
   };
