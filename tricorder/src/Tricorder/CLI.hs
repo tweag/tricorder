@@ -18,6 +18,7 @@ import Effectful.Reader.Static (Reader, ask)
 
 import Atelier.Effects.Console qualified as Console
 import Data.ByteString.Lazy qualified as BSL
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Arguments
@@ -30,19 +31,13 @@ import Tricorder.Arguments
     )
 import Tricorder.BuildState
     ( BuildPhase (..)
-    , BuildProgress (..)
     , BuildResult (..)
     , BuildState (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
-    , TestCase (..)
-    , TestCaseOutcome (..)
-    , TestPhase (..)
-    , TestRun (..)
-    , TestRunCompletion (..)
-    , TestRunError (..)
     )
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.CLI.Render
     ( diagnosticLineIndexed
     , formatDuration
@@ -51,12 +46,12 @@ import Tricorder.CLI.Render
 import Tricorder.Effects.UnixSocket (UnixSocket)
 import Tricorder.GhcPkg.Types (SourceQuery)
 import Tricorder.Runtime (SocketPath (..))
-import Tricorder.Socket.Client
-    ( querySource
-    , queryStatus
-    , queryStatusWait
-    )
+import Tricorder.Session (renderTestTarget)
+import Tricorder.Socket.Client (querySource, queryStatus, queryStatusWait)
 import Tricorder.TestOutput (stripGhciNoise)
+
+import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Tests qualified as Tests
 
 
 -- | Print a build-command failure message and exit non-zero.
@@ -83,8 +78,11 @@ showStatus opts = do
         case current of
             Right BuildState {phase = Building _} -> Console.putStrLn "Building..."
             Right BuildState {phase = Restarting} -> Console.putStrLn "Restarting..."
-            Right BuildState {phase = BuildComplete (PostBuild Testing _)} -> Console.putStrLn "Testing..."
-            _ -> pure ()
+            Right BuildState {phase = BuildComplete _ pb}
+                | Tests.anyRunningTests pb.testSuites -> Console.putStrLn "Testing..."
+                | otherwise -> pure ()
+            Right BuildState {phase = BuildFailed _} -> pure ()
+            Left _ -> pure ()
     result <-
         case opts.wait of
             WaitForBuild -> queryStatusWait sockPath
@@ -103,52 +101,49 @@ showStatus opts = do
         Building _ -> Console.putStrLn "Building..."
         Restarting -> Console.putStrLn "Restarting..."
         BuildFailed msg -> reportBuildFailed msg
-        BuildComplete (PostBuild Testing _) -> Console.putStrLn "Testing..."
-        BuildComplete (PostBuild _ r) -> do
-            tz <- currentTimeZone
-            case expand of
-                Just n ->
-                    case r.diagnostics !!? (n - 1) of
-                        Nothing ->
-                            Console.putTextLn
-                                $ "No diagnostic #"
-                                    <> show n
-                                    <> " (current build has "
-                                    <> show (length r.diagnostics)
-                                    <> ")"
-                        Just d -> do
-                            Console.putTextLn $ diagnosticLineIndexed n d
-                            Console.putText d.text
-                Nothing -> do
-                    let printDiag (i, d) = case verbosity of
-                            Verbose -> do
-                                Console.putTextLn $ diagnosticLineIndexed i d
+        BuildComplete r pb
+            | Tests.anyRunningTests pb.testSuites -> Console.putStrLn "Testing..."
+            | otherwise -> do
+                tz <- currentTimeZone
+                case expand of
+                    Just n ->
+                        case r.diagnostics !!? (n - 1) of
+                            Nothing ->
+                                Console.putTextLn
+                                    $ "No diagnostic #"
+                                        <> show n
+                                        <> " (current build has "
+                                        <> show (length r.diagnostics)
+                                        <> ")"
+                            Just d -> do
+                                Console.putTextLn $ diagnosticLineIndexed n d
                                 Console.putText d.text
-                            Concise ->
-                                Console.putTextLn $ diagnosticLineIndexed i d
-                    mapM_ printDiag (zip [1 ..] r.diagnostics)
-                    Console.putTextLn $ buildSummary tz r
-                    mapM_ (printTestRun verbosity) r.testRuns
-                    when (buildHasErrors r || testsFailed r) exitFailure
+                    Nothing -> do
+                        let printDiag (i, d) = case verbosity of
+                                Verbose -> do
+                                    Console.putTextLn $ diagnosticLineIndexed i d
+                                    Console.putText d.text
+                                Concise ->
+                                    Console.putTextLn $ diagnosticLineIndexed i d
+                        mapM_ printDiag (zip [1 ..] r.diagnostics)
+                        Console.putTextLn $ buildSummary tz r
+                        mapM_ (uncurry (printTestRun verbosity)) $ Map.toList pb.testSuites.getSuites
+                        when (buildHasErrors r || Tests.hasFailedTests pb.testSuites) exitFailure
 
-    printTestRun verbosity tr = do
+    printTestRun verbosity tgt tr = do
         Console.putTextLn $ case tr of
-            TestRunning t Nothing -> t <> "  running..."
-            TestRunning t (Just p) -> t <> "  running... (" <> show p.compiled <> "/" <> show p.total <> ")"
-            TestRunErrored e -> e.target <> "  error: " <> e.message
-            TestRunCompleted c -> c.target <> "  " <> completionSummary c
+            Test.SuiteRunning Nothing -> t <> "  running..."
+            Test.SuiteRunning (Just p) -> t <> "  running... (" <> show p.compiled <> "/" <> show p.total <> ")"
+            Test.SuiteErrored e -> t <> "  error: " <> e.message
+            Test.SuiteCompleted c -> t <> "  " <> completionSummary c
         when (verbosity == Verbose) $ case tr of
-            TestRunCompleted c ->
+            Test.SuiteCompleted c ->
                 mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (T.lines c.output))
             _ -> pure ()
+      where
+        t = renderTestTarget tgt
 
     buildHasErrors r = any ((== SError) . (.severity)) r.diagnostics
-    testsFailed r = any isFailedRun r.testRuns
-      where
-        isFailedRun (TestRunCompleted c) = not c.passed
-        isFailedRun (TestRunErrored _) = True
-        isFailedRun (TestRunning _ _) = False
-
     buildSummary tz r =
         let errs = length $ filter ((== SError) . (.severity)) r.diagnostics
             warns = length $ filter ((== SWarning) . (.severity)) r.diagnostics
@@ -160,7 +155,7 @@ showStatus opts = do
                 show errs <> " error(s), " <> show warns <> " warning(s) " <> stats <> " " <> ts
 
 
-completionSummary :: TestRunCompletion -> Text
+completionSummary :: Test.SuiteCompletion -> Text
 completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d <> ")") c.duration
   where
     statusText
@@ -172,7 +167,7 @@ completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d <> 
                     "passed (" <> show total <> ")"
                 else
                     show failedCount <> "/" <> show total <> " failed"
-    isFailedCase (TestCase _ (TestCaseFailed _)) = True
+    isFailedCase (Test.Case _ (Test.Failed _)) = True
     isFailedCase _ = False
 
 
@@ -211,41 +206,33 @@ showTests opts = do
             case state.phase of
                 Building _ -> Console.putStrLn "Build in progress, no test results yet."
                 Restarting -> Console.putStrLn "Daemon restarting, no test results yet."
-                BuildComplete r -> renderTestRuns r.result.testRuns
+                BuildComplete _ pb -> renderTestRuns pb.testSuites.getSuites
                 BuildFailed msg -> reportBuildFailed msg
   where
-    renderTestRuns [] = Console.putStrLn "No test results."
-    renderTestRuns testRuns
-        | null runs = do
+    renderTestRuns suites
+        | Map.null suites = Console.putStrLn "No test results."
+        | Map.null filteredSuites = do
             Console.putStrLn "All passed."
-            mapM_ (Console.putTextLn . ("  " <>) . testRunTarget) testRuns
+            mapM_ (Console.putTextLn . ("  " <>) . renderTestTarget) $ Map.keys suites
         | otherwise = do
-            mapM_ printTestOutput runs
-            when (any isFailed runs) exitFailure
+            mapM_ (uncurry printTestOutput) $ Map.toList filteredSuites
+            when (any Tests.isFailedRun filteredSuites) exitFailure
       where
-        runs =
+        filteredSuites =
             if opts.failedOnly then
-                filter isFailed testRuns
+                Map.filter Tests.isFailedRun suites
             else
-                testRuns
+                suites
 
-    isFailed (TestRunCompleted c) = not c.passed
-    isFailed (TestRunErrored _) = True
-    isFailed (TestRunning _ _) = False
-
-    testRunTarget (TestRunning t _) = t
-    testRunTarget (TestRunErrored e) = e.target
-    testRunTarget (TestRunCompleted c) = c.target
-
-    printTestOutput tr = case tr of
-        TestRunning t Nothing ->
-            Console.putTextLn $ t <> "  running..."
-        TestRunning t (Just p) ->
-            Console.putTextLn $ t <> "  running... (" <> show p.compiled <> "/" <> show p.total <> ")"
-        TestRunErrored e ->
-            Console.putTextLn $ e.target <> "  error: " <> e.message
-        TestRunCompleted c -> do
-            Console.putTextLn $ c.target <> "  " <> completionSummary c
+    printTestOutput tgt tr = case tr of
+        Test.SuiteRunning Nothing ->
+            Console.putTextLn $ t <> "running..."
+        Test.SuiteRunning (Just p) ->
+            Console.putTextLn $ t <> "running... (" <> show p.compiled <> "/" <> show p.total <> ")"
+        Test.SuiteErrored e ->
+            Console.putTextLn $ t <> "error: " <> e.message
+        Test.SuiteCompleted c -> do
+            Console.putTextLn $ t <> completionSummary c
             if opts.failedOnly then
                 if null c.testCases then do
                     Console.putTextLn "  (unrecognised test runner format — showing full output)"
@@ -254,16 +241,18 @@ showTests opts = do
                     mapM_ printFailedCase (filter isCaseFailed c.testCases)
             else
                 mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
+      where
+        t = renderTestTarget tgt <> "  "
 
-    isCaseFailed (TestCase _ (TestCaseFailed _)) = True
+    isCaseFailed (Test.Case _ (Test.Failed _)) = True
     isCaseFailed _ = False
 
     printFailedCase tc = do
         Console.putTextLn $ "  " <> tc.description
         case tc.outcome of
-            TestCaseFailed details ->
+            Test.Failed details ->
                 mapM_ (Console.putTextLn . ("    " <>)) (T.lines details)
-            TestCasePassed -> pure ()
+            Test.Passed -> pure ()
 
 
 showSource

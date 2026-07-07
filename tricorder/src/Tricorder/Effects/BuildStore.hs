@@ -32,9 +32,10 @@ import Tricorder.BuildState
     , ChangeKind (..)
     , DaemonInfo (..)
     , PostBuild (..)
-    , TestPhase (..)
     , initialBuildState
     )
+
+import Tricorder.BuildState.Tests qualified as Test
 
 
 data BuildStore :: Effect where
@@ -98,8 +99,7 @@ isBuilding :: BuildState -> Bool
 isBuilding s = case s.phase of
     Building _ -> True
     Restarting -> True
-    BuildComplete (PostBuild Testing _) -> True
-    BuildComplete (PostBuild DoneTesting _) -> False
+    BuildComplete _ pb -> Test.anyRunningTests pb.testSuites
     BuildFailed _ -> False
 
 

@@ -38,7 +38,8 @@ import Effectful.Exception (throwIO)
 import Effectful.State.Static.Shared (State, evalState, state)
 import Effectful.TH (makeEffect)
 
-import Tricorder.BuildState (BuildPhase (..), BuildProgress (..))
+import Tricorder.BuildState (BuildPhase (..))
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
 import Tricorder.Effects.GhciSession.GhciParser
     ( GhciLoading (..)

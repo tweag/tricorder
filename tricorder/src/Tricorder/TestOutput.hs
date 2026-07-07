@@ -5,7 +5,7 @@ import Data.Char (isDigit)
 
 import Data.Text qualified as T
 
-import Tricorder.BuildState (TestCase (..), TestCaseOutcome (..))
+import Tricorder.BuildState.Tests qualified as Test
 
 
 -- | Parse hspec output into individual test case results.
@@ -14,18 +14,18 @@ import Tricorder.BuildState (TestCase (..), TestCaseOutcome (..))
 -- with or without a trailing timing annotation like @(0.05s)@ or @(120ms)@.
 -- For failing tests, collects the indented detail lines that follow as the
 -- failure message.
-parseHspecOutput :: Text -> [TestCase]
+parseHspecOutput :: Text -> [Test.Case]
 parseHspecOutput = go . T.lines
   where
     go [] = []
     go (l : ls)
         | T.isSuffixOf "OK" norm =
-            TestCase {description = extractDesc "OK" norm, outcome = TestCasePassed}
+            Test.Case {description = extractDesc "OK" norm, outcome = Test.Passed}
                 : go ls
         | T.isSuffixOf "FAIL" norm =
             let (detailLines, rest) = span (\dl -> indentOf dl > indentOf l) ls
                 details = T.intercalate "\n" $ filter (not . T.null) $ map T.strip detailLines
-            in  TestCase {description = extractDesc "FAIL" norm, outcome = TestCaseFailed details}
+            in  Test.Case {description = extractDesc "FAIL" norm, outcome = Test.Failed details}
                     : go rest
         | otherwise = go ls
       where

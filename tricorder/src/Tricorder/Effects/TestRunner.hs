@@ -39,34 +39,42 @@ import Effectful.TH (makeEffect)
 
 import Atelier.Effects.Log qualified as Log
 import Data.List qualified as List
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.BuildState
     ( BuildPhase (..)
-    , BuildProgress (..)
-    , BuildResult (..)
     , BuildState (..)
     , PostBuild (..)
-    , TestPhase (..)
-    , TestRun (..)
-    , TestRunCompletion (..)
-    , TestRunError (..)
     )
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
-import Tricorder.Effects.GhciSession.GhciProcess (GhciProcess, execGhci, terminateGhciProcess, withGhciProcess)
+import Tricorder.Effects.GhciSession.GhciProcess
+    ( GhciProcess
+    , execGhci
+    , terminateGhciProcess
+    , withGhciProcess
+    )
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command (..), Session (..), TestTimeout (..))
+import Tricorder.Session
+    ( Command (..)
+    , Session (..)
+    , TestTarget
+    , TestTimeout (..)
+    , renderTestTarget
+    )
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
+import Tricorder.BuildState.Tests qualified as Test
 import Tricorder.Effects.SessionStore qualified as SessionStore
 
 
 data TestRunner :: Effect where
     -- | Run a single test suite in a short-lived @cabal repl@ process and
     -- return the captured output and detected outcome.
-    RunTestSuite :: Text -> TestRunner m TestRun
+    RunTestSuite :: TestTarget -> TestRunner m Test.Suite
     -- | Interrupt the test currently in flight (if any) and latch an abort
     -- flag so that subsequent 'RunTestSuite' calls short-circuit until
     -- 'ResetAbort' is called.
@@ -117,7 +125,7 @@ runTestRunnerIO act = do
         RunTestSuite target -> do
             alreadyAborted <- atomically (readTVar abortedRef)
             if alreadyAborted then
-                pure $ TestRunErrored $ TestRunError {target, message = "Test run aborted"}
+                pure $ Test.SuiteErrored $ Test.SuiteError {message = "Test run aborted"}
             else do
                 Session {testTimeout} <- SessionStore.get
                 let onProgress = abortGatedProgress abortedRef target
@@ -138,7 +146,7 @@ runTestRunnerIO act = do
                     $ bracket_
                         (pure ())
                         (atomically (writeTVar currentProcRef Nothing))
-                    $ withGhciProcess def (Command $ "cabal repl " <> target) projectRoot onProgress onReady \ghci _ ->
+                    $ withGhciProcess def (Command $ "cabal repl " <> renderTestTarget target) projectRoot onProgress onReady \ghci _ ->
                         atomically (readTVar abortedRef) >>= \case
                             -- An interrupt may have landed during the
                             -- @cabal repl@ load. The returned value is
@@ -153,21 +161,24 @@ runTestRunnerIO act = do
                                         Just ls -> pure (Right ls)
                 case result of
                     Left ex ->
-                        pure $ TestRunErrored $ TestRunError {target, message = show ex}
+                        pure
+                            $ Test.SuiteErrored
+                            $ Test.SuiteError {message = show ex}
                     Right (Left secs) -> do
-                        Log.warn $ "Test suite " <> target <> " timed out after " <> show secs <> "s"
-                        pure $ TestRunErrored $ TestRunError {target, message = "Test suite timed out after " <> show secs <> "s"}
+                        Log.warn $ "Test suite " <> renderTestTarget target <> " timed out after " <> show secs <> "s"
+                        pure
+                            $ Test.SuiteErrored
+                            $ Test.SuiteError {message = "Test suite timed out after " <> show secs <> "s"}
                     Right (Right mainLines) ->
                         pure
                             $ let output = T.unlines mainLines
                               in  case detectOutcome output of
                                     GhciCrashed msg ->
-                                        TestRunErrored $ TestRunError {target, message = msg}
+                                        Test.SuiteErrored $ Test.SuiteError {message = msg}
                                     outcome ->
-                                        TestRunCompleted
-                                            $ TestRunCompletion
-                                                { target
-                                                , passed = outcome == GhciPassed
+                                        Test.SuiteCompleted
+                                            $ Test.SuiteCompletion
+                                                { passed = outcome == GhciPassed
                                                 , output
                                                 , testCases = parseHspecOutput output
                                                 , duration = parseHspecDuration output
@@ -181,7 +192,7 @@ runTestRunnerIO act = do
 runTestRunnerScripted
     :: forall es a
      . (Concurrent :> es, IOE :> es)
-    => [Either SomeException TestRun]
+    => [Either SomeException Test.Suite]
     -> Eff (TestRunner : es) a
     -> Eff es a
 runTestRunnerScripted results act = do
@@ -200,7 +211,7 @@ runTestRunnerScripted results act = do
         )
         act
   where
-    popResult :: Eff (State [Either SomeException TestRun] : es) TestRun
+    popResult :: Eff (State [Either SomeException Test.Suite] : es) Test.Suite
     popResult =
         get >>= \case
             [] -> error "TestRunnerScripted: no more results in queue"
@@ -214,7 +225,7 @@ runTestRunnerScripted results act = do
 -- user has already touched a file — do not push the counter forward.
 abortGatedProgress
     :: (BuildStore :> es, Concurrent :> es)
-    => TVar Bool -> Text -> GhciLoading -> Eff es ()
+    => TVar Bool -> TestTarget -> GhciLoading -> Eff es ()
 abortGatedProgress abortedRef target loading = do
     aborted <- atomically (readTVar abortedRef)
     unless aborted $ reportTestProgress target loading
@@ -232,15 +243,16 @@ abortGatedProgress abortedRef target loading = do
 -- triggered 'Restarting' or 'Building'), the progress event is dropped rather
 -- than reverting the phase.
 reportTestProgress
-    :: (BuildStore :> es) => Text -> GhciLoading -> Eff es ()
+    :: (BuildStore :> es) => TestTarget -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
     modifyPhase \state -> case state.phase of
-        BuildComplete (PostBuild Testing partialResult) ->
-            let progress = BuildProgress {compiled = loading.index, total = loading.total}
-                updateRun (TestRunning t _) | t == target = TestRunning t (Just progress)
-                updateRun r = r
-                newRuns = map updateRun partialResult.testRuns
-            in  BuildComplete (PostBuild Testing partialResult {testRuns = newRuns})
+        BuildComplete result pb
+            | Test.anyRunningTests pb.testSuites ->
+                let progress = BuildProgress {compiled = loading.index, total = loading.total}
+                    updateRun tgt (Test.SuiteRunning _) | tgt == target = Test.SuiteRunning (Just progress)
+                    updateRun _ r = r
+                    newRuns = Test.Suites $ Map.mapWithKey updateRun pb.testSuites.getSuites
+                in  BuildComplete result pb {testSuites = newRuns}
         other -> other
 
 

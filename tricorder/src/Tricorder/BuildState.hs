@@ -10,14 +10,7 @@ module Tricorder.BuildState
     , BuildState (..)
     , BuildPhase (..)
     , PostBuild (..)
-    , TestPhase (..)
-    , BuildProgress (..)
     , BuildResult (..)
-    , TestRun (..)
-    , TestRunError (..)
-    , TestRunCompletion (..)
-    , TestCase (..)
-    , TestCaseOutcome (..)
     , DaemonInfo (..)
     , loadDaemonInfo
     , runDaemonInfo
@@ -39,12 +32,24 @@ import Effectful.Reader.Static (Reader, ask)
 import GHC.Generics (Generically (..))
 import System.FilePath (makeRelative)
 
+import Tricorder.BuildState.BuildProgress (BuildProgress)
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..), Target, WatchDirs (..))
 
+import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Tests qualified as Tests
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.Observability qualified as Observability
+
+
+data BuildState = BuildState
+    { buildId :: BuildId
+    , phase :: BuildPhase
+    , daemonInfo :: DaemonInfo
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically BuildState
 
 
 newtype BuildId = BuildId Int
@@ -61,7 +66,7 @@ data DaemonInfo = DaemonInfo
     , metricsPort :: Maybe Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically DaemonInfo
 
 
 loadDaemonInfo
@@ -99,46 +104,13 @@ runDaemonInfo
 runDaemonInfo = runInputEff loadDaemonInfo
 
 
-data TestCaseOutcome
-    = TestCasePassed
-    | TestCaseFailed Text
+data BuildPhase
+    = Restarting
+    | Building (Maybe BuildProgress)
+    | BuildFailed Text
+    | BuildComplete BuildResult PostBuild
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data TestCase = TestCase
-    { description :: Text
-    , outcome :: TestCaseOutcome
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data TestRunError = TestRunError
-    { target :: Text
-    , message :: Text
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data TestRunCompletion = TestRunCompletion
-    { target :: Text
-    , passed :: Bool
-    , output :: Text
-    , testCases :: [TestCase]
-    , duration :: Maybe Millisecond
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data TestRun
-    = TestRunning Text (Maybe BuildProgress)
-    | TestRunErrored TestRunError
-    | TestRunCompleted TestRunCompletion
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically BuildPhase
 
 
 data BuildResult = BuildResult
@@ -146,49 +118,16 @@ data BuildResult = BuildResult
     , duration :: Millisecond
     , moduleCount :: Int
     , diagnostics :: [Diagnostic]
-    , testRuns :: [TestRun]
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data BuildProgress = BuildProgress
-    { compiled :: Int
-    , total :: Int
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
-data BuildPhase
-    = Building (Maybe BuildProgress)
-    | Restarting
-    | BuildComplete PostBuild
-    | BuildFailed Text
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically BuildResult
 
 
 data PostBuild = PostBuild
-    { testPhase :: TestPhase
-    , result :: BuildResult
+    { testSuites :: Test.Suites
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically PostBuild
-
-
-data TestPhase = Testing | DoneTesting
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically TestPhase
-
-
-data BuildState = BuildState
-    { buildId :: BuildId
-    , phase :: BuildPhase
-    , daemonInfo :: DaemonInfo
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
 
 
 data Diagnostic = Diagnostic
@@ -202,7 +141,7 @@ data Diagnostic = Diagnostic
     , text :: Text
     }
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically Diagnostic
 
 
 data Severity = SError | SWarning
@@ -224,12 +163,12 @@ instance ToJSON Severity where
 stateLabel :: BuildPhase -> Text
 stateLabel (Building _) = "building"
 stateLabel Restarting = "restarting"
-stateLabel (BuildComplete (PostBuild Testing _)) = "testing"
-stateLabel (BuildComplete (PostBuild _ result))
+stateLabel (BuildFailed _) = "error"
+stateLabel (BuildComplete result pb)
     | any (\m -> m.severity == SError) result.diagnostics = "error"
     | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
+    | Tests.anyRunningTests pb.testSuites = "testing"
     | otherwise = "ok"
-stateLabel (BuildFailed _) = "error"
 
 
 -- | Classifies what kind of file change triggered a dirty signal.

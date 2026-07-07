@@ -15,7 +15,17 @@ import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Test.Hspec
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildProgress (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..), TestRun (..), TestRunCompletion (..))
+import Data.Map.Strict qualified as Map
+
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , DaemonInfo (..)
+    , PostBuild (..)
+    )
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore (getState)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Effects.TestRunner
@@ -30,7 +40,9 @@ import Tricorder.Effects.TestRunner
     , runTestSuite
     )
 import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Session (Target (..), TestTarget (..))
 
+import Tricorder.BuildState.Tests qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 
@@ -116,33 +128,34 @@ testDetectOutcome = do
 testScripted :: Spec
 testScripted = do
     it "returns scripted TestRun" do
-        result <- runScripted [Right passingRun] $ runTestSuite "test:foo"
+        result <- runScripted [Right passingRun] $ runTestSuite $ mkTestTarget "test:foo"
         result `shouldBe` passingRun
 
     it "ignores the target name argument" do
-        result <- runScripted [Right failingRun] $ runTestSuite "test:anything"
+        result <- runScripted [Right failingRun] $ runTestSuite $ mkTestTarget "test:anything"
         result `shouldBe` failingRun
 
     it "throws when scripted result is Left" do
         result <-
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
-                $ runTestSuite "test:foo"
+                $ runTestSuite
+                $ mkTestTarget "test:foo"
         result `shouldBe` Left boom
 
     describe "sequencing" do
         it "consumes results in order across multiple calls" do
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
-                a <- runTestSuite "test:foo"
-                b <- runTestSuite "test:bar"
+                a <- runTestSuite $ mkTestTarget "test:foo"
+                b <- runTestSuite $ mkTestTarget "test:bar"
                 pure (a, b)
             a `shouldBe` passingRun
             b `shouldBe` failingRun
 
         it "recover scenario: error then success" do
             result <- runScripted [Left (toException boom), Right passingRun] do
-                r1 <- try @ErrorCall $ runTestSuite "test:foo"
-                r2 <- runTestSuite "test:bar"
+                r1 <- try @ErrorCall $ runTestSuite $ mkTestTarget "test:foo"
+                r2 <- runTestSuite $ mkTestTarget "test:bar"
                 pure (r1, r2)
             fst result `shouldBe` Left boom
             snd result `shouldBe` passingRun
@@ -179,31 +192,29 @@ boom :: ErrorCall
 boom = ErrorCall "simulated process crash"
 
 
-passingRun :: TestRun
+passingRun :: Test.Suite
 passingRun =
-    TestRunCompleted
-        $ TestRunCompletion
-            { target = "test:foo"
-            , passed = True
+    Test.SuiteCompleted
+        $ Test.SuiteCompletion
+            { passed = True
             , output = "2 examples, 0 failures\n"
             , testCases = []
             , duration = Nothing
             }
 
 
-failingRun :: TestRun
+failingRun :: Test.Suite
 failingRun =
-    TestRunCompleted
-        $ TestRunCompletion
-            { target = "test:bar"
-            , passed = False
+    Test.SuiteCompleted
+        $ Test.SuiteCompletion
+            { passed = False
             , output = "1 example, 1 failure\n"
             , testCases = []
             , duration = Nothing
             }
 
 
-runScripted :: [Either SomeException TestRun] -> Eff '[TestRunner, Concurrent, IOE] a -> IO a
+runScripted :: [Either SomeException Test.Suite] -> Eff '[TestRunner, Concurrent, IOE] a -> IO a
 runScripted results = runEff . runConcurrent . runTestRunnerScripted results
 
 
@@ -222,7 +233,8 @@ testAbortGatedProgress :: Spec
 testAbortGatedProgress = do
     it "applies the progress update when abortedRef is False" do
         finalRuns <- runProgress False progress42 startingRuns
-        finalRuns `shouldBe` [TestRunning "test:foo" (Just expected42)]
+        Map.toList finalRuns.getSuites
+            `shouldMatchList` [(mkTestTarget "test:foo", Test.SuiteRunning (Just expected42))]
 
     it "drops the progress update when abortedRef is True" do
         finalRuns <- runProgress True progress42 startingRuns
@@ -233,12 +245,10 @@ testAbortGatedProgress = do
         let loadings = [mkLoading i 10 | i <- [1 .. 5]]
         finalRuns <- runStore do
             BuildStore.setPhase (BuildId 1)
-                $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith startingRuns
-                        }
-            for_ loadings (abortGatedProgress abortedRef "test:foo")
+                $ BuildComplete result
+                $ PostBuild startingRuns
+
+            for_ loadings $ abortGatedProgress abortedRef $ mkTestTarget "test:foo"
             phaseTestRuns <$> getState
         finalRuns `shouldBe` startingRuns
 
@@ -247,24 +257,21 @@ testAbortGatedProgress = do
         finalRuns <- runStore do
             BuildStore.setPhase
                 (BuildId 1)
-                $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith startingRuns
-                        }
+                $ BuildComplete result
+                $ PostBuild startingRuns
 
             -- This one applies.
-            abortGatedProgress abortedRef "test:foo" (mkLoading 3 10)
+            abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 3 10)
             -- Simulate the interrupt firing.
             atomically (writeTVar abortedRef True)
             -- These should now be dropped.
-            abortGatedProgress abortedRef "test:foo" (mkLoading 8 10)
-            abortGatedProgress abortedRef "test:foo" (mkLoading 9 10)
+            abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 8 10)
+            abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 9 10)
             phaseTestRuns <$> getState
-        finalRuns
-            `shouldBe` [TestRunning "test:foo" (Just BuildProgress {compiled = 3, total = 10})]
+        Map.toList finalRuns.getSuites
+            `shouldMatchList` [(mkTestTarget "test:foo", Test.SuiteRunning (Just BuildProgress {compiled = 3, total = 10}))]
   where
-    startingRuns = [TestRunning "test:foo" Nothing]
+    startingRuns = Test.Suites $ Map.fromList [(mkTestTarget "test:foo", Test.SuiteRunning Nothing)]
     progress42 = mkLoading 4 10
     expected42 = BuildProgress {compiled = 4, total = 10}
 
@@ -272,12 +279,9 @@ testAbortGatedProgress = do
         abortedRef <- newTVarIO aborted
         runStore do
             BuildStore.setPhase (BuildId 1)
-                $ BuildComplete
-                    PostBuild
-                        { testPhase = Testing
-                        , result = partialResultWith runs
-                        }
-            abortGatedProgress abortedRef "test:foo" loading
+                $ BuildComplete result
+                $ PostBuild runs
+            abortGatedProgress abortedRef (mkTestTarget "test:foo") loading
             phaseTestRuns <$> getState
 
     runStore =
@@ -299,19 +303,18 @@ testAbortGatedProgress = do
             , sourceFile = "Mod.hs"
             }
 
-    partialResultWith runs =
+    result =
         BuildResult
             { completedAt = epoch
             , duration = 0
             , moduleCount = 0
             , diagnostics = []
-            , testRuns = runs
             }
 
-    phaseTestRuns :: BuildState -> [TestRun]
+    phaseTestRuns :: BuildState -> Test.Suites
     phaseTestRuns s = case s.phase of
-        BuildComplete (PostBuild Testing r) -> r.testRuns
-        _ -> []
+        BuildComplete _ (PostBuild r) -> r
+        _ -> Test.Suites mempty
 
     epoch :: UTCTime
     epoch = UTCTime (fromGregorian 2024 1 1) 0
@@ -325,3 +328,7 @@ testAbortGatedProgress = do
             , logFile = ""
             , metricsPort = Nothing
             }
+
+
+mkTestTarget :: Text -> TestTarget
+mkTestTarget = TestTarget . Bare

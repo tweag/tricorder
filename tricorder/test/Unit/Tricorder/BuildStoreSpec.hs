@@ -11,7 +11,14 @@ import Test.Hspec
 
 import Atelier.Effects.Conc qualified as Conc
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), DaemonInfo (..), PostBuild (..), TestPhase (..))
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , DaemonInfo (..)
+    , PostBuild (..)
+    )
 import Tricorder.Effects.BuildStore
     ( BuildStore
     , getState
@@ -21,6 +28,8 @@ import Tricorder.Effects.BuildStore
     , waitForNext
     , waitUntilDone
     )
+
+import Tricorder.BuildState.Tests qualified as Test
 
 
 spec_BuildStore :: Spec
@@ -144,7 +153,7 @@ testSTM = do
             -- report the later BuildComplete(2) (or block forever).
             result.buildId `shouldBe` BuildId 1
             case result.phase of
-                BuildComplete _ -> pure ()
+                BuildComplete _ _ -> pure ()
                 p -> expectationFailure $ "expected BuildComplete phase, got: " <> show p
 
 
@@ -170,14 +179,15 @@ buildingAt n = BuildState (BuildId n) (Building Nothing) emptyDaemonInfo
 donePhase :: BuildPhase
 donePhase =
     BuildComplete
-        $ PostBuild DoneTesting
-        $ BuildResult
+        ( BuildResult
             { completedAt = epoch
             , duration = 0
             , moduleCount = 0
             , diagnostics = []
-            , testRuns = []
             }
+        )
+        $ PostBuild
+        $ Test.Suites mempty
 
 
 doneAt :: Int -> BuildState

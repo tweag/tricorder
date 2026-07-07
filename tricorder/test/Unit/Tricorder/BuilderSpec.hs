@@ -22,7 +22,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Error.Static (runErrorNoCallStack, throwError)
 import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (runReader)
-import Effectful.State.Static.Shared (evalState, runState)
+import Effectful.State.Static.Shared (State, evalState, get, put, runState)
 import Effectful.Writer.Static.Shared (Writer, execWriter, tell)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList, shouldSatisfy)
 
@@ -32,7 +32,18 @@ import Control.Concurrent.STM qualified as STM
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), CabalChangeDetected (..), DaemonInfo (..), Diagnostic (..), PostBuild (..), Severity (..), SourceChangeDetected (..), TestPhase (..), TestRun (..), TestRunCompletion (..))
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , CabalChangeDetected (..)
+    , DaemonInfo (..)
+    , Diagnostic (..)
+    , PostBuild (..)
+    , Severity (..)
+    , SourceChangeDetected (..)
+    )
 import Tricorder.Builder
     ( BuildConfig (..)
     , EnteringNewPhase (..)
@@ -54,13 +65,19 @@ import Tricorder.Builder.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Effects.GhciSession (Controls (..), LoadResult (..), LoadedModule (..), runGhciSessionScripted)
+import Tricorder.Effects.GhciSession
+    ( Controls (..)
+    , LoadResult (..)
+    , LoadedModule (..)
+    , runGhciSessionScripted
+    )
 import Tricorder.Effects.GhciSession.GhciParser (collectResult, extractTitle, resolveKnownTargets)
+import Tricorder.Effects.PostBuildStore (runPostBuildCapture, runPostBuildState)
 import Tricorder.Effects.TestRunner (TestRunner (..), runTestRunnerScripted)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command (..), WatchDirs (..), parseTestTargets)
+import Tricorder.Session (TestTarget (..), WatchDirs (..), parseTarget, parseTestTargets)
 
-import Tricorder.BuildState qualified as BuildState
+import Tricorder.BuildState.Tests qualified as Test
 import Tricorder.Builder qualified as Builder
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
@@ -153,6 +170,7 @@ testBuildWithGhciRecovery = do
     it "retries the build on a source change after a startup failure" do
         phases <-
             runTest
+                completeBuildState
                 -- First launch throws (startup failure); the retry succeeds.
                 [ Left (toException (ErrorCall "ghci failed to start"))
                 , Right successLoad
@@ -167,7 +185,7 @@ testBuildWithGhciRecovery = do
         length [() | EnteringNewPhase _ (BuildFailed _) <- phases] `shouldBe` 1
         -- The source change drove a second, successful launch to completion.
         -- With the bug the builder is parked, so no Done is ever emitted.
-        length [() | EnteringNewPhase _ (BuildComplete _) <- phases] `shouldSatisfy` (>= 1)
+        length [() | EnteringNewPhase _ (BuildComplete _ _) <- phases] `shouldSatisfy` (>= 1)
   where
     successLoad =
         LoadResult
@@ -178,7 +196,7 @@ testBuildWithGhciRecovery = do
             , diagnostics = []
             }
 
-    runTest script body =
+    runTest initialState script =
         runEff
             . runConcurrent
             . runTracingNoOp
@@ -188,6 +206,7 @@ testBuildWithGhciRecovery = do
             . runReader (ProjectRoot "/")
             . evalState (BuildId 1)
             . evalState emptyBuilderState
+            . evalState initialState
             . runLogNoOp
             . execWriter @[EnteringNewPhase]
             . runBuildStoreCapture
@@ -196,7 +215,6 @@ testBuildWithGhciRecovery = do
             . runPubSub @SourceChangeDetected
             . runConc
             . runDebounceNoOp
-            $ body
 
 
 --------------------------------------------------------------------------------
@@ -291,6 +309,7 @@ testReloadOnSourceChange = do
                     { loadedModules = initialModuleMap
                     , knownTargets = initialTargets
                     }
+            . evalState completeBuildState
             . runLogNoOp
             . execWriter @[EnteringNewPhase]
             . runBuildStoreCapture
@@ -299,10 +318,10 @@ testReloadOnSourceChange = do
 
     flow lr =
         [ EnteringNewPhase (BuildId 1) $ Building Nothing
-        , EnteringNewPhase (BuildId 1) $ BuildComplete $ PostBuild DoneTesting (resultFor lr)
+        , EnteringNewPhase (BuildId 1) $ BuildComplete (resultFor lr) $ PostBuild $ Test.Suites mempty
         ]
 
-    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete (PostBuild _ r)) <- phases]
+    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete r _) <- phases]
 
     resultFor lr =
         BuildResult
@@ -310,7 +329,6 @@ testReloadOnSourceChange = do
             , duration = 0
             , moduleCount = lr.moduleCount
             , diagnostics = []
-            , testRuns = []
             }
 
     noTargets = KnownTargetNames Set.empty
@@ -429,7 +447,6 @@ testCompileLoadResultsIntoBuildResults = do
                     , duration = 10_000
                     , moduleCount = 2
                     , diagnostics = [warnMsg]
-                    , testRuns = []
                     }
         r `shouldBe` expected
   where
@@ -444,123 +461,74 @@ testCompileLoadResultsIntoBuildResults = do
 
 testRequestTestRunsForNewBuildResults :: Spec
 testRequestTestRunsForNewBuildResults = do
-    describe "when there are no test targets" $ it "should skip testing" do
-        phases <- runTest (parseTestTargets []) [] expected
-        length phases `shouldBe` 1
-        phases
-            `shouldMatchList` [ EnteringNewPhase (BuildId 1)
-                                    $ BuildComplete
-                                    $ PostBuild DoneTesting expected
-                              ]
-
-    describe "when there are errors" $ it "should skip testing" do
-        let expected' = expected {BuildState.diagnostics = [errMsg]}
-        phases <- runTest (parseTestTargets ["test:foo"]) [] expected'
-        length phases `shouldBe` 1
-        phases
-            `shouldMatchList` [ EnteringNewPhase (BuildId 1)
-                                    $ BuildComplete
-                                    $ PostBuild DoneTesting expected'
-                              ]
-
     it "should emit EnteringNewPhase events for each test target" do
         phases <-
             runTest
                 (parseTestTargets ["test:foo", "test:bar"])
-                [ Right $ mkTestRun "test:foo"
-                , Right $ mkTestRun "test:bar"
+                [ Right suiteCompleted
+                , Right suiteCompleted
                 ]
-                expected
-        length phases `shouldBe` 4
+        length phases `shouldBe` 3
         let expectedPhases =
-                [ mkTesting . buildWithTests
-                    $ [ TestRunning "test:foo" Nothing
-                      , TestRunning "test:bar" Nothing
+                [ postBuildWithTests
+                    $ [ (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
+                      , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
                       ]
-                , mkTesting . buildWithTests
-                    $ [ mkTestRun "test:foo"
-                      , TestRunning "test:bar" Nothing
+                , postBuildWithTests
+                    $ [ (mkTestTarget "test:foo", suiteCompleted)
+                      , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
                       ]
-                , mkTesting . buildWithTests
-                    $ [ mkTestRun "test:foo"
-                      , mkTestRun "test:bar"
-                      ]
-                , mkDone . buildWithTests
-                    $ [ mkTestRun "test:foo"
-                      , mkTestRun "test:bar"
+                , postBuildWithTests
+                    $ [ (mkTestTarget "test:foo", suiteCompleted)
+                      , (mkTestTarget "test:bar", suiteCompleted)
                       ]
                 ]
         phases `shouldMatchList` expectedPhases
 
     -- Regression for the abort handling in 'runTestsIfClean': when an
     -- interrupt arrives mid-run loop, 'isAborted' becomes True and the loop
-    -- returns 'Nothing'. The caller MUST then skip the 'Done' transition —
-    -- otherwise the BuildStore briefly publishes a Done with a partial
-    -- testRuns list, and a 'status --wait' caller reads that stale result
-    -- before the new cycle starts.
-    it "does not transition to Done when the run is aborted mid-flight" do
+    -- returns 'Aborted'. The caller MUST then skip updating the 'PostBuild'
+    -- — otherwise the BuildStore briefly publishes a BuildComplete
+    -- with a partial 'Test.Suites', and a 'status --wait' caller reads that
+    -- stale result before the new cycle starts.
+    it "does not transition to BuildComplete when the run is aborted mid-flight" do
         phases <-
             runEff
                 . runConcurrent
                 . runLogNoOp
-                . evalState (BuildId 1)
-                . execWriter @[EnteringNewPhase]
-                . runBuildStoreCapture
-                . runTestRunnerAbortAfterFirst (mkTestRun "test:foo")
+                . evalState (PostBuild $ Test.Suites mempty)
+                . execWriter @[PostBuild]
+                . runPostBuildState
+                . runPostBuildCapture
+                . runTestRunnerAbortAfterFirst suiteCompleted
                 $ requestTestRunsForNewBuildResults
-                    BuildConfig
-                        { command = Command ""
-                        , targets = []
-                        , testTargets = parseTestTargets ["test:foo", "test:bar"]
-                        , watchDirs = WatchDirs []
-                        }
-                    expected
-        -- The critical assertion: no Done phase, because the run was
-        -- aborted before completing the second suite. A Done here would
-        -- briefly publish a half-finished testRuns list that a
-        -- 'status --wait' caller could observe.
-        length [() | EnteringNewPhase _ (BuildComplete (PostBuild DoneTesting _)) <- phases] `shouldBe` 0
-        -- Sanity: only the initial Testing transition was published; the
-        -- run loop short-circuited after the first 'isAborted' check, so
-        -- the post-foo Testing update never fired.
-        length phases `shouldBe` 1
+                $ parseTestTargets ["test:foo", "test:bar"]
+        phases
+            `shouldMatchList` [ PostBuild
+                                    $ Test.Suites
+                                    $ Map.fromList
+                                        [ (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
+                                        , (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
+                                        ]
+                              ]
   where
-    runTest testTargets script partial =
+    runTest testTargets script =
         runEff
             . runConcurrent
             . runLogNoOp
-            . evalState (BuildId 1)
-            . execWriter @[EnteringNewPhase]
-            . runBuildStoreCapture
+            . evalState (PostBuild $ Test.Suites mempty)
+            . execWriter @[PostBuild]
+            . runPostBuildState
+            . runPostBuildCapture
             . runTestRunnerScripted script
-            $ requestTestRunsForNewBuildResults
-                BuildConfig
-                    { command = Command ""
-                    , targets = []
-                    , testTargets
-                    , watchDirs = WatchDirs []
-                    }
-                partial
+            $ requestTestRunsForNewBuildResults testTargets
 
-    mkPhase = EnteringNewPhase (BuildId 1)
-    mkTesting = mkPhase . BuildComplete . PostBuild Testing
-    mkDone = mkPhase . BuildComplete . PostBuild DoneTesting
-    buildWithTests testRuns = expected {testRuns}
+    postBuildWithTests = PostBuild . Test.Suites . Map.fromList
 
-    expected =
-        BuildResult
-            { completedAt = addUTCTime 10 epoch
-            , duration = 10_000
-            , moduleCount = 2
-            , diagnostics = [warnMsg]
-            , testRuns = []
-            }
-
-    mkTestRun target =
-        TestRunCompleted
-            $ TestRunCompletion
-                { target
-                , passed = True
+    suiteCompleted =
+        Test.SuiteCompleted
+            $ Test.SuiteCompletion
+                { passed = True
                 , output = ""
                 , testCases = []
                 , duration = Nothing
@@ -987,6 +955,10 @@ emptyDaemonInfo =
         }
 
 
+mkTestTarget :: Text -> TestTarget
+mkTestTarget = TestTarget . parseTarget
+
+
 --------------------------------------------------------------------------------
 -- Event coalescing (watchSourceChanges)
 --
@@ -1327,7 +1299,7 @@ testInterruptCurrent = do
 -- — simulating an external interrupt that arrives between two test suites.
 runTestRunnerAbortAfterFirst
     :: (Concurrent :> es)
-    => TestRun -> Eff (TestRunner : es) a -> Eff es a
+    => Test.Suite -> Eff (TestRunner : es) a -> Eff es a
 runTestRunnerAbortAfterFirst result act = do
     callCountRef <- atomically (STM.newTVar (0 :: Int))
     abortedRef <- atomically (STM.newTVar False)
@@ -1346,19 +1318,49 @@ runTestRunnerAbortAfterFirst result act = do
         act
 
 
--- | A 'BuildStore' interpreter that records every 'setPhase' call into a
--- 'Writer'. Only the operations used by the Builder pipeline tests are
--- implemented; the rest error.
+completeBuildState :: BuildState
+completeBuildState =
+    BuildState
+        { buildId = BuildId 1
+        , phase =
+            BuildComplete
+                ( BuildResult
+                    { completedAt = epoch
+                    , duration = 0
+                    , moduleCount = 1
+                    , diagnostics = []
+                    }
+                )
+                $ PostBuild
+                $ Test.Suites mempty
+        , daemonInfo = emptyDaemonInfo
+        }
+
+
+-- | A 'BuildStore' interpreter that records every phase transition into a
+-- 'Writer'. Captures both 'SetPhase' (used by 'enterPhase') and 'ModifyPhase'
+-- (used by 'withPostBuildPhase' for BuildComplete transitions).
 runBuildStoreCapture
-    :: (Writer [EnteringNewPhase] :> es)
+    :: (State BuildState :> es, Writer [EnteringNewPhase] :> es)
     => Eff (BuildStore.BuildStore : es) a -> Eff es a
 runBuildStoreCapture = interpret_ \case
-    BuildStore.SetPhase bid phase -> tell [EnteringNewPhase bid phase]
+    BuildStore.SetPhase bid phase -> do
+        tell [EnteringNewPhase bid phase]
+        put
+            BuildState
+                { buildId = bid
+                , phase
+                , daemonInfo = emptyDaemonInfo
+                }
     BuildStore.HasWaiters -> pure False
     BuildStore.MarkDirty _ -> pure ()
-    BuildStore.GetState -> error "runBuildStoreCapture: GetState unsupported"
-    BuildStore.ModifyPhase _ -> error "runBuildStoreCapture: ModifyPhase unsupported"
-    BuildStore.WaitUntilDone -> error "runBuildStoreCapture: WaitUntilDone unsupported"
-    BuildStore.WaitForNext _ -> error "runBuildStoreCapture: WaitForNext unsupported"
-    BuildStore.WaitForAnyChange _ -> error "runBuildStoreCapture: WaitForAnyChange unsupported"
+    BuildStore.GetState -> get
+    BuildStore.ModifyPhase f -> do
+        curr <- get
+        let new = f curr
+        tell [EnteringNewPhase curr.buildId new]
+        put $ curr {phase = new}
+    BuildStore.WaitUntilDone -> get
+    BuildStore.WaitForNext _ -> get
+    BuildStore.WaitForAnyChange _ -> get
     BuildStore.WaitDirty -> error "runBuildStoreCapture: WaitDirty unsupported"

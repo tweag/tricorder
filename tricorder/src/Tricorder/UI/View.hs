@@ -29,32 +29,29 @@ import Brick.Widgets.Core
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, utcToLocalTime)
 import System.FilePath (isAbsolute)
 
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 
 import Tricorder.BuildState
     ( BuildPhase (..)
-    , BuildProgress (..)
     , BuildResult (..)
     , BuildState (..)
     , DaemonInfo (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
-    , TestCase (..)
-    , TestCaseOutcome (..)
-    , TestRun (..)
-    , TestRunCompletion (..)
-    , TestRunError (..)
     )
-import Tricorder.Session (Target, renderTarget)
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
+import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 import Tricorder.UI.Keys (KeyEvent, keybindForRoute, viewKeybindings)
 import Tricorder.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
 import Tricorder.UI.Route (Route)
 import Tricorder.UI.State (Processed (..), State (..), TestFilter (..), Viewports (..), currentRoute)
 
+import Tricorder.BuildState.Tests qualified as Test
 import Tricorder.UI.Keys qualified as Keys
 import Tricorder.UI.Route qualified as Route
 import Tricorder.Version qualified as Version
@@ -260,7 +257,7 @@ viewBuildPhase tz = \case
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    BuildComplete build -> vBoxSpaced 1 [viewBuildResult tz build.result, viewTestRuns build.result.testRuns]
+    BuildComplete result pb -> vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns pb.testSuites]
     BuildFailed msg -> viewBuildFailed msg
 
 
@@ -338,20 +335,31 @@ viewDuration :: Millisecond -> Widget n
 viewDuration d = txt $ "(" <> formatDuration d <> ")"
 
 
-viewTestRuns :: [TestRun] -> Widget n
-viewTestRuns [] = emptyWidget
-viewTestRuns runs = vBox $ viewTestRun <$> runs
+viewTestRuns :: Test.Suites -> Widget n
+viewTestRuns suites = vBox $ uncurry viewTestRun <$> Map.toList suites.getSuites
 
 
-viewTestRun :: TestRun -> Widget n
-viewTestRun (TestRunning t Nothing) = hBox [txt t, txt "  ", warn $ txt "running..."]
-viewTestRun (TestRunning t (Just p)) =
-    hBox [txt t, txt "  ", warn $ txt $ "running... (" <> show p.compiled <> "/" <> show p.total <> ")"]
-viewTestRun (TestRunErrored e) = hBox [txt e.target, txt "  ", err $ txt "error: ", txt e.message]
-viewTestRun (TestRunCompleted c) = hBox [txt c.target, txt "  ", viewCompletionStatus c]
+viewTestRun :: TestTarget -> Test.Suite -> Widget n
+viewTestRun tgt run =
+    hBox $ [txt $ renderTestTarget tgt, txt "  "] <> status
+  where
+    status = case run of
+        Test.SuiteRunning Nothing ->
+            [ warn $ txt "running..."
+            ]
+        Test.SuiteRunning (Just p) ->
+            [ warn $ txt $ "running... (" <> show p.compiled <> "/" <> show p.total <> ")"
+            ]
+        Test.SuiteErrored e ->
+            [ err $ txt "error: "
+            , txt e.message
+            ]
+        Test.SuiteCompleted c ->
+            [ viewCompletionStatus c
+            ]
 
 
-viewCompletionStatus :: TestRunCompletion -> Widget n
+viewCompletionStatus :: Test.SuiteCompletion -> Widget n
 viewCompletionStatus c = case c.duration of
     Nothing -> statusWidget
     Just d -> hBoxSpaced 1 [statusWidget, subtle $ viewDuration d]
@@ -392,7 +400,7 @@ viewBuildPhaseLine tz = \case
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    BuildComplete build -> viewBuildResultLine tz build.result
+    BuildComplete result _ -> viewBuildResultLine tz result
     BuildFailed _ -> err $ txt "Build command failed"
 
 
@@ -416,34 +424,53 @@ viewBuildResultLine tz result
         in  hBoxSpaced 1 [header, viewDuration result.duration, viewTimestamp tz result.completedAt]
 
 
-phaseTestRuns :: BuildPhase -> [TestRun]
-phaseTestRuns (BuildComplete r) = r.result.testRuns
-phaseTestRuns _ = []
+phaseTestRuns :: BuildPhase -> Test.Suites
+phaseTestRuns (BuildComplete _ pb) = pb.testSuites
+phaseTestRuns _ = Test.Suites mempty
 
 
-viewTestPanel :: TestFilter -> [TestRun] -> Widget Viewports
-viewTestPanel _ [] = subtle $ txt "No test results."
-viewTestPanel tvf runs = scrollableRuns tvf runs
+viewTestPanel :: TestFilter -> Test.Suites -> Widget Viewports
+viewTestPanel tvf suites
+    | Test.nullSuites suites = subtle $ txt "No test results."
+    | otherwise = scrollableRuns tvf suites
 
 
-scrollableRuns :: TestFilter -> [TestRun] -> Widget Viewports
-scrollableRuns tvf runs =
-    vScrollViewport TestViewport (viewTestRunDetail tvf <$> runs)
+scrollableRuns :: TestFilter -> Test.Suites -> Widget Viewports
+scrollableRuns tvf suites =
+    vScrollViewport TestViewport (uncurry (viewTestRunDetail tvf) <$> Map.toList suites.getSuites)
 
 
-viewTestRunDetail :: TestFilter -> TestRun -> Widget n
-viewTestRunDetail _ (TestRunning t Nothing) = hBox [txt t, txt "  ", warn $ txt "running..."]
-viewTestRunDetail _ (TestRunning t (Just p)) =
-    hBox [txt t, txt "  ", warn $ txt $ "running... (" <> show p.compiled <> "/" <> show p.total <> ")"]
-viewTestRunDetail _ (TestRunErrored e) = hBoxSpaced 1 [txt e.target, err $ txt "error:", txt e.message]
-viewTestRunDetail tvf (TestRunCompleted c) =
-    vBox
-        [ hBox [txt c.target, txt "  ", viewCompletionStatus c]
-        , viewTestOutput tvf c
-        ]
+viewTestRunDetail :: TestFilter -> TestTarget -> Test.Suite -> Widget n
+viewTestRunDetail tvf tgt = \case
+    Test.SuiteRunning Nothing ->
+        hBox
+            [ txt t
+            , txt "  "
+            , warn $ txt "running..."
+            ]
+    Test.SuiteRunning (Just p) ->
+        hBox
+            [ txt t
+            , txt "  "
+            , warn $ txt $ "running... (" <> show p.compiled <> "/" <> show p.total <> ")"
+            ]
+    Test.SuiteErrored e ->
+        hBoxSpaced
+            1
+            [ txt t
+            , err $ txt "error:"
+            , txt e.message
+            ]
+    Test.SuiteCompleted c ->
+        vBox
+            [ hBox [txt $ t <> "  ", viewCompletionStatus c]
+            , viewTestOutput tvf c
+            ]
+  where
+    t = renderTestTarget tgt
 
 
-viewTestOutput :: TestFilter -> TestRunCompletion -> Widget n
+viewTestOutput :: TestFilter -> Test.SuiteCompletion -> Widget n
 viewTestOutput TestFilterAll c =
     padLeft (Pad 2) $ vBox $ txt <$> stripGhciNoise (T.lines c.output)
 viewTestOutput TestFilterFailedOnly c
@@ -458,16 +485,16 @@ viewTestOutput TestFilterFailedOnly c
         padLeft (Pad 2) $ vBox $ viewFailedCase <$> filter isCaseFailed c.testCases
 
 
-isCaseFailed :: TestCase -> Bool
-isCaseFailed (TestCase _ (TestCaseFailed _)) = True
+isCaseFailed :: Test.Case -> Bool
+isCaseFailed (Test.Case _ (Test.Failed _)) = True
 isCaseFailed _ = False
 
 
-viewFailedCase :: TestCase -> Widget n
+viewFailedCase :: Test.Case -> Widget n
 viewFailedCase tc =
     vBox
         [ err $ txt tc.description
         , case tc.outcome of
-            TestCaseFailed details -> padLeft (Pad 2) $ txtWrap details
-            TestCasePassed -> emptyWidget
+            Test.Failed details -> padLeft (Pad 2) $ txtWrap details
+            Test.Passed -> emptyWidget
         ]
