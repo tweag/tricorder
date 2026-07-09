@@ -42,13 +42,9 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.BuildState
-    ( BuildPhase (..)
-    , BuildState (..)
-    , PostBuild (..)
-    )
+import Tricorder.BuildState (TestOutput (..))
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
-import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
+import Tricorder.Effects.BuildStore (BuildStore, modifyTests)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Effects.GhciSession.GhciProcess
     ( GhciProcess
@@ -231,28 +227,26 @@ abortGatedProgress abortedRef target loading = do
     unless aborted $ reportTestProgress target loading
 
 
--- | Patch live compile progress for a test suite into the current 'Testing'
--- phase of the build state.
+-- | Patch live compile progress for a test suite into the current build's test
+-- register.
 --
 -- A test suite's @cabal repl@ session typically recompiles a slice of the
 -- project before running @:main@. Mirroring the main-build progress bar, we
--- update the matching 'TestRunning' entry as each @[N of M] Compiling …@
+-- update the matching 'SuiteRunning' entry as each @[N of M] Compiling …@
 -- line arrives so the UI shows @running... (N/M)@ live.
 --
--- The update is best-effort: if the phase has moved on (e.g. a source change
--- triggered 'Restarting' or 'Building'), the progress event is dropped rather
--- than reverting the phase.
+-- 'modifyTests' writes only @history[current].tests@ — it cannot touch the
+-- cycle or the build register, so this can no longer revert a phase. If the
+-- register has moved on (idle/done), the event is a no-op.
 reportTestProgress
     :: (BuildStore :> es) => TestTarget -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
-    modifyPhase \state -> case state.phase of
-        BuildComplete result postBuild
-            | Test.anyRunningTests postBuild.testSuites ->
-                let progress = BuildProgress {compiled = loading.index, total = loading.total}
-                    updateRun (Test.SuiteRunning _) = Test.SuiteRunning (Just progress)
-                    updateRun r = r
-                    newRuns = Test.Suites $ Map.adjust updateRun target postBuild.testSuites.getSuites
-                in  BuildComplete result postBuild {testSuites = newRuns}
+    modifyTests \case
+        TestsRunning suites ->
+            let progress = BuildProgress {compiled = loading.index, total = loading.total}
+                updateRun (Test.SuiteRunning _) = Test.SuiteRunning (Just progress)
+                updateRun r = r
+            in  TestsRunning $ Test.Suites $ Map.adjust updateRun target suites.getSuites
         other -> other
 
 

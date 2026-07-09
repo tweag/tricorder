@@ -35,13 +35,16 @@ import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 
 import Tricorder.BuildState
-    ( BuildPhase (..)
+    ( BuildOutput (..)
+    , BuildRecord (..)
     , BuildResult (..)
     , BuildState (..)
+    , CyclePhase (..)
     , DaemonInfo (..)
     , Diagnostic (..)
-    , PostBuild (..)
     , Severity (..)
+    , TestOutput (..)
+    , currentRecord
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
@@ -164,16 +167,24 @@ viewHeading ws = case currentRoute ws of
 
 
 viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports
-viewDefaultPanel tz bs = viewBuildPhase tz bs.phase
+viewDefaultPanel tz bs = viewBuildPhase tz bs
 
 
 viewTestResultsPanel :: State -> BuildState -> Widget Viewports
 viewTestResultsPanel ws bs =
     vBoxSpaced
         1
-        [ viewBuildPhaseLine ws.timeZone bs.phase
-        , viewTestPanel ws.testFilter (phaseTestRuns bs.phase)
+        [ viewBuildPhaseLine ws.timeZone bs
+        , viewTestPanel ws.testFilter (recordSuites (currentRecord bs))
         ]
+
+
+-- | The suites held in a build record, regardless of running/done.
+recordSuites :: BuildRecord -> Test.Suites
+recordSuites rec = case rec.tests of
+    TestsRunning s -> s
+    TestsDone s -> s
+    TestsIdle -> Test.Suites mempty
 
 
 viewExpandedDaemonInfo :: DaemonInfo -> Widget n
@@ -252,18 +263,23 @@ viewWatchDir dir = hBox [txt "- ", txt $ toText displayDir]
         | otherwise = "./" <> dir
 
 
-viewBuildPhase :: TimeZone -> BuildPhase -> Widget Viewports
-viewBuildPhase tz = \case
+viewBuildPhase :: TimeZone -> BuildState -> Widget Viewports
+viewBuildPhase tz bs = case bs.cycle of
     Building Nothing ->
         warn $ txt "Building..."
     Building (Just p) ->
         warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting ->
         warn $ txt "Restarting..."
-    BuildComplete result postBuild ->
-        vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns postBuild.testSuites]
-    BuildFailed msg ->
+    Failed msg ->
         viewBuildFailed msg
+    Settled -> case rec.build of
+        Built result ->
+            vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns (recordSuites rec)]
+        NotBuilt ->
+            warn $ txt "Building..."
+  where
+    rec = currentRecord bs
 
 
 viewBuildFailed :: Text -> Widget Viewports
@@ -400,13 +416,15 @@ formatDuration d =
 
 -- | Single-line build status with no scrollable diagnostics list, used as a
 -- compact header when a secondary panel (test results, daemon info) is open.
-viewBuildPhaseLine :: TimeZone -> BuildPhase -> Widget n
-viewBuildPhaseLine tz = \case
+viewBuildPhaseLine :: TimeZone -> BuildState -> Widget n
+viewBuildPhaseLine tz bs = case bs.cycle of
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    BuildComplete result _ -> viewBuildResultLine tz result
-    BuildFailed _ -> err $ txt "Build command failed"
+    Failed _ -> err $ txt "Build command failed"
+    Settled -> case (currentRecord bs).build of
+        Built result -> viewBuildResultLine tz result
+        NotBuilt -> warn $ txt "Building..."
 
 
 viewBuildResultLine :: TimeZone -> BuildResult -> Widget n
@@ -427,11 +445,6 @@ viewBuildResultLine tz result
                 else
                     warn $ txt $ show warnCount <> " warning(s)"
         in  hBoxSpaced 1 [header, viewDuration result.duration, viewTimestamp tz result.completedAt]
-
-
-phaseTestRuns :: BuildPhase -> Test.Suites
-phaseTestRuns (BuildComplete _ postBuild) = postBuild.testSuites
-phaseTestRuns _ = Test.Suites mempty
 
 
 viewTestPanel :: TestFilter -> Test.Suites -> Widget Viewports

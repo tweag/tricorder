@@ -38,9 +38,9 @@ import Effectful.Exception (throwIO)
 import Effectful.State.Static.Shared (State, evalState, state)
 import Effectful.TH (makeEffect)
 
-import Tricorder.BuildState (BuildPhase (..))
+import Tricorder.BuildState (CycleEvent (..))
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
-import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
+import Tricorder.Effects.BuildStore (BuildStore, emit)
 import Tricorder.Effects.GhciSession.GhciParser
     ( GhciLoading (..)
     , LoadResult (..)
@@ -116,10 +116,9 @@ runGhciSession
 runGhciSession = interpret $ \env -> \case
     WithGhci cmd (ProjectRoot dir) handler -> do
         let onProgress loading =
-                modifyPhase \_ ->
-                    Building
-                        $ Just
-                        $ BuildProgress {compiled = loading.index, total = loading.total}
+                emit
+                    $ BuildProgressed
+                    $ BuildProgress {compiled = loading.index, total = loading.total}
         withGhciProcess def cmd dir onProgress (\_ -> pure ()) \process startupLines ->
             localLift env (ConcUnlift Persistent Unlimited) \liftEff ->
                 localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do

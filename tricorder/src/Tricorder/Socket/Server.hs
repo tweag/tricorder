@@ -19,11 +19,14 @@ import Atelier.Effects.Log qualified as Log
 import Data.ByteString.Lazy qualified as BSL
 
 import Tricorder.BuildState
-    ( BuildPhase (..)
+    ( BuildOutput (..)
+    , BuildRecord (..)
     , BuildResult (..)
     , BuildState (..)
+    , CyclePhase (..)
     , Diagnostic
-    , PostBuild (..)
+    , currentRecord
+    , isBuilding
     )
 import Tricorder.Effects.BuildStore (BuildStore, getState, waitForAnyChange, waitUntilDone)
 import Tricorder.Effects.Cabal (Cabal)
@@ -50,7 +53,6 @@ import Tricorder.Socket.Protocol
 import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
-import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 
@@ -206,26 +208,22 @@ respondWhenDone h = awaitResult >>= sendJson h
   where
     awaitResult = do
         s <- getState
-        case s.phase of
-            Building _ -> waitUntilDone
-            Restarting -> waitUntilDone
-            BuildComplete _ postBuild
-                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
-                | otherwise -> awaitBuildStart (5 :: Int) s
-            BuildFailed _ -> pure s
+        if isBuilding s then
+            waitUntilDone
+        else case s.cycle of
+            Failed _ -> pure s
+            _ -> awaitBuildStart (5 :: Int) s
 
     -- Poll up to n × 50ms for a build to start, then wait for it to finish.
     awaitBuildStart 0 s = pure s
     awaitBuildStart n _ = do
         wait (50 :: Millisecond)
         s' <- getState
-        case s'.phase of
-            Building _ -> waitUntilDone
-            Restarting -> waitUntilDone
-            BuildComplete _ postBuild
-                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
-                | otherwise -> awaitBuildStart (n - 1) s'
-            BuildFailed _ -> pure s'
+        if isBuilding s' then
+            waitUntilDone
+        else case s'.cycle of
+            Failed _ -> pure s'
+            _ -> awaitBuildStart (n - 1) s'
 
 
 -- | Stream a JSON object after each state change (loops until handle closes or error).
@@ -244,23 +242,23 @@ watchStream h = do
 respondDiagnostic :: (BuildStore :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
     state <- getState
-    case state.phase of
-        BuildComplete result postBuild
-            | not $ Test.anyRunningTests postBuild.testSuites ->
-                case result.diagnostics !!? (idx - 1) of
-                    Nothing ->
-                        sendJson h
-                            $ ErrorResponse
-                            $ "No diagnostic #"
-                                <> show idx
-                                <> " (current build has "
-                                <> show (length result.diagnostics)
-                                <> ")"
-                    Just d -> sendJson h (d :: Diagnostic)
-            | otherwise -> sendJson h $ ErrorResponse "Build in progress"
-        BuildFailed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
-        Building _ -> sendJson h $ ErrorResponse "Build in progress"
-        Restarting -> sendJson h $ ErrorResponse "Build in progress"
+    case state.cycle of
+        Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
+        _
+            | isBuilding state -> sendJson h $ ErrorResponse "Build in progress"
+            | otherwise -> case (currentRecord state).build of
+                Built result ->
+                    case result.diagnostics !!? (idx - 1) of
+                        Nothing ->
+                            sendJson h
+                                $ ErrorResponse
+                                $ "No diagnostic #"
+                                    <> show idx
+                                    <> " (current build has "
+                                    <> show (length result.diagnostics)
+                                    <> ")"
+                        Just d -> sendJson h (d :: Diagnostic)
+                NotBuilt -> sendJson h $ ErrorResponse "Build in progress"
 
 
 -- | Look up source for each requested module and send the results as a JSON array.

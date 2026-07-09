@@ -19,11 +19,11 @@ import Data.Map.Strict qualified as Map
 
 import Tricorder.BuildState
     ( BuildId (..)
-    , BuildPhase (..)
-    , BuildResult (..)
+    , BuildRecord (..)
     , BuildState (..)
     , DaemonInfo (..)
-    , PostBuild (..)
+    , TestOutput (..)
+    , currentRecord
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore (getState)
@@ -244,9 +244,7 @@ testAbortGatedProgress = do
         abortedRef <- newTVarIO True
         let loadings = [mkLoading i 10 | i <- [1 .. 5]]
         finalRuns <- runStore do
-            BuildStore.setPhase (BuildId 1)
-                $ BuildComplete result
-                $ PostBuild startingRuns
+            BuildStore.setTests $ TestsRunning startingRuns
 
             for_ loadings $ abortGatedProgress abortedRef $ mkTestTarget "test:foo"
             phaseTestSuites <$> getState
@@ -255,10 +253,7 @@ testAbortGatedProgress = do
     it "flips behaviour mid-run if abortedRef is set between updates" do
         abortedRef <- newTVarIO False
         finalRuns <- runStore do
-            BuildStore.setPhase
-                (BuildId 1)
-                $ BuildComplete result
-                $ PostBuild startingRuns
+            BuildStore.setTests $ TestsRunning startingRuns
 
             -- This one applies.
             abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 3 10)
@@ -278,9 +273,7 @@ testAbortGatedProgress = do
     runProgress aborted loading runs = do
         abortedRef <- newTVarIO aborted
         runStore do
-            BuildStore.setPhase (BuildId 1)
-                $ BuildComplete result
-                $ PostBuild runs
+            BuildStore.setTests $ TestsRunning runs
             abortGatedProgress abortedRef (mkTestTarget "test:foo") loading
             phaseTestSuites <$> getState
 
@@ -303,18 +296,11 @@ testAbortGatedProgress = do
             , sourceFile = "Mod.hs"
             }
 
-    result =
-        BuildResult
-            { completedAt = epoch
-            , duration = 0
-            , moduleCount = 0
-            , diagnostics = []
-            }
-
     phaseTestSuites :: BuildState -> Test.Suites
-    phaseTestSuites s = case s.phase of
-        BuildComplete _ (PostBuild testSuites) -> testSuites
-        _ -> Test.Suites mempty
+    phaseTestSuites s = case (currentRecord s).tests of
+        TestsRunning testSuites -> testSuites
+        TestsDone testSuites -> testSuites
+        TestsIdle -> Test.Suites mempty
 
     epoch :: UTCTime
     epoch = UTCTime (fromGregorian 2024 1 1) 0

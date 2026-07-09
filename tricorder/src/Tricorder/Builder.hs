@@ -4,7 +4,6 @@ module Tricorder.Builder
 
       -- * Internals exposed for testing
     , NewLoadResult (..)
-    , EnteringNewPhase (..)
     , GhciSessionHooks (..)
     , compileLoadResultsIntoBuildResults
     , runTestsForTargets
@@ -13,7 +12,6 @@ module Tricorder.Builder
     , interruptCurrent
     , onRestart
     , reloadOnSourceChange
-    , setNewPhase
     , restartOnCabalChange
     ) where
 
@@ -43,14 +41,13 @@ import Data.Set qualified as Set
 
 import Tricorder.BuildState
     ( BuildId (..)
-    , BuildPhase (..)
     , BuildResult (..)
-    , BuildState (..)
     , CabalChangeDetected (..)
+    , CycleEvent (..)
     , Diagnostic (..)
-    , PostBuild (..)
     , Severity (..)
     , SourceChangeDetected (..)
+    , TestOutput (..)
     )
 import Tricorder.Builder.Dispatch
     ( BuilderState (..)
@@ -66,7 +63,6 @@ import Tricorder.Effects.BuildStore (BuildStore)
 import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Effects.GhciSession.GhciProcess (GhciProcessError (..))
-import Tricorder.Effects.PostBuildStore (PostBuildStore, runPostBuildStore)
 import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Effects.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))
@@ -74,6 +70,7 @@ import Tricorder.Session
     ( Command (..)
     , Session (..)
     , Target
+    , TestTarget
     , TestTargets
     , WatchDirs
     , getTestTargets
@@ -83,7 +80,6 @@ import Tricorder.Session
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 import Tricorder.Effects.GhciSession qualified as GhciSession
-import Tricorder.Effects.PostBuildStore qualified as PostBuild
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.Effects.TestRunner qualified as TestRunner
 
@@ -178,7 +174,7 @@ runBuilder hooks =
         -- Flip the UI to 'Restarting' immediately so the user sees the change
         -- has been picked up before scope teardown (which kills cabal repl and
         -- waits for graceful exit).
-        enterPhase Restarting
+        BuildStore.emit CabalChanged
         -- Pick up cabal/package.yaml edits before the next iteration.
         SessionStore.rawReload
 
@@ -213,9 +209,11 @@ onRestart
     => Eff es ()
 onRestart = do
     Log.info "Restarting builder..."
-    buildId <- get
+    -- 'State BuildId' is now only a session counter used for log lines; the
+    -- authoritative build identity lives in the store's 'current', bumped by
+    -- the reducer on 'SessionStarted'.
     modify @BuildId (+ 1)
-    setNewPhase $ EnteringNewPhase buildId $ Building Nothing
+    BuildStore.emit SessionStarted
 
 
 --------------------------------------------------------------------------------
@@ -249,7 +247,6 @@ defaultGhciSessionHooks
        , Clock :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
@@ -345,13 +342,12 @@ buildWithGhciOnChange = runGhciSessions defaultGhciSessionHooks
 recoverFromStartupFailure
     :: ( BuildStore :> es
        , Log :> es
-       , State BuildId :> es
        , Sub SourceChangeDetected :> es
        )
     => SomeException -> Eff es ()
 recoverFromStartupFailure ex = do
     Log.err $ "GHCi session failed to start: " <> show ex
-    enterPhase $ BuildFailed $ renderStartupError ex
+    BuildStore.emit $ BuildAborted $ renderStartupError ex
     Log.info "Build command failed; waiting for a source change to retry"
     void $ Sub.listenOnce_ @SourceChangeDetected
 
@@ -430,7 +426,6 @@ reloadOnSourceChange
        , Clock :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , TestRunner :> es
        )
@@ -450,7 +445,7 @@ reloadOnSourceChange config controls (SourceChangeDetected fp event) = do
                     <> " of file not loaded in GHCi: "
                     <> toText fp
         Just action -> do
-            enterPhase $ Building Nothing
+            BuildStore.emit SourceChanged
 
             res <- trySync do
                 startTime <- Clock.currentTime
@@ -466,7 +461,7 @@ reloadOnSourceChange config controls (SourceChangeDetected fp event) = do
                     -- reload that errors (rather than producing a result) must
                     -- not leave the daemon stuck until the next source change
                     -- happens to arrive and succeed.
-                    enterPhase $ BuildFailed $ "Reload failed: " <> toText (displayException e)
+                    BuildStore.emit $ BuildAborted $ "Reload failed: " <> toText (displayException e)
                 Right (startTime, endTime, loadResult) -> do
                     modify \s ->
                         s
@@ -496,24 +491,16 @@ afterLoad
     => BuildConfig -> NewLoadResult -> Eff es ()
 afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
-    runPostBuildStore buildResult do
-        if hasTargets config.testTargets && noErrors buildResult then
-            runTestsForTargets config.testTargets >>= \case
-                Aborted -> Log.debug "Test run aborted by source change; skipping BuildComplete transition."
-                NotAborted -> do
-                    curr <- BuildStore.getState
-                    case curr.phase of
-                        Restarting -> pure ()
-                        BuildComplete _ _ -> pure ()
-                        _ ->
-                            BuildStore.setPhase curr.buildId
-                                $ BuildComplete buildResult
-                                $ PostBuild
-                                $ Test.Suites mempty
-                    pure ()
-        else do
-            PostBuild.modifyPostBuild \postBuild ->
-                postBuild {testSuites = Test.Suites mempty}
+    -- Settle the cycle and publish the build result atomically, under the
+    -- current buildId. The reducer drops this if a restart already began.
+    BuildStore.emit $ BuildFinished buildResult
+    -- Tests are a downstream register: they never move the cycle, they just
+    -- write history[current].tests. A late/aborted test result files itself
+    -- under its own buildId and cannot clobber a newer build.
+    when (hasTargets config.testTargets && noErrors buildResult) do
+        runTestsForTargets config.testTargets >>= \case
+            Aborted -> Log.debug "Test run aborted by source change; leaving tests register as-is."
+            NotAborted -> pure ()
   where
     hasTargets testTargets = not $ null testTargets.getTestTargets
     noErrors result = all (\d -> d.severity /= SError) result.diagnostics
@@ -561,28 +548,31 @@ data TestRunAborted = NotAborted | Aborted
 -- (the caller should not transition to a Done phase in that case). Returns
 -- 'Just' with the collected results otherwise.
 runTestsForTargets
-    :: ( Log :> es
-       , PostBuildStore :> es
+    :: ( BuildStore :> es
+       , Log :> es
        , TestRunner :> es
        )
     => TestTargets
     -> Eff es TestRunAborted
 runTestsForTargets testTargets = do
     TestRunner.resetAbort
-    PostBuild.modifyPostBuild \postBuild ->
-        postBuild
-            { testSuites =
-                Test.Suites
-                    $ Map.fromList
-                    $ (,Test.SuiteRunning Nothing) <$> tgts
-            }
+    BuildStore.setTests
+        $ TestsRunning
+        $ Test.Suites
+        $ Map.fromList
+        $ (,Test.SuiteRunning Nothing) <$> tgts
 
     Log.info $ "Running " <> show (length tgts) <> " test suite(s)"
 
     runLoop tgts
   where
     tgts = testTargets.getTestTargets
-    runLoop [] = pure NotAborted
+    -- Mark the register done once the last suite completes.
+    runLoop [] = do
+        BuildStore.modifyTests \case
+            TestsRunning suites -> TestsDone suites
+            other -> other
+        pure NotAborted
     runLoop (target : rest) = do
         Log.info $ "Running tests: " <> renderTestTarget target
         result' <- TestRunner.runTestSuite target
@@ -590,13 +580,19 @@ runTestsForTargets testTargets = do
         if aborted then
             pure Aborted
         else do
-            PostBuild.modifyPostBuild \postBuild ->
-                postBuild
-                    { testSuites =
-                        Test.Suites $ Map.insert target result' postBuild.testSuites.getSuites
-                    }
-
+            BuildStore.modifyTests $ insertSuiteResult target result'
             runLoop rest
+
+
+-- | Insert a completed suite's result into whichever running/done register we
+-- have, preserving the wrapper.
+insertSuiteResult :: TestTarget -> Test.Suite -> TestOutput -> TestOutput
+insertSuiteResult target result' = \case
+    TestsRunning suites -> TestsRunning (insert suites)
+    TestsDone suites -> TestsDone (insert suites)
+    TestsIdle -> TestsRunning (insert (Test.Suites mempty))
+  where
+    insert suites = Test.Suites $ Map.insert target result' suites.getSuites
 
 
 --------------------------------------------------------------------------------
@@ -647,24 +643,6 @@ restartOnCabalChange preRestart setup action = do
 -- Phase-transition helpers
 --------------------------------------------------------------------------------
 
-setNewPhase
-    :: (BuildStore :> es)
-    => EnteringNewPhase -> Eff es ()
-setNewPhase (EnteringNewPhase bid phase) =
-    BuildStore.setPhase bid phase
-
-
--- | Transition the /current/ build into @phase@.
-enterPhase
-    :: ( BuildStore :> es
-       , State BuildId :> es
-       )
-    => BuildPhase -> Eff es ()
-enterPhase phase = do
-    buildId <- get
-    setNewPhase $ EnteringNewPhase buildId phase
-
-
 renderStartupError :: SomeException -> Text
 renderStartupError ex = case fromException ex of
     Just (StartupFailed msg) -> msg
@@ -685,9 +663,4 @@ data NewLoadResult = NewLoadResult
     , endTime :: UTCTime
     , loadResult :: LoadResult
     }
-    deriving stock (Eq, Show)
-
-
--- | A pending phase transition. Carried by 'setNewPhase' into the 'BuildStore'.
-data EnteringNewPhase = EnteringNewPhase BuildId BuildPhase
     deriving stock (Eq, Show)

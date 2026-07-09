@@ -4,15 +4,19 @@ import Data.Aeson (eitherDecode, encode)
 import Data.Time (UTCTime (..), fromGregorian)
 import Test.Hspec
 
+import Data.Map.Strict qualified as Map
+
 import Tricorder.BuildState
     ( BuildId (..)
-    , BuildPhase (..)
+    , BuildOutput (..)
+    , BuildRecord (..)
     , BuildResult (..)
     , BuildState (..)
+    , CyclePhase (..)
     , DaemonInfo (..)
     , Diagnostic (..)
-    , PostBuild (..)
     , Severity (..)
+    , TestOutput (..)
     )
 
 import Tricorder.BuildState.Test qualified as Test
@@ -66,35 +70,59 @@ spec_BuildState = do
                 bs = mkBuildState [msg]
             eitherDecode (encode bs) `shouldBe` Right bs
 
-        -- Guards the wire format for the BuildFailed phase: the captured
+        -- Guards the wire format for the Failed cycle arm: the captured
         -- cabal/build error (multi-line, Unicode) must round-trip intact so
         -- the CLI/UI clients can render it.
-        it "survives a BuildFailed phase with a multi-line message" do
+        it "survives a Failed cycle with a multi-line message" do
             let bs =
                     mkBuildState [] :: BuildState
                 failed =
                     bs
-                        { phase =
-                            BuildFailed
+                        { cycle =
+                            Failed
                                 "cabal: Could not resolve dependencies:\n[__0] trying: \8216base\8217\nrejecting: ..."
                         }
             eitherDecode (encode failed) `shouldBe` Right failed
+
+        -- Guards the buildId-keyed history: the Map BuildId BuildRecord must
+        -- round-trip, i.e. the BuildId newtype's ToJSONKey/FromJSONKey work.
+        it "survives a multi-build history (K=2)" do
+            let bs = mkBuildState []
+                twoBuilds =
+                    bs
+                        { current = BuildId 3
+                        , history =
+                            Map.fromList
+                                [ (BuildId 2, BuildRecord (Built (mkResult [])) (TestsDone (Test.Suites mempty)))
+                                , (BuildId 3, BuildRecord (Built (mkResult [])) TestsIdle)
+                                ]
+                        }
+            eitherDecode (encode twoBuilds) `shouldBe` Right twoBuilds
+
+
+mkResult :: [Diagnostic] -> BuildResult
+mkResult msgs =
+    BuildResult
+        { completedAt = epoch
+        , duration = 0
+        , moduleCount = 0
+        , diagnostics = msgs
+        }
+
+
+epoch :: UTCTime
+epoch = UTCTime (fromGregorian 1970 1 1) 0
 
 
 mkBuildState :: [Diagnostic] -> BuildState
 mkBuildState msgs =
     BuildState
-        { buildId = BuildId 1
-        , phase =
-            BuildComplete
-                ( BuildResult
-                    { completedAt = epoch
-                    , duration = 0
-                    , moduleCount = 0
-                    , diagnostics = msgs
-                    }
-                )
-                $ PostBuild
+        { current = BuildId 1
+        , cycle = Settled
+        , history =
+            Map.singleton (BuildId 1)
+                $ BuildRecord (Built (mkResult msgs))
+                $ TestsDone
                 $ Test.Suites mempty
         , daemonInfo =
             DaemonInfo
@@ -105,5 +133,3 @@ mkBuildState msgs =
                 , metricsPort = Nothing
                 }
         }
-  where
-    epoch = UTCTime (fromGregorian 1970 1 1) 0
