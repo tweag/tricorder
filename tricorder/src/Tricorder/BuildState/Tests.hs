@@ -8,6 +8,7 @@ module Tricorder.BuildState.Tests
     , isFailedRun
     , Outcome (..)
     , Case (..)
+    , caseFailed
     , SuiteCompletion (..)
     , SuiteError (..)
     ) where
@@ -77,6 +78,11 @@ data Case = Case
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via (Generically Case)
+
+
+caseFailed :: Case -> Bool
+caseFailed (Case _ (Failed _)) = True
+caseFailed _ = False
 
 
 newtype SuiteError = SuiteError

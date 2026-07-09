@@ -238,14 +238,11 @@ showTests opts = do
                     Console.putTextLn "  (unrecognised test runner format — showing full output)"
                     mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
                 else
-                    mapM_ printFailedCase (filter isCaseFailed c.testCases)
+                    mapM_ printFailedCase (filter Test.caseFailed c.testCases)
             else
                 mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
       where
         t = renderTestTarget tgt <> "  "
-
-    isCaseFailed (Test.Case _ (Test.Failed _)) = True
-    isCaseFailed _ = False
 
     printFailedCase tc = do
         Console.putTextLn $ "  " <> tc.description

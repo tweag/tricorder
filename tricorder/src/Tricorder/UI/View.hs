@@ -368,7 +368,7 @@ viewCompletionStatus c = case c.duration of
         | null c.testCases = if c.passed then ok (txt "passed") else err (txt "failed")
         | otherwise =
             let total = length c.testCases
-                failed = length $ filter isCaseFailed c.testCases
+                failed = length $ filter Test.caseFailed c.testCases
             in  if failed == 0 then
                     ok $ txt $ "passed (" <> show total <> ")"
                 else
@@ -474,7 +474,7 @@ viewTestOutput :: TestFilter -> Test.SuiteCompletion -> Widget n
 viewTestOutput TestFilterAll c =
     padLeft (Pad 2) $ vBox $ txt <$> stripGhciNoise (T.lines c.output)
 viewTestOutput TestFilterFailedOnly c
-    | not (any isCaseFailed c.testCases) && c.passed = emptyWidget
+    | not (any Test.caseFailed c.testCases) && c.passed = emptyWidget
     | null c.testCases =
         padLeft (Pad 2)
             $ vBox
@@ -482,12 +482,7 @@ viewTestOutput TestFilterFailedOnly c
                 , vBox $ txt <$> stripGhciNoise (T.lines c.output)
                 ]
     | otherwise =
-        padLeft (Pad 2) $ vBox $ viewFailedCase <$> filter isCaseFailed c.testCases
-
-
-isCaseFailed :: Test.Case -> Bool
-isCaseFailed (Test.Case _ (Test.Failed _)) = True
-isCaseFailed _ = False
+        padLeft (Pad 2) $ vBox $ viewFailedCase <$> filter Test.caseFailed c.testCases
 
 
 viewFailedCase :: Test.Case -> Widget n
