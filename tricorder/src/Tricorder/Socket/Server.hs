@@ -209,8 +209,8 @@ respondWhenDone h = awaitResult >>= sendJson h
         case s.phase of
             Building _ -> waitUntilDone
             Restarting -> waitUntilDone
-            BuildComplete _ pb
-                | Test.anyRunningTests pb.testSuites -> waitUntilDone
+            BuildComplete _ postBuild
+                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
                 | otherwise -> awaitBuildStart (5 :: Int) s
             BuildFailed _ -> pure s
 
@@ -222,8 +222,8 @@ respondWhenDone h = awaitResult >>= sendJson h
         case s'.phase of
             Building _ -> waitUntilDone
             Restarting -> waitUntilDone
-            BuildComplete _ pb
-                | Test.anyRunningTests pb.testSuites -> waitUntilDone
+            BuildComplete _ postBuild
+                | Test.anyRunningTests postBuild.testSuites -> waitUntilDone
                 | otherwise -> awaitBuildStart (n - 1) s'
             BuildFailed _ -> pure s'
 
@@ -245,17 +245,18 @@ respondDiagnostic :: (BuildStore :> es, UnixSocket :> es) => Int -> Handle -> Ef
 respondDiagnostic idx h = do
     state <- getState
     case state.phase of
-        BuildComplete r pb
-            | not $ Test.anyRunningTests pb.testSuites -> case r.diagnostics !!? (idx - 1) of
-                Nothing ->
-                    sendJson h
-                        $ ErrorResponse
-                        $ "No diagnostic #"
-                            <> show idx
-                            <> " (current build has "
-                            <> show (length r.diagnostics)
-                            <> ")"
-                Just d -> sendJson h (d :: Diagnostic)
+        BuildComplete result postBuild
+            | not $ Test.anyRunningTests postBuild.testSuites ->
+                case result.diagnostics !!? (idx - 1) of
+                    Nothing ->
+                        sendJson h
+                            $ ErrorResponse
+                            $ "No diagnostic #"
+                                <> show idx
+                                <> " (current build has "
+                                <> show (length result.diagnostics)
+                                <> ")"
+                    Just d -> sendJson h (d :: Diagnostic)
             | otherwise -> sendJson h $ ErrorResponse "Build in progress"
         BuildFailed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         Building _ -> sendJson h $ ErrorResponse "Build in progress"

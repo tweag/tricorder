@@ -246,13 +246,13 @@ reportTestProgress
     :: (BuildStore :> es) => TestTarget -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
     modifyPhase \state -> case state.phase of
-        BuildComplete result pb
-            | Test.anyRunningTests pb.testSuites ->
+        BuildComplete result postBuild
+            | Test.anyRunningTests postBuild.testSuites ->
                 let progress = BuildProgress {compiled = loading.index, total = loading.total}
                     updateRun (Test.SuiteRunning _) = Test.SuiteRunning (Just progress)
                     updateRun r = r
-                    newRuns = Test.Suites $ Map.adjust updateRun target pb.testSuites.getSuites
-                in  BuildComplete result pb {testSuites = newRuns}
+                    newRuns = Test.Suites $ Map.adjust updateRun target postBuild.testSuites.getSuites
+                in  BuildComplete result postBuild {testSuites = newRuns}
         other -> other
 
 

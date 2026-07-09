@@ -322,7 +322,7 @@ testReloadOnSourceChange = do
         , EnteringNewPhase (BuildId 1) $ BuildComplete (resultFor lr) $ PostBuild $ Test.Suites mempty
         ]
 
-    buildResultsFrom phases = [r | EnteringNewPhase _ (BuildComplete r _) <- phases]
+    buildResultsFrom phases = [result | EnteringNewPhase _ (BuildComplete result _) <- phases]
 
     resultFor lr =
         BuildResult
@@ -566,7 +566,8 @@ testPostBuildStoreFinalizer =
                     -- afterLoad publishes the running suites on every clean
                     -- build with test targets, so the phase is BuildComplete
                     -- at this point...
-                    modifyPostBuild \pb -> pb {testSuites = runningSuites}
+                    modifyPostBuild \postBuild ->
+                        postBuild {testSuites = runningSuites}
                     -- ...and then a concurrent .cabal restart flips it to
                     -- Restarting just before this action returns.
                     BuildStore.setPhase (BuildId 1) Restarting

@@ -99,7 +99,7 @@ isBuilding :: BuildState -> Bool
 isBuilding s = case s.phase of
     Building _ -> True
     Restarting -> True
-    BuildComplete _ pb -> Test.anyRunningTests pb.testSuites
+    BuildComplete _ postBuild -> Test.anyRunningTests postBuild.testSuites
     BuildFailed _ -> False
 
 

@@ -164,10 +164,10 @@ stateLabel :: BuildPhase -> Text
 stateLabel (Building _) = "building"
 stateLabel Restarting = "restarting"
 stateLabel (BuildFailed _) = "error"
-stateLabel (BuildComplete result pb)
+stateLabel (BuildComplete result postBuild)
     | any (\m -> m.severity == SError) result.diagnostics = "error"
     | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
-    | Tests.anyRunningTests pb.testSuites = "testing"
+    | Tests.anyRunningTests postBuild.testSuites = "testing"
     | otherwise = "ok"
 
 

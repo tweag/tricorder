@@ -499,7 +499,8 @@ afterLoad config newLoadResult = do
         if hasTargets config.testTargets && noErrors buildResult then
             requestTestRunsForNewBuildResults config.testTargets
         else do
-            PostBuild.modifyPostBuild \pb -> pb {testSuites = Test.Suites mempty}
+            PostBuild.modifyPostBuild \postBuild ->
+                postBuild {testSuites = Test.Suites mempty}
   where
     hasTargets testTargets = not $ null testTargets.getTestTargets
     noErrors result = all (\d -> d.severity /= SError) result.diagnostics
@@ -568,7 +569,13 @@ runTestsForTargets
     -> Eff es TestRunAborted
 runTestsForTargets testTargets = do
     TestRunner.resetAbort
-    PostBuild.modifyPostBuild \pb -> pb {testSuites = Test.Suites $ Map.fromList $ (,Test.SuiteRunning Nothing) <$> tgts}
+    PostBuild.modifyPostBuild \postBuild ->
+        postBuild
+            { testSuites =
+                Test.Suites
+                    $ Map.fromList
+                    $ (,Test.SuiteRunning Nothing) <$> tgts
+            }
 
     Log.info $ "Running " <> show (length tgts) <> " test suite(s)"
 
@@ -583,9 +590,10 @@ runTestsForTargets testTargets = do
         if aborted then
             pure Aborted
         else do
-            PostBuild.modifyPostBuild \pb ->
-                pb
-                    { testSuites = Test.Suites $ Map.insert target result' pb.testSuites.getSuites
+            PostBuild.modifyPostBuild \postBuild ->
+                postBuild
+                    { testSuites =
+                        Test.Suites $ Map.insert target result' postBuild.testSuites.getSuites
                     }
 
             runLoop rest

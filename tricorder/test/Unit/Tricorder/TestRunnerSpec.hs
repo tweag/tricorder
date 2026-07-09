@@ -249,7 +249,7 @@ testAbortGatedProgress = do
                 $ PostBuild startingRuns
 
             for_ loadings $ abortGatedProgress abortedRef $ mkTestTarget "test:foo"
-            phaseTestRuns <$> getState
+            phaseTestSuites <$> getState
         finalRuns `shouldBe` startingRuns
 
     it "flips behaviour mid-run if abortedRef is set between updates" do
@@ -267,7 +267,7 @@ testAbortGatedProgress = do
             -- These should now be dropped.
             abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 8 10)
             abortGatedProgress abortedRef (mkTestTarget "test:foo") (mkLoading 9 10)
-            phaseTestRuns <$> getState
+            phaseTestSuites <$> getState
         Map.toList finalRuns.getSuites
             `shouldMatchList` [(mkTestTarget "test:foo", Test.SuiteRunning (Just BuildProgress {compiled = 3, total = 10}))]
   where
@@ -282,7 +282,7 @@ testAbortGatedProgress = do
                 $ BuildComplete result
                 $ PostBuild runs
             abortGatedProgress abortedRef (mkTestTarget "test:foo") loading
-            phaseTestRuns <$> getState
+            phaseTestSuites <$> getState
 
     runStore =
         runEff
@@ -311,9 +311,9 @@ testAbortGatedProgress = do
             , diagnostics = []
             }
 
-    phaseTestRuns :: BuildState -> Test.Suites
-    phaseTestRuns s = case s.phase of
-        BuildComplete _ (PostBuild r) -> r
+    phaseTestSuites :: BuildState -> Test.Suites
+    phaseTestSuites s = case s.phase of
+        BuildComplete _ (PostBuild testSuites) -> testSuites
         _ -> Test.Suites mempty
 
     epoch :: UTCTime

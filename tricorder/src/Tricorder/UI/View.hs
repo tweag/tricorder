@@ -254,11 +254,16 @@ viewWatchDir dir = hBox [txt "- ", txt $ toText displayDir]
 
 viewBuildPhase :: TimeZone -> BuildPhase -> Widget Viewports
 viewBuildPhase tz = \case
-    Building Nothing -> warn $ txt "Building..."
-    Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
-    Restarting -> warn $ txt "Restarting..."
-    BuildComplete result pb -> vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns pb.testSuites]
-    BuildFailed msg -> viewBuildFailed msg
+    Building Nothing ->
+        warn $ txt "Building..."
+    Building (Just p) ->
+        warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
+    Restarting ->
+        warn $ txt "Restarting..."
+    BuildComplete result postBuild ->
+        vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns postBuild.testSuites]
+    BuildFailed msg ->
+        viewBuildFailed msg
 
 
 viewBuildFailed :: Text -> Widget Viewports
@@ -425,7 +430,7 @@ viewBuildResultLine tz result
 
 
 phaseTestRuns :: BuildPhase -> Test.Suites
-phaseTestRuns (BuildComplete _ pb) = pb.testSuites
+phaseTestRuns (BuildComplete _ postBuild) = postBuild.testSuites
 phaseTestRuns _ = Test.Suites mempty
 
 
