@@ -37,8 +37,8 @@ import Tricorder.Effects.SessionStore (SessionStore)
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..), Target, WatchDirs (..))
 
-import Tricorder.BuildState.Tests qualified as Test
-import Tricorder.BuildState.Tests qualified as Tests
+import Tricorder.BuildState.Test qualified as Test
+import Tricorder.BuildState.Test qualified as Tests
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.Observability qualified as Observability
 

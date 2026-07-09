@@ -5,7 +5,7 @@ import Data.Char (isDigit)
 
 import Data.Text qualified as T
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 
 
 -- | Parse hspec output into individual test case results.

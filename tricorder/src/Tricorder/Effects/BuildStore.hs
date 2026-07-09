@@ -35,7 +35,7 @@ import Tricorder.BuildState
     , initialBuildState
     )
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 
 
 data BuildStore :: Effect where

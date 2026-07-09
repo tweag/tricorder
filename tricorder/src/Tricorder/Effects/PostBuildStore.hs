@@ -16,7 +16,7 @@ import Effectful.Writer.Static.Shared (Writer, tell)
 import Tricorder.BuildState (BuildPhase (..), BuildResult, BuildState (..), PostBuild (..))
 import Tricorder.Effects.BuildStore (BuildStore)
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 

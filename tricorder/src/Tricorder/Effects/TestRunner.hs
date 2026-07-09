@@ -67,7 +67,7 @@ import Tricorder.Session
     )
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.SessionStore qualified as SessionStore
 
 

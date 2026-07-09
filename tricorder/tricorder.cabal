@@ -32,7 +32,7 @@ library tricorder-internal
       Tricorder.Builder.Dispatch
       Tricorder.BuildState
       Tricorder.BuildState.BuildProgress
-      Tricorder.BuildState.Tests
+      Tricorder.BuildState.Test
       Tricorder.CLI
       Tricorder.CLI.Main
       Tricorder.CLI.Render

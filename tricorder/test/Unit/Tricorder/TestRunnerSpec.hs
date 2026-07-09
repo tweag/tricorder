@@ -42,7 +42,7 @@ import Tricorder.Effects.TestRunner
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Target (..), TestTarget (..))
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 

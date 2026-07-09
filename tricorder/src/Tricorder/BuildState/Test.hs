@@ -1,4 +1,4 @@
-module Tricorder.BuildState.Tests
+module Tricorder.BuildState.Test
     ( Suites (..)
     , hasFailedTests
     , suiteRuns

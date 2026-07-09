@@ -50,8 +50,8 @@ import Tricorder.Session (renderTestTarget)
 import Tricorder.Socket.Client (querySource, queryStatus, queryStatusWait)
 import Tricorder.TestOutput (stripGhciNoise)
 
-import Tricorder.BuildState.Tests qualified as Test
-import Tricorder.BuildState.Tests qualified as Tests
+import Tricorder.BuildState.Test qualified as Test
+import Tricorder.BuildState.Test qualified as Tests
 
 
 -- | Print a build-command failure message and exit non-zero.

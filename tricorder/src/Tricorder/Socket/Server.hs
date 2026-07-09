@@ -50,7 +50,7 @@ import Tricorder.Socket.Protocol
 import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 

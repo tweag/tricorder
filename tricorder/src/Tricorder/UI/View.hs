@@ -51,7 +51,7 @@ import Tricorder.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, war
 import Tricorder.UI.Route (Route)
 import Tricorder.UI.State (Processed (..), State (..), TestFilter (..), Viewports (..), currentRoute)
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.UI.Keys qualified as Keys
 import Tricorder.UI.Route qualified as Route
 import Tricorder.Version qualified as Version

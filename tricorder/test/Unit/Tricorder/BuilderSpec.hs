@@ -77,7 +77,7 @@ import Tricorder.Effects.TestRunner (TestRunner (..), runTestRunnerScripted)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (TestTarget (..), WatchDirs (..), parseTarget, parseTestTargets)
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Builder qualified as Builder
 import Tricorder.Effects.BuildStore qualified as BuildStore
 

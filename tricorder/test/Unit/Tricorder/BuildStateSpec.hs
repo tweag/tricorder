@@ -15,7 +15,7 @@ import Tricorder.BuildState
     , Severity (..)
     )
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 
 
 spec_BuildState :: Spec

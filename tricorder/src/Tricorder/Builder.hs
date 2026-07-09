@@ -79,7 +79,7 @@ import Tricorder.Session
     , renderTestTarget
     )
 
-import Tricorder.BuildState.Tests qualified as Test
+import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 import Tricorder.Effects.GhciSession qualified as GhciSession
 import Tricorder.Effects.PostBuildStore qualified as PostBuild
