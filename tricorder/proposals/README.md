@@ -8,3 +8,4 @@
 | [004](004-tests-after-build/) | Run Tests After Build | Draft |
 | [005](005-replace-ghcid/) | Custom GHCi Session Manager | Draft |
 | [006](006-re-resolve-targets-on-cabal-change/) | Re-Resolve Targets on Cabal Change | Done |
+| [008](008-decouple-build-state/) | Decouple Build State into Cycle and Registers | Draft |
