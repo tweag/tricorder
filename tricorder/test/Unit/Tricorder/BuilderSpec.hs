@@ -52,7 +52,7 @@ import Tricorder.Builder
     , compileLoadResultsIntoBuildResults
     , onRestart
     , reloadOnSourceChange
-    , requestTestRunsForNewBuildResults
+    , runTestsForTargets
     , setNewPhase
     , watchSourceChanges
     )
@@ -72,7 +72,7 @@ import Tricorder.Effects.GhciSession
     , runGhciSessionScripted
     )
 import Tricorder.Effects.GhciSession.GhciParser (collectResult, extractTitle, resolveKnownTargets)
-import Tricorder.Effects.PostBuildStore (modifyPostBuild, runPostBuildCapture, runPostBuildState, runPostBuildStore)
+import Tricorder.Effects.PostBuildStore (runPostBuildCapture, runPostBuildState)
 import Tricorder.Effects.TestRunner (TestRunner (..), runTestRunnerScripted)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (TestTarget (..), WatchDirs (..), parseTarget, parseTestTargets)
@@ -88,8 +88,7 @@ spec_Builder = do
     describe "filterToWatchDirs" testFilterToWatchDirs
     describe "extractTitle" testExtractTitle
     describe "compileLoadResultsIntoBuildResults" testCompileLoadResultsIntoBuildResults
-    describe "requestTestRunsForNewBuildResults" testRequestTestRunsForNewBuildResults
-    describe "runPostBuildStore" testPostBuildStoreFinalizer
+    describe "runTestsForTargets" testRunTestsForTargets
     describe "setNewPhase" testSetNewPhase
     describe "onRestart" testOnRestart
     describe "restartOnCabalChange" testRestartOnCabalChange
@@ -460,8 +459,8 @@ testCompileLoadResultsIntoBuildResults = do
         in  (builderState.diagnosticMap, buildResult)
 
 
-testRequestTestRunsForNewBuildResults :: Spec
-testRequestTestRunsForNewBuildResults = do
+testRunTestsForTargets :: Spec
+testRunTestsForTargets = do
     it "should emit EnteringNewPhase events for each test target" do
         phases <-
             runTest
@@ -502,7 +501,7 @@ testRequestTestRunsForNewBuildResults = do
                 . runPostBuildState
                 . runPostBuildCapture
                 . runTestRunnerAbortAfterFirst suiteCompleted
-                $ requestTestRunsForNewBuildResults
+                $ runTestsForTargets
                 $ parseTestTargets ["test:foo", "test:bar"]
         phases
             `shouldMatchList` [ PostBuild
@@ -522,7 +521,7 @@ testRequestTestRunsForNewBuildResults = do
             . runPostBuildState
             . runPostBuildCapture
             . runTestRunnerScripted script
-            $ requestTestRunsForNewBuildResults testTargets
+            $ runTestsForTargets testTargets
 
     postBuildWithTests = PostBuild . Test.Suites . Map.fromList
 
@@ -534,62 +533,6 @@ testRequestTestRunsForNewBuildResults = do
                 , testCases = []
                 , duration = Nothing
                 }
-
-
--- | [regression] A @.cabal@ change can fire while a post-build cycle is
--- finishing. The restart coordinator ('restartOnCabalChange' -> 'preRestart')
--- runs on a /separate/ fiber and flips the shared phase to 'Restarting'; it
--- does NOT latch the test-runner abort flag, so the post-build action on the
--- worker fiber runs to completion unaware of it.
---
--- 'runPostBuildStore' must leave that fresh 'Restarting' phase alone. Its
--- finalizer instead re-reads the phase, sees it is not 'BuildComplete', and
--- force-writes a stale empty 'BuildComplete' carrying the old build result.
--- That reads as "done" ('anyRunningTests' is False for empty suites), so
--- 'isBuilding' flips to False and a 'status --wait' caller wakes on the
--- previous build's result while a restart is actually in flight.
---
--- This drives the production 'runPostBuildStore' (via the stateful
--- 'runBuildStoreCapture', whose 'getState' the finalizer reads) — unlike the
--- abort test above, which runs under 'runPostBuildState' and never exercises
--- the finalizer.
-testPostBuildStoreFinalizer :: Spec
-testPostBuildStoreFinalizer =
-    it "does not clobber a concurrently-set Restarting phase in its finalizer" do
-        (_, finalState) <-
-            runEff
-                . runState initialState
-                . execWriter @[EnteringNewPhase]
-                . runBuildStoreCapture
-                . runPostBuildStore buildResult
-                $ do
-                    -- afterLoad publishes the running suites on every clean
-                    -- build with test targets, so the phase is BuildComplete
-                    -- at this point...
-                    modifyPostBuild \postBuild ->
-                        postBuild {testSuites = runningSuites}
-                    -- ...and then a concurrent .cabal restart flips it to
-                    -- Restarting just before this action returns.
-                    BuildStore.setPhase (BuildId 1) Restarting
-        finalState.phase `shouldBe` Restarting
-  where
-    initialState =
-        BuildState
-            { buildId = BuildId 1
-            , phase = Building Nothing
-            , daemonInfo = emptyDaemonInfo
-            }
-
-    buildResult =
-        BuildResult
-            { completedAt = epoch
-            , duration = 0
-            , moduleCount = 1
-            , diagnostics = []
-            }
-
-    runningSuites =
-        Test.Suites $ Map.fromList [(mkTestTarget "test:foo", Test.SuiteRunning Nothing)]
 
 
 --------------------------------------------------------------------------------

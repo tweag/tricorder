@@ -8,7 +8,7 @@ module Tricorder.Effects.PostBuildStore
 where
 
 import Effectful (Effect)
-import Effectful.Dispatch.Dynamic (interpose_, interpretWith_, interpret_)
+import Effectful.Dispatch.Dynamic (interpose_, interpret_)
 import Effectful.State.Static.Shared (State, get, modify)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
@@ -37,21 +37,14 @@ runPostBuildStore
     => BuildResult
     -> Eff (PostBuildStore : es) a
     -> Eff es a
-runPostBuildStore initialBuildResult act = do
-    res <- interpretWith_ act \case
+runPostBuildStore initialBuildResult = do
+    interpret_ \case
         ModifyPostBuild f -> do
             BuildStore.modifyPhase \s -> case s.phase of
-                BuildComplete buildResult postBuild -> BuildComplete buildResult $ f postBuild
-                _ -> BuildComplete initialBuildResult $ f $ PostBuild $ Test.Suites mempty
-    curr <- BuildStore.getState
-    case curr.phase of
-        BuildComplete _ _ -> pure ()
-        _ ->
-            BuildStore.setPhase curr.buildId
-                $ BuildComplete initialBuildResult
-                $ PostBuild
-                $ Test.Suites mempty
-    pure res
+                BuildComplete buildResult postBuild ->
+                    BuildComplete buildResult $ f postBuild
+                _ ->
+                    BuildComplete initialBuildResult $ f $ PostBuild $ Test.Suites mempty
 
 
 runPostBuildState :: (State PostBuild :> es) => Eff (PostBuildStore : es) a -> Eff es a

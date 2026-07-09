@@ -7,7 +7,7 @@ module Tricorder.Builder
     , EnteringNewPhase (..)
     , GhciSessionHooks (..)
     , compileLoadResultsIntoBuildResults
-    , requestTestRunsForNewBuildResults
+    , runTestsForTargets
     , buildWithGhciOnChange
     , watchSourceChanges
     , interruptCurrent
@@ -45,6 +45,7 @@ import Tricorder.BuildState
     ( BuildId (..)
     , BuildPhase (..)
     , BuildResult (..)
+    , BuildState (..)
     , CabalChangeDetected (..)
     , Diagnostic (..)
     , PostBuild (..)
@@ -497,7 +498,19 @@ afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
     runPostBuildStore buildResult do
         if hasTargets config.testTargets && noErrors buildResult then
-            requestTestRunsForNewBuildResults config.testTargets
+            runTestsForTargets config.testTargets >>= \case
+                Aborted -> Log.debug "Test run aborted by source change; skipping BuildComplete transition."
+                NotAborted -> do
+                    curr <- BuildStore.getState
+                    case curr.phase of
+                        Restarting -> pure ()
+                        BuildComplete _ _ -> pure ()
+                        _ ->
+                            BuildStore.setPhase curr.buildId
+                                $ BuildComplete buildResult
+                                $ PostBuild
+                                $ Test.Suites mempty
+                    pure ()
         else do
             PostBuild.modifyPostBuild \postBuild ->
                 postBuild {testSuites = Test.Suites mempty}
@@ -536,19 +549,6 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
   where
     BuildConfig {watchDirs} = session
     NewLoadResult {startTime, endTime, loadResult} = newLoadResult
-
-
-requestTestRunsForNewBuildResults
-    :: ( Log :> es
-       , PostBuildStore :> es
-       , TestRunner :> es
-       )
-    => TestTargets
-    -> Eff es ()
-requestTestRunsForNewBuildResults testTargets =
-    runTestsForTargets testTargets >>= \case
-        Aborted -> Log.info "Test run aborted by source change; skipping Done transition."
-        NotAborted -> pure ()
 
 
 data TestRunAborted = NotAborted | Aborted
