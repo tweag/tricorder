@@ -18,7 +18,7 @@ import Prelude hiding (force)
 import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
 
-import Tricorder.Arguments (Command (..))
+import Tricorder.Arguments (Command (..), LogMode (..))
 import Tricorder.BuildState (BuildState (..), DaemonInfo (..))
 import Tricorder.CLI (showLog, showSource, showStatus, showTests)
 import Tricorder.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
@@ -90,7 +90,7 @@ run =
                 Console.putStrLn "Stopped."
             else
                 showTests opts
-        Log followMode -> do
+        Log logMode -> do
             running <- isDaemonRunning
             logFile <-
                 if running then do
@@ -102,7 +102,9 @@ run =
                         Left _ -> fallback
                 else
                     asks @LogPath (.getLogPath)
-            showLog logFile followMode
+            case logMode of
+                ShowLog followMode -> showLog logFile followMode
+                ShowLogPath -> Console.putTextLn (toText logFile)
         UI -> do
             running <- isDaemonRunning
             unless running do

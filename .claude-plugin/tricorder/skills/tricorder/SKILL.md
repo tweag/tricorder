@@ -30,6 +30,9 @@ tricorder is a daemon-based GHCi build monitor. It exposes build state over a Un
 - `tricorder eval-comments --wait` — print eval comments and their evaluated results, waiting for the current build to finish if it is in-progress
 - `tricorder eval-comments --json` — print eval comments and their evaluated results as JSON
 - `tricorder eval-comments --wait --json` — print eval comments and their evaluated results as JSON, waiting for the current build to finish if it is in-progress
+- `tricorder log` — print the daemon log output
+- `tricorder log --follow` / `-f` — keep streaming new log lines as they are written
+- `tricorder log --path` — print the path to the log file instead of its contents
 - `tricorder ui` — auto-refreshing terminal display (for humans)
 
 ## Checking Build Status
