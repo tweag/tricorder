@@ -19,7 +19,9 @@ import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
 
 import Tricorder.Arguments (Command (..))
-import Tricorder.BuildState (BuildState (..), DaemonInfo (..))
+-- Import the field selectors (for OverloadedRecordDot's HasField instances) but
+-- NOT the 'Status' constructor, which would clash with the 'Status' 'Command'.
+import Tricorder.BuildState (DaemonInfo (logFile), Status (daemon))
 import Tricorder.CLI (showLog, showSource, showStatus, showTests)
 import Tricorder.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
 import Tricorder.Effects.Brick (Brick)
@@ -98,7 +100,7 @@ run =
                     result <- queryStatus sp
                     LogPath fallback <- ask
                     pure $ case result of
-                        Right state -> state.daemonInfo.logFile
+                        Right status -> status.daemon.logFile
                         Left _ -> fallback
                 else
                     asks @LogPath (.getLogPath)

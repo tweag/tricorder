@@ -48,7 +48,6 @@ library tricorder-internal
       Tricorder.Effects.GhciSession.GhciProcess
       Tricorder.Effects.GhcPkg
       Tricorder.Effects.Logging
-      Tricorder.Effects.PostBuildStore
       Tricorder.Effects.SessionStore
       Tricorder.Effects.TestRunner
       Tricorder.Effects.UnixSocket

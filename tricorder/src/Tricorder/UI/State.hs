@@ -15,7 +15,7 @@ import Prelude hiding (init)
 
 import Atelier.Effects.Clock qualified as Clock
 
-import Tricorder.BuildState (BuildState (..))
+import Tricorder.BuildState (Status (..))
 import Tricorder.UI.Route (Route)
 
 import Tricorder.UI.Route qualified as Route
@@ -29,7 +29,7 @@ data Viewports
 
 
 data State = State
-    { buildState :: Processed Text BuildState
+    { status :: Processed Text Status
     , timeZone :: TimeZone
     , route :: Route
     , testFilter :: TestFilter
@@ -70,7 +70,7 @@ init = do
     tz <- Clock.currentTimeZone
     pure
         State
-            { buildState = Waiting
+            { status = Waiting
             , timeZone = tz
             , route = Route.Main
             , testFilter = minBound

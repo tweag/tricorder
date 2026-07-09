@@ -83,23 +83,44 @@ Variable not in scope: something
 
 ### JSON output (`--json`)
 
-Use `--json` when you need structured data for further processing:
+Use `--json` when you need structured data for further processing.
+
+The response is a `Status` envelope: the ambient daemon config (`daemon`) joined
+with the reduced build state (`build`). The build state is a phase machine
+(`cycle`) plus a bounded, `buildId`-keyed `history` of the last two builds; the
+current build is the greatest key. Read the build result from
+`history[<current>].build.contents`.
 
 ```json
 {
-  "buildId": 3,
-  "phase": {
-    "tag": "Done",
-    "contents": {
-      "completedAt": "2026-03-30T12:00:00Z",
-      "durationMs": 420,
-      "moduleCount": 42,
-      "diagnostics": [...]
+  "daemon": { "targets": [], "watchDirs": [...], "sockPath": "...", "logFile": "..." },
+  "build": {
+    "cycle": { "tag": "Idle" },
+    "history": {
+      "3": {
+        "build": {
+          "tag": "Built",
+          "contents": {
+            "completedAt": "2026-03-30T12:00:00Z",
+            "durationMs": 420,
+            "moduleCount": 42,
+            "diagnostics": [...]
+          }
+        },
+        "tests": { "tag": "TestsDone", "contents": {...} }
+      }
     }
-  },
-  "daemonInfo": { "targets": [], "watchDirs": [...], "sockPath": "...", "logFile": null }
+  }
 }
 ```
+
+`cycle.tag` is one of `Restarting`, `Building`, `BuildFailed`, `Analysing` (build
+done, tests/analyses running), or `Idle` (cycle complete). `build.tag` is
+`NotBuilt` or `Built`; `tests.tag` is `TestsIdle`, `TestsRunning`, or `TestsDone`.
+
+This is a **breaking change** from earlier daemons, which returned top-level
+`buildId` / `phase` / `daemonInfo`. A stale client will fail to decode the new
+response.
 
 Each diagnostic in `diagnostics`:
 

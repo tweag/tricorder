@@ -3,9 +3,10 @@ module Tricorder.Effects.BuildStore
       BuildStore (..)
     , getState
     , emit
+    , setBuild
+    , finishBuild
     , setTests
     , modifyTests
-    , writeTestsAt
     , waitUntilDone
     , waitForNext
     , waitForAnyChange
@@ -18,7 +19,6 @@ module Tricorder.Effects.BuildStore
     , runBuildStore
     ) where
 
-import Atelier.Effects.Input (Input, input)
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (TChan, TVar, atomically, dupTChan, modifyTVar, newBroadcastTChan, newTVar, readTChan, readTVar, retry, writeTChan, writeTVar)
@@ -29,15 +29,17 @@ import Effectful.TH (makeEffect)
 
 import Tricorder.BuildState
     ( BuildId
+    , BuildOutput
     , BuildState (..)
     , ChangeKind (..)
     , CycleEvent
-    , DaemonInfo (..)
     , TestOutput
+    , currentId
     , initialBuildState
-    , isBuilding
+    , isDone
     , overCurrentTests
-    , overHistoryAt
+    , setCurrentBuild
+    , setCurrentTests
     , step
     )
 
@@ -45,17 +47,23 @@ import Tricorder.BuildState
 data BuildStore :: Effect where
     -- | Read the current build state without blocking.
     GetState :: BuildStore m BuildState
-    -- | Drive the cycle state machine. The reducer owns 'current', 'cycle',
-    -- and the build register; this is the only way to move them.
+    -- | Drive the cycle state machine. The reducer owns 'cycle' and the
+    -- structure of the history; this is the only way to move them.
     Emit :: CycleEvent -> BuildStore m ()
+    -- | Overwrite the current build's build register.
+    SetBuild :: BuildOutput -> BuildStore m ()
+    -- | Write the build register AND apply the settle transition in one atomic
+    -- step. Couples "publish the result" with "signal the phase that exposes
+    -- it" so a reader can never observe a settled 'Idle' (or 'Analysing') with a
+    -- 'NotBuilt' register — the ordering the two separate ops must respect can't
+    -- slip at the call site. @ev@ is the settle transition (typically
+    -- 'EnterAnalysis' or 'AnalysisComplete').
+    FinishBuild :: BuildOutput -> CycleEvent -> BuildStore m ()
     -- | Overwrite the current build's test register.
     SetTests :: TestOutput -> BuildStore m ()
     -- | Modify the current build's test register in place.
     ModifyTests :: (TestOutput -> TestOutput) -> BuildStore m ()
-    -- | SPIKE (straggler-safety prototype): modify the test register of a
-    -- specific build id (targeting 'overHistoryAt'), not @current@.
-    WriteTestsAt :: BuildId -> (TestOutput -> TestOutput) -> BuildStore m ()
-    -- | Block until the current build cycle completes (settles).
+    -- | Block until the current build cycle completes.
     WaitUntilDone :: BuildStore m BuildState
     -- | Block until a completed build with a different 'BuildId' is available.
     WaitForNext :: BuildId -> BuildStore m BuildState
@@ -83,18 +91,19 @@ data BuildStateRef = BuildStateRef
     -- ^ Broadcast channel of every state transition. Writers atomically update
     -- 'stateRef' AND broadcast on this chan in the same STM transaction;
     -- waiters 'dupTChan' it on entry and consume every transition. A transient
-    -- 'Settled' followed immediately by 'Building (N+1)' is therefore
-    -- observable as two messages — the waiter can't be woken on 'Settled' and
-    -- then miss it because 'Building' overwrote 'stateRef' before it re-ran.
+    -- 'Tricorder.BuildState.Idle' followed immediately by 'Building' (N+1) is
+    -- therefore observable as two messages — the waiter can't be woken on the
+    -- terminal phase and then miss it because 'Building' overwrote 'stateRef'
+    -- before it re-ran.
     }
 
 
--- | Allocate the shared STM state, seeding the build state from @di@.
-newBuildStateRef :: (Concurrent :> es) => DaemonInfo -> Eff es BuildStateRef
-newBuildStateRef di =
+-- | Allocate the shared STM state, seeding the reduced build state.
+newBuildStateRef :: (Concurrent :> es) => Eff es BuildStateRef
+newBuildStateRef =
     atomically
         $ BuildStateRef
-            <$> newTVar (initialBuildState di)
+            <$> newTVar initialBuildState
             <*> newTVar Nothing
             <*> newTVar 0
             <*> newBroadcastTChan
@@ -143,20 +152,24 @@ runBuildStoreScripted states = reinterpret (evalState states) $ \_ -> \case
         get >>= \case
             [] -> pure ()
             s : rest -> put (step s ev : rest)
+    SetBuild b ->
+        get >>= \case
+            [] -> pure ()
+            s : rest -> put (setCurrentBuild b s : rest)
+    FinishBuild b ev ->
+        get >>= \case
+            [] -> pure ()
+            s : rest -> put (step (setCurrentBuild b s) ev : rest)
     SetTests t ->
         get >>= \case
             [] -> pure ()
-            s : rest -> put (overCurrentTests (const t) s : rest)
+            s : rest -> put (setCurrentTests t s : rest)
     ModifyTests f ->
         get >>= \case
             [] -> pure ()
             s : rest -> put (overCurrentTests f s : rest)
-    WriteTestsAt bid f ->
-        get >>= \case
-            [] -> pure ()
-            s : rest -> put (overHistoryAt bid f s : rest)
-    WaitUntilDone -> advance (not . isBuilding)
-    WaitForNext bid -> advance \s -> not (isBuilding s) && s.current /= bid
+    WaitUntilDone -> advance isDone
+    WaitForNext bid -> advance \s -> isDone s && currentId s /= bid
     WaitForAnyChange prev -> advance (/= prev)
     MarkDirty _ -> pure ()
     WaitDirty -> pure SourceChange
@@ -174,35 +187,32 @@ runBuildStoreScripted states = reinterpret (evalState states) $ \_ -> \case
 -- | Production interpreter backed by a 'TVar', sharing its STM state with
 -- writers (e.g. 'GhciSession').
 runBuildStore
-    :: ( Concurrent :> es
-       , Input DaemonInfo :> es
-       )
+    :: (Concurrent :> es)
     => Eff (BuildStore : es) a -> Eff es a
 runBuildStore eff = do
-    di <- input
-    refs <- newBuildStateRef di
+    refs <- newBuildStateRef
     interpretWith_ eff \case
         GetState -> atomically (readTVar refs.stateRef)
-        Emit ev -> writeState refs (step `flip` ev)
-        SetTests t -> writeState refs (overCurrentTests (const t))
+        Emit ev -> writeState refs (`step` ev)
+        SetBuild b -> writeState refs (setCurrentBuild b)
+        FinishBuild b ev -> writeState refs (\s -> step (setCurrentBuild b s) ev)
+        SetTests t -> writeState refs (setCurrentTests t)
         ModifyTests f -> writeState refs (overCurrentTests f)
-        WriteTestsAt bid f -> writeState refs (overHistoryAt bid f)
         WaitUntilDone ->
             bracket_
                 (atomically (modifyTVar refs.waitersRef (+ 1)))
                 (atomically (modifyTVar refs.waitersRef (subtract 1)))
-                (waitForState refs.stateRef refs.transitions (not . isBuilding))
+                (waitForState refs.stateRef refs.transitions isDone)
         WaitForNext bid ->
-            waitForState refs.stateRef refs.transitions \s -> not (isBuilding s) && s.current /= bid
+            waitForState refs.stateRef refs.transitions \s -> isDone s && currentId s /= bid
         WaitForAnyChange prev -> waitForState refs.stateRef refs.transitions (/= prev)
         MarkDirty ck -> atomically (modifyTVar refs.dirtyRef (max (Just ck)))
         WaitDirty -> takeDirty refs.dirtyRef
         HasWaiters -> fmap (> 0) $ atomically (readTVar refs.waitersRef)
   where
-    -- Apply a pure update to the state (refreshing daemonInfo) and broadcast it
-    -- on the transitions channel in one STM transaction.
-    writeState refs f = do
-        daemonInfo <- input
-        atomically do
-            modifyTVar refs.stateRef \bs -> (f bs) {daemonInfo}
-            readTVar refs.stateRef >>= writeTChan refs.transitions
+    -- Apply a pure update to the state and broadcast it on the transitions
+    -- channel in one STM transaction. No daemonInfo re-stamp: config is joined
+    -- at the wire edge ('Tricorder.BuildState.Status'), not stored here.
+    writeState refs f = atomically do
+        modifyTVar refs.stateRef f
+        readTVar refs.stateRef >>= writeTChan refs.transitions

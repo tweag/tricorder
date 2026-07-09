@@ -7,6 +7,7 @@ import Atelier.Effects.Delay (Delay, wait)
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit, exitSuccess)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Time (Millisecond)
 import Data.Aeson (ToJSON, decode, encode)
@@ -20,13 +21,14 @@ import Data.ByteString.Lazy qualified as BSL
 
 import Tricorder.BuildState
     ( BuildOutput (..)
-    , BuildRecord (..)
     , BuildResult (..)
     , BuildState (..)
     , CyclePhase (..)
+    , DaemonInfo
     , Diagnostic
-    , currentRecord
-    , isBuilding
+    , currentBuild
+    , isDone
+    , liveSnapshot
     )
 import Tricorder.Effects.BuildStore (BuildStore, getState, waitForAnyChange, waitUntilDone)
 import Tricorder.Effects.Cabal (Cabal)
@@ -53,6 +55,7 @@ import Tricorder.Socket.Protocol
 import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
+import Tricorder.BuildState qualified as BuildState
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 
@@ -74,6 +77,7 @@ component
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -100,6 +104,7 @@ acceptTrigger
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -124,6 +129,7 @@ handleConnection
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , UnixSocket :> es
        )
@@ -152,6 +158,7 @@ dispatch
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , UnixSocket :> es
        )
@@ -193,8 +200,18 @@ quit h = \case
             doQuit
 
 
-respondOnce :: (BuildStore :> es, UnixSocket :> es) => Handle -> Eff es ()
-respondOnce h = getState >>= sendJson h
+-- | Join the reduced state with the ambient daemon config at the edge and send
+-- the 'Status' envelope. Config is read fresh here, never parked in the state.
+sendStatus
+    :: (Input DaemonInfo :> es, UnixSocket :> es) => Handle -> BuildState -> Eff es ()
+sendStatus h bs = do
+    di <- input @DaemonInfo
+    sendJson h BuildState.Status {daemon = di, build = bs}
+
+
+respondOnce
+    :: (BuildStore :> es, Input DaemonInfo :> es, UnixSocket :> es) => Handle -> Eff es ()
+respondOnce h = getState >>= sendStatus h
 
 
 -- | Wait for a completed build, then respond.
@@ -203,15 +220,18 @@ respondOnce h = getState >>= sendJson h
 -- watcher's debounce: a file was just changed but the reload hasn't been
 -- dispatched yet (default debounce is 100ms). Poll for up to 250ms to let
 -- any in-flight debounce fire before falling back to the current result.
-respondWhenDone :: (BuildStore :> es, Delay :> es, UnixSocket :> es) => Handle -> Eff es ()
-respondWhenDone h = awaitResult >>= sendJson h
+respondWhenDone
+    :: (BuildStore :> es, Delay :> es, Input DaemonInfo :> es, UnixSocket :> es)
+    => Handle
+    -> Eff es ()
+respondWhenDone h = awaitResult >>= sendStatus h
   where
     awaitResult = do
         s <- getState
-        if isBuilding s then
+        if not (isDone s) then
             waitUntilDone
         else case s.cycle of
-            Failed _ -> pure s
+            BuildFailed _ -> pure s
             _ -> awaitBuildStart (5 :: Int) s
 
     -- Poll up to n × 50ms for a build to start, then wait for it to finish.
@@ -219,23 +239,27 @@ respondWhenDone h = awaitResult >>= sendJson h
     awaitBuildStart n _ = do
         wait (50 :: Millisecond)
         s' <- getState
-        if isBuilding s' then
+        if not (isDone s') then
             waitUntilDone
         else case s'.cycle of
-            Failed _ -> pure s'
+            BuildFailed _ -> pure s'
             _ -> awaitBuildStart (n - 1) s'
 
 
--- | Stream a JSON object after each state change (loops until handle closes or error).
-watchStream :: (BuildStore :> es, UnixSocket :> es) => Handle -> Eff es ()
+-- | Stream a JSON object after each state change (loops until handle closes or
+-- error). Each frame is trimmed via 'liveSnapshot' so a live build's progress
+-- lines don't re-ship the retained previous build's diagnostics; 'waitForAnyChange'
+-- still compares against the full state to detect the next transition.
+watchStream
+    :: (BuildStore :> es, Input DaemonInfo :> es, UnixSocket :> es) => Handle -> Eff es ()
 watchStream h = do
     state0 <- getState
-    sendJson h state0
+    sendStatus h (liveSnapshot state0)
     loop state0
   where
     loop prev = do
         newState <- waitForAnyChange prev
-        sendJson h newState
+        sendStatus h (liveSnapshot newState)
         loop newState
 
 
@@ -243,10 +267,10 @@ respondDiagnostic :: (BuildStore :> es, UnixSocket :> es) => Int -> Handle -> Ef
 respondDiagnostic idx h = do
     state <- getState
     case state.cycle of
-        Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
+        BuildFailed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         _
-            | isBuilding state -> sendJson h $ ErrorResponse "Build in progress"
-            | otherwise -> case (currentRecord state).build of
+            | not (isDone state) -> sendJson h $ ErrorResponse "Build in progress"
+            | otherwise -> case currentBuild state of
                 Built result ->
                     case result.diagnostics !!? (idx - 1) of
                         Nothing ->

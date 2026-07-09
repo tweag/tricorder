@@ -19,11 +19,11 @@ import Data.Map.Strict qualified as Map
 
 import Tricorder.BuildState
     ( BuildId (..)
-    , BuildRecord (..)
     , BuildState (..)
     , DaemonInfo (..)
     , TestOutput (..)
-    , currentRecord
+    , currentTests
+    , suitesOf
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore (getState)
@@ -297,10 +297,7 @@ testAbortGatedProgress = do
             }
 
     phaseTestSuites :: BuildState -> Test.Suites
-    phaseTestSuites s = case (currentRecord s).tests of
-        TestsRunning testSuites -> testSuites
-        TestsDone testSuites -> testSuites
-        TestsIdle -> Test.Suites mempty
+    phaseTestSuites = suitesOf . currentTests
 
     epoch :: UTCTime
     epoch = UTCTime (fromGregorian 2024 1 1) 0

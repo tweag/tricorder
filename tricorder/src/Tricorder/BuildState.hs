@@ -8,23 +8,29 @@
 module Tricorder.BuildState
     ( BuildId (..)
     , BuildState (..)
+    , Status (..)
     , CyclePhase (..)
     , BuildOutput (..)
     , TestOutput (..)
     , BuildRecord (..)
-    , emptyBuildRecord
+    , emptyRecord
     , CycleEvent (..)
     , step
-    , kHistory
+    , beginBuild
+    , historyBound
+    , currentId
     , currentRecord
-    , previousRecord
+    , currentBuild
+    , currentTests
+    , suitesOf
     , atBuild
-    , overCurrentTests
     , overHistoryAt
-    , ActiveBuild (..)
-    , isSettled
-    , isBuilding
-    , testsSettled
+    , overCurrent
+    , setCurrentBuild
+    , setCurrentTests
+    , overCurrentTests
+    , isDone
+    , liveSnapshot
     , BuildResult (..)
     , DaemonInfo (..)
     , loadDaemonInfo
@@ -33,7 +39,6 @@ module Tricorder.BuildState
     , Severity (..)
     , ChangeKind (..)
     , initialBuildState
-    , stateLabel
     , CabalChangeDetected (..)
     , SourceChangeDetected (..)
     ) where
@@ -55,28 +60,48 @@ import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..), Target, WatchDirs (..))
 
 import Tricorder.BuildState.Test qualified as Test
-import Tricorder.BuildState.Test qualified as Tests
 import Tricorder.Effects.SessionStore qualified as SessionStore
 import Tricorder.Observability qualified as Observability
 
 
--- | The daemon-wide build state.
+-- | The reduced build state: exactly what build/test/eval events produce.
 --
--- Cycle/workflow state ('current', 'cycle') is contended and sequenced by one
--- writer (the reducer, driven via 'CycleEvent'). Producer outputs live in
--- 'history', a @buildId@-keyed accumulator bounded to the last 'kHistory'
--- builds. Each producer writes only @history[current].<its field>@.
+-- Only two fields survive after the proposal-008 refinements:
+--
+--   * 'cycle'   — the phase state machine, mutated by one sequencer (the
+--     reducer, driven via 'CycleEvent'). This is the genuinely contended state.
+--   * 'history' — producer outputs, a @'BuildId'@-keyed accumulator bounded to
+--     the last 'historyBound' builds. Each producer writes only its own field of
+--     @history[currentId]@.
+--
+-- There is no stored @current@ pointer ('currentId' derives it from the map's
+-- greatest key) and no @daemonInfo@ (that is ambient config, joined at the wire
+-- edge in 'Status', not produced by any build event).
+--
+-- NOTE: the field name 'cycle' shadows nothing today only because
+-- @atelier-prelude@ does not re-export @Prelude.cycle@. If it ever starts to,
+-- this record's @OverloadedRecordDot@ selector and 'Prelude.cycle' would clash;
+-- rename the field rather than adding a hiding import.
 data BuildState = BuildState
-    { current :: BuildId
-    -- ^ The in-flight / most recent build.
-    , cycle :: CyclePhase
-    -- ^ Phase of 'current' (contended, single sequencer).
+    { cycle :: CyclePhase
+    -- ^ Phase of the current build (contended, single sequencer).
     , history :: Map BuildId BuildRecord
-    -- ^ Producer outputs, bounded to the last 'kHistory' builds.
-    , daemonInfo :: DaemonInfo
+    -- ^ Producer outputs, bounded to the last 'historyBound' builds.
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically BuildState
+
+
+-- | The @status@ wire envelope: the reduced 'BuildState' joined with the
+-- ambient daemon configuration at the socket edge (see 'loadDaemonInfo'). The
+-- daemon config is read fresh here rather than parked in the reduced state, so a
+-- snapshot can never carry a 'DaemonInfo' that lagged a cabal reload.
+data Status = Status
+    { daemon :: DaemonInfo
+    , build :: BuildState
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically Status
 
 
 newtype BuildId = BuildId Int
@@ -86,18 +111,25 @@ newtype BuildId = BuildId Int
 
 
 -- | The cycle state machine. Lifecycle status only — no producer output.
+--
+-- Done-ness is a pure check over this type ('isDone'); no reader inspects a
+-- register to decide what phase the cycle is in.
 data CyclePhase
-    = Restarting
-    | Building (Maybe BuildProgress)
-    | -- | The load ran to completion; see @history[current].build@.
-      Settled
-    | -- | GHCi produced no result at all (startup crash / reload threw).
-      Failed Text
+    = -- | Session teardown/reload in progress.
+      Restarting
+    | -- | A GHCi load is running.
+      Building (Maybe BuildProgress)
+    | -- | The load produced NO result (startup crash / reload threw).
+      BuildFailed Text
+    | -- | The build produced a result; post-build analyses (tests, evals) run.
+      Analysing
+    | -- | The cycle is complete; read @history[currentId].build@ for the result.
+      Idle
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically CyclePhase
 
 
--- | The build register: written by the compile step.
+-- | The build register: written by the compile step (via 'setCurrentBuild').
 data BuildOutput
     = NotBuilt
     | Built BuildResult
@@ -123,21 +155,24 @@ data BuildRecord = BuildRecord
     deriving (FromJSON, ToJSON) via Generically BuildRecord
 
 
-emptyBuildRecord :: BuildRecord
-emptyBuildRecord = BuildRecord {build = NotBuilt, tests = TestsIdle}
+emptyRecord :: BuildRecord
+emptyRecord = BuildRecord {build = NotBuilt, tests = TestsIdle}
 
 
--- | Keep this many builds (current + previous). K=2.
-kHistory :: Int
-kHistory = 2
+-- | Keep this many builds (current + previous). Retention/display only, NOT a
+-- correctness knob.
+historyBound :: Int
+historyBound = 2
 
 
 --------------------------------------------------------------------------------
 -- Cycle event + reducer
 --------------------------------------------------------------------------------
 
--- | Inputs to the cycle state machine. The reducer 'step' owns 'current',
--- 'cycle', and the build register. Test/eval producers do NOT emit these.
+-- | Inputs to the cycle state machine. The reducer 'step' owns 'cycle' and the
+-- structure of 'history' (which build ids exist); it never writes output
+-- contents. Test/eval producers do NOT emit these — they write their register
+-- directly.
 data CycleEvent
     = -- | Debounced source edit: begin a new build.
       SourceChanged
@@ -147,137 +182,170 @@ data CycleEvent
       SessionStarted
     | -- | @[N of M] Compiling …@ during a load.
       BuildProgressed BuildProgress
-    | -- | Load completed and produced a result.
-      BuildFinished BuildResult
-    | -- | GHCi produced no result (startup crash / reload threw).
+    | -- | @Building -> Analysing@: a clean build; downstream analyses will run.
+      EnterAnalysis
+    | -- | @(Building | Analysing) -> Idle@: the cycle finished.
+      AnalysisComplete
+    | -- | @-> BuildFailed@: GHCi produced no result at all.
       BuildAborted Text
     deriving stock (Eq, Show)
 
 
--- | The cycle reducer. Owns 'current', 'cycle', and the build register.
--- Never touches tests/evals.
+-- | The cycle reducer. A pure phase machine: it owns 'cycle' and the /structure/
+-- of 'history' (slot lifecycle), and never writes an output value.
 step :: BuildState -> CycleEvent -> BuildState
 step s = \case
     -- A .cabal change wins over everything, including a build that finished a
-    -- moment ago. This single clause is the entire Restarting-clobber fix.
+    -- moment ago.
     CabalChanged -> s {cycle = Restarting}
-    -- New build cycle. Bump the id (per build, so register-tagging can tell
-    -- cycles apart); previous builds stay in 'history' (retention), bounded.
+    -- New build cycle. Bump the id (per build), seed an empty record, evict to K.
     SessionStarted -> beginBuild s
     SourceChanged -> beginBuild s
-    -- Progress only advances a live build; a late line never resurrects a
-    -- Settled / Restarting / Failed cycle.
+    -- Progress only advances a live build; a late line never resurrects an
+    -- Analysing / Idle / Restarting / BuildFailed cycle.
     BuildProgressed p -> case s.cycle of
         Building _ -> s {cycle = Building (Just p)}
         _ -> s
-    -- Completing a load flips to Settled AND publishes the result atomically,
-    -- under the same buildId. A result arriving after a restart is dropped.
-    BuildFinished r -> case s.cycle of
+    -- Restarting absorbs every stale terminal transition below (the entire
+    -- Restarting-clobber fix); otherwise a clean build enters analysis.
+    EnterAnalysis -> unlessRestarting s {cycle = Analysing}
+    AnalysisComplete -> unlessRestarting s {cycle = Idle}
+    BuildAborted msg -> unlessRestarting s {cycle = BuildFailed msg}
+  where
+    -- A single home for the Restarting-clobber rule: a stale terminal transition
+    -- never overwrites a session restart that has already been queued.
+    unlessRestarting new = case s.cycle of
         Restarting -> s
-        _ ->
-            s
-                { cycle = Settled
-                , history = adjustCurrent (\rec -> rec {build = Built r}) s
-                }
-    -- GHCi produced no result at all (startup crash, reload threw).
-    BuildAborted msg -> case s.cycle of
-        Restarting -> s
-        _ -> s {cycle = Failed msg}
+        _ -> new
 
 
--- | Start a fresh build: bump 'current', seed an empty record, evict to K.
+-- | Start a fresh build: reset the phase, seed an empty record under the next
+-- id, evict to K. Total construction; no @mempty@ (there is no lawful Monoid —
+-- 'history' must be carried, and the next id is a bump, not a reset).
 beginBuild :: BuildState -> BuildState
 beginBuild s =
     s
-        { current = nextId
-        , cycle = Building Nothing
-        , history = evictHistory kHistory $ Map.insert nextId emptyBuildRecord s.history
+        { cycle = Building Nothing
+        , history = evictHistory historyBound (Map.insert next emptyRecord s.history)
         }
   where
-    nextId = s.current + 1
+    next = maybe (BuildId 0) ((+ 1) . fst) (Map.lookupMax s.history)
 
 
--- | Modify the current build's record (creating it if absent).
-adjustCurrent :: (BuildRecord -> BuildRecord) -> BuildState -> Map BuildId BuildRecord
-adjustCurrent f s =
-    Map.insert s.current (f (currentRecord s)) s.history
-
-
--- | Keep the K entries with the largest keys (most recent builds).
+-- | Insert-then-keep-last-K. Keys are 'BuildId' (ordered); keep the K greatest.
+-- Only ever called right after a single 'Map.insert' (see 'beginBuild'), so the
+-- map is over-bound by at most one key — dropping the smallest suffices.
 evictHistory :: Int -> Map BuildId BuildRecord -> Map BuildId BuildRecord
 evictHistory k m
-    | Map.size m <= k = m
-    | otherwise = Map.fromDistinctAscList $ drop (Map.size m - k) $ Map.toAscList m
+    | Map.size m > k = Map.deleteMin m
+    | otherwise = m
 
 
 --------------------------------------------------------------------------------
--- Selection helpers (keep reader policy DRY)
+-- Derived current build + selection helpers (keep reader policy DRY)
 --------------------------------------------------------------------------------
 
--- | The current build's record (empty if somehow absent).
+-- | The current build id: the greatest key present. Not stored — a new build
+-- inserts at @max+1@ and eviction only ever drops the smallest keys, so this can
+-- never disagree with the map's keys.
+currentId :: BuildState -> BuildId
+currentId = maybe (BuildId 0) fst . Map.lookupMax . (.history)
+
+
+-- | The current build's record (empty if somehow absent). One traversal: the
+-- current build is the greatest key, so read it straight off 'Map.lookupMax'.
 currentRecord :: BuildState -> BuildRecord
-currentRecord s = Map.findWithDefault emptyBuildRecord s.current s.history
+currentRecord s = maybe emptyRecord snd (Map.lookupMax s.history)
 
 
--- | The record of the build immediately before 'current', if retained.
-previousRecord :: BuildState -> Maybe BuildRecord
-previousRecord s =
-    fmap snd $ Map.lookupMax $ Map.delete s.current s.history
+-- | The current build's build register.
+currentBuild :: BuildState -> BuildOutput
+currentBuild s = (currentRecord s).build
+
+
+-- | The current build's test register.
+currentTests :: BuildState -> TestOutput
+currentTests s = (currentRecord s).tests
+
+
+-- | The suites held in a test register, regardless of running/done. The single
+-- extractor every reader (CLI, TUI) funnels through, so a new 'TestOutput'
+-- constructor is a compile error here rather than a silent @mempty@ in one copy.
+suitesOf :: TestOutput -> Test.Suites
+suitesOf = \case
+    TestsRunning s -> s
+    TestsDone s -> s
+    TestsIdle -> Test.Suites mempty
 
 
 atBuild :: BuildId -> BuildState -> Maybe BuildRecord
 atBuild bid s = Map.lookup bid s.history
 
 
--- | Write the current build's test register. This is the only mutation the
--- test producer can express — it cannot reach the cycle or the build register.
+--------------------------------------------------------------------------------
+-- Output setters (symmetric — build is not special)
+--------------------------------------------------------------------------------
+
+-- | Modify a /specific/ build's record. A 'Map.adjust' — a no-op if @bid@ has
+-- been evicted, so a pathological late write for a dropped build is dropped
+-- rather than corrupting a live one.
+overHistoryAt :: BuildId -> (BuildRecord -> BuildRecord) -> BuildState -> BuildState
+overHistoryAt bid f s = s {history = Map.adjust f bid s.history}
+
+
+-- | Modify the current build's record. Under the sequential-worker invariant
+-- (see "Tricorder.Effects.BuildStore") the current id never advances while a
+-- write for the current build is in flight, so this always targets the build
+-- being written.
+overCurrent :: (BuildRecord -> BuildRecord) -> BuildState -> BuildState
+-- 'Map.updateMax' adjusts the greatest key (the current build) in one descent,
+-- rather than deriving the id and re-descending via 'Map.adjust'.
+overCurrent f s = s {history = Map.updateMax (Just . f) s.history}
+
+
+setCurrentBuild :: BuildOutput -> BuildState -> BuildState
+-- Explicit construction (not @rec {build = b}@) because the @build@ label is
+-- shared with 'Status', which makes a bare record update ambiguous
+-- (-Wambiguous-fields). The constructor pins it to 'BuildRecord'.
+setCurrentBuild b = overCurrent \rec -> BuildRecord {build = b, tests = rec.tests}
+
+
+setCurrentTests :: TestOutput -> BuildState -> BuildState
+setCurrentTests t = overCurrent \rec -> rec {tests = t}
+
+
 overCurrentTests :: (TestOutput -> TestOutput) -> BuildState -> BuildState
-overCurrentTests f s =
-    s {history = Map.insert s.current (rec {tests = f rec.tests}) s.history}
-  where
-    rec = currentRecord s
-
-
--- | SPIKE (straggler-safety prototype): write the test register of a
--- /specific/ build, not @current@. A straggling write from build N whose fiber
--- captured @bid = N@ files under @history[N]@ even if @current@ has bumped to
--- N+1. If build N was already evicted from the bounded history, the write is
--- silently dropped (there is nothing to corrupt).
-overHistoryAt :: BuildId -> (TestOutput -> TestOutput) -> BuildState -> BuildState
-overHistoryAt bid f s = case Map.lookup bid s.history of
-    Nothing -> s
-    Just rec -> s {history = Map.insert bid (rec {tests = f rec.tests}) s.history}
-
-
--- | SPIKE: the ambient \"which build is this fiber working for\" binding,
--- deliberately named distinctly from @state.current@. Bound via 'Reader.local'
--- around a cycle body; read by the test setters to target 'overHistoryAt'.
-newtype ActiveBuild = ActiveBuild BuildId
-    deriving stock (Eq, Show)
+overCurrentTests f = overCurrent \rec -> rec {tests = f rec.tests}
 
 
 --------------------------------------------------------------------------------
--- Derived views (pure folds over history[current])
+-- Derived views — done-ness is a pure cycle check
 --------------------------------------------------------------------------------
 
-testsSettled :: TestOutput -> Bool
-testsSettled = \case
-    TestsIdle -> True
-    TestsDone _ -> True
-    TestsRunning _ -> False
-
-
--- | What @status --wait@ blocks on: the current cycle has fully come to rest.
-isSettled :: BuildState -> Bool
-isSettled s = case s.cycle of
-    Settled -> testsSettled (currentRecord s).tests
-    Failed _ -> True
-    Building _ -> False
+-- | What @status --wait@ blocks on: the current cycle has come to rest. A pure
+-- 'cycle' check — no register is inspected to decide done-ness.
+isDone :: BuildState -> Bool
+isDone s = case s.cycle of
+    Idle -> True
+    BuildFailed _ -> True
     Restarting -> False
+    Building _ -> False
+    Analysing -> False
 
 
-isBuilding :: BuildState -> Bool
-isBuilding = not . isSettled
+-- | The snapshot to stream on each live ('Tricorder.Socket.Server.watchStream')
+-- transition. While a cycle is live (non-terminal) every reader renders only the
+-- current build's record — the retained previous build(s) are never displayed
+-- mid-rebuild, so re-encoding their full diagnostics on every @[N of M]@ progress
+-- line is pure wire waste. Trim history to the current build for live frames;
+-- terminal frames ('isDone') keep the full 'historyBound' history, which is when
+-- a client actually reads the previous build.
+liveSnapshot :: BuildState -> BuildState
+liveSnapshot s
+    | isDone s = s
+    | otherwise = s {history = Map.filterWithKey (\bid _ -> bid == cur) s.history}
+  where
+    cur = currentId s
 
 
 data DaemonInfo = DaemonInfo
@@ -366,29 +434,6 @@ instance ToJSON Severity where
     toJSON SWarning = "warning"
 
 
-stateLabel :: BuildState -> Text
-stateLabel s = case s.cycle of
-    Restarting -> "restarting"
-    Building _ -> "building"
-    Failed _ -> "error"
-    Settled
-        | anyError -> "error"
-        | anyWarning -> "warning"
-        | testsRunning -> "testing"
-        | otherwise -> "ok"
-  where
-    rec = currentRecord s
-    (anyError, anyWarning) = case rec.build of
-        Built r ->
-            ( any (\m -> m.severity == SError) r.diagnostics
-            , any (\m -> m.severity == SWarning) r.diagnostics
-            )
-        NotBuilt -> (False, False)
-    testsRunning = case rec.tests of
-        TestsRunning suites -> Tests.anyRunningTests suites
-        _ -> False
-
-
 -- | Classifies what kind of file change triggered a dirty signal.
 -- 'CabalChange' takes priority over 'SourceChange': if both fire before the
 -- next build starts, the session will be fully restarted rather than reloaded.
@@ -401,11 +446,9 @@ data SourceChangeDetected = SourceChangeDetected FilePath FileEvent
     deriving stock (Eq, Show)
 
 
-initialBuildState :: DaemonInfo -> BuildState
-initialBuildState di =
+initialBuildState :: BuildState
+initialBuildState =
     BuildState
-        { current = BuildId 0
-        , cycle = Building Nothing
-        , history = Map.singleton (BuildId 0) emptyBuildRecord
-        , daemonInfo = di
+        { cycle = Building Nothing
+        , history = Map.singleton (BuildId 0) emptyRecord
         }

@@ -41,13 +41,17 @@ import Data.Set qualified as Set
 
 import Tricorder.BuildState
     ( BuildId (..)
+    , BuildOutput (..)
     , BuildResult (..)
+    , BuildState (..)
     , CabalChangeDetected (..)
     , CycleEvent (..)
+    , CyclePhase (..)
     , Diagnostic (..)
     , Severity (..)
     , SourceChangeDetected (..)
     , TestOutput (..)
+    , currentId
     )
 import Tricorder.Builder.Dispatch
     ( BuilderState (..)
@@ -97,7 +101,6 @@ component
        , Log :> es
        , Reader ProjectRoot :> es
        , SessionStore :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , Sub CabalChangeDetected :> es
        , Sub SourceChangeDetected :> es
@@ -156,7 +159,6 @@ runBuilder
        , Log :> es
        , Reader ProjectRoot :> es
        , SessionStore :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , Sub CabalChangeDetected :> es
        , Sub SourceChangeDetected :> es
@@ -204,16 +206,21 @@ loadBuildConfig = do
 onRestart
     :: ( BuildStore :> es
        , Log :> es
-       , State BuildId :> es
        )
     => Eff es ()
 onRestart = do
     Log.info "Restarting builder..."
-    -- 'State BuildId' is now only a session counter used for log lines; the
-    -- authoritative build identity lives in the store's 'current', bumped by
-    -- the reducer on 'SessionStarted'.
-    modify @BuildId (+ 1)
+    -- The authoritative build identity lives in the store (derived 'currentId'),
+    -- bumped by the reducer on 'SessionStarted'; there is no separate counter.
     BuildStore.emit SessionStarted
+
+
+-- | The current build id as a plain 'Int', for log-line correlation. Reads the
+-- store's authoritative 'currentId' rather than threading a private counter.
+currentBuildId :: (BuildStore :> es) => Eff es Int
+currentBuildId = do
+    BuildId n <- currentId <$> BuildStore.getState
+    pure n
 
 
 --------------------------------------------------------------------------------
@@ -277,7 +284,6 @@ runGhciSessions
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
@@ -288,8 +294,8 @@ runGhciSessions
 runGhciSessions hooks config = forever do
     hooks.onStart
     root@(ProjectRoot rootPath) <- ask
-    BuildId n <- get
-    Log.info $ "Starting GHCi session #" <> show n <> ": " <> coerce config.command
+    n <- currentBuildId
+    Log.info $ "Starting GHCi session (build #" <> show n <> "): " <> coerce config.command
 
     startTime <- Clock.currentTime
     result <- trySync $ GhciSession.withGhci config.command root \initialLoad controls -> do
@@ -297,7 +303,7 @@ runGhciSessions hooks config = forever do
         let filteredMsgs = filterToWatchDirs rootPath config.watchDirs initialLoad.diagnostics
         Log.info
             $ mconcat
-                ["GHCi started (session #", show n, "): ", show (length filteredMsgs), " diagnostics"]
+                ["GHCi started (build #", show n, "): ", show (length filteredMsgs), " diagnostics"]
         hooks.onInitialLoad config NewLoadResult {startTime, endTime, loadResult = initialLoad}
         modify \s ->
             s
@@ -322,7 +328,6 @@ buildWithGhciOnChange
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
        , State BuilderState :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
@@ -364,7 +369,6 @@ watchSourceChanges
        , Concurrent :> es
        , Debounce Text :> es
        , Log :> es
-       , State BuildId :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
        )
@@ -373,7 +377,7 @@ watchSourceChanges
     -> GhciSession.Controls (Eff es)
     -> Eff es Void
 watchSourceChanges hooks config controls = Conc.scoped do
-    BuildId n <- get
+    n <- currentBuildId
     Log.debug $ "Builder: waiting for dirty flag (build #" <> show n <> ")"
     forever $ Conc.scoped do
         pending <- atomically (newTVar @(Maybe SourceChangeDetected) Nothing)
@@ -438,12 +442,13 @@ reloadOnSourceChange config controls (SourceChangeDetected fp event) = do
     builderState <- get @BuilderState
     let known = Map.lookup (normalise fp) builderState.loadedModules
     case dispatch builderState.knownTargets known fp event of
-        Nothing ->
+        Nothing -> do
             Log.debug
                 $ "Builder: no-op for "
                     <> show event
                     <> " of file not loaded in GHCi: "
                     <> toText fp
+            settleStrandedAnalysis
         Just action -> do
             BuildStore.emit SourceChanged
 
@@ -471,6 +476,27 @@ reloadOnSourceChange config controls (SourceChangeDetected fp event) = do
                     afterLoad config NewLoadResult {startTime, endTime, loadResult}
 
 
+-- | Settle a cycle stranded in 'Analysing' by a prior aborted analysis.
+--
+-- When a test run is interrupted by a source change, 'afterLoad' deliberately
+-- leaves the cycle in 'Analysing' (non-terminal), trusting the incoming change
+-- to 'beginBuild' and reset it. But if that change dispatches to a no-op (a file
+-- not loaded in GHCi — e.g. a removed scratch module after a branch switch), no
+-- 'SourceChanged' is emitted and the cycle would hang in 'Analysing' forever,
+-- blocking every later @status --wait@. Settle it here instead.
+--
+-- Safe to run on the no-op path because the worker is sequential: reaching it
+-- means the prior 'afterLoad' has already returned, so no live analysis is in
+-- flight to clobber (a live one only exists /inside/ a running 'afterLoad').
+-- Only 'Analysing' is touched; a terminal or 'Restarting' cycle is left alone.
+settleStrandedAnalysis :: (BuildStore :> es) => Eff es ()
+settleStrandedAnalysis = do
+    s <- BuildStore.getState
+    case s.cycle of
+        Analysing -> BuildStore.emit AnalysisComplete
+        _ -> pure ()
+
+
 runAction :: GhciSession.Controls (Eff es) -> DispatchAction -> Eff es LoadResult
 runAction controls = \case
     Reload -> controls.reload
@@ -479,8 +505,14 @@ runAction controls = \case
 
 
 -- | Run the post-load pipeline synchronously: compile diagnostics into a
--- 'BuildResult', then (optionally) run tests and transition through the
--- corresponding phases.
+-- 'BuildResult', publish it, then drive the phase transitions and (optionally)
+-- run the downstream analyses.
+--
+-- Ordering contract: publish output before signalling the phase that exposes it
+-- (@setBuild@ before @emit@; the last @setTests@ before @AnalysisComplete@), so
+-- a reader never sees 'Idle' with a stale/absent build result. On an aborted
+-- analysis the cycle is deliberately left in 'Analysing' (non-terminal, so no
+-- @status --wait@ caller wakes) until the incoming source change resets it.
 afterLoad
     :: ( BuildStore :> es
        , Log :> es
@@ -491,16 +523,20 @@ afterLoad
     => BuildConfig -> NewLoadResult -> Eff es ()
 afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
-    -- Settle the cycle and publish the build result atomically, under the
-    -- current buildId. The reducer drops this if a restart already began.
-    BuildStore.emit $ BuildFinished buildResult
-    -- Tests are a downstream register: they never move the cycle, they just
-    -- write history[current].tests. A late/aborted test result files itself
-    -- under its own buildId and cannot clobber a newer build.
-    when (hasTargets config.testTargets && noErrors buildResult) do
+    let output = Built buildResult
+    if noErrors buildResult && hasTargets config.testTargets then do
+        -- Publish the register and enter Analysing atomically, then run the
+        -- downstream analyses. 'Analysing' therefore always carries its result.
+        BuildStore.finishBuild output EnterAnalysis
         runTestsForTargets config.testTargets >>= \case
-            Aborted -> Log.debug "Test run aborted by source change; leaving tests register as-is."
-            NotAborted -> pure ()
+            -- New build imminent: leave Analysing; beginBuild will reset it
+            -- (no stale Idle). Do NOT emit AnalysisComplete. A no-op follow-up
+            -- change instead settles it via 'settleStrandedAnalysis'.
+            Aborted -> Log.debug "Test run aborted by source change; leaving cycle in Analysing."
+            NotAborted -> BuildStore.emit AnalysisComplete
+    else -- Errors or no targets: nothing downstream to run. Publish the register
+    -- and settle to Idle atomically, so Idle never lacks its result.
+        BuildStore.finishBuild output AnalysisComplete
   where
     hasTargets testTargets = not $ null testTargets.getTestTargets
     noErrors result = all (\d -> d.severity /= SError) result.diagnostics

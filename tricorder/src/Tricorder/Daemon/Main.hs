@@ -27,7 +27,7 @@ import Effectful.State.Static.Shared (evalState)
 import Atelier.Effects.Cache.Config qualified as CacheConfig
 import Atelier.Effects.Log qualified as Log
 
-import Tricorder.BuildState (BuildId (..), runDaemonInfo)
+import Tricorder.BuildState (runDaemonInfo)
 import Tricorder.Config (restartOnConfigChange, runLoadedConfig)
 import Tricorder.Effects.BuildStore (runBuildStore)
 import Tricorder.Effects.Cabal (runCabalIO)
@@ -98,7 +98,6 @@ main =
         . runGhcPkgIO
         . runUnixSocketIO
         . runGhciSession
-        . evalState (BuildId 1)
         . evalState @Dispatch.BuilderState Dispatch.emptyBuilderState
         $ do
             Log.info $ "Starting tricorder " <> Version.gitHash

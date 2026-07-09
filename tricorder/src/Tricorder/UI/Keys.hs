@@ -199,7 +199,7 @@ dispatcher requestRestart cfg =
                     _ -> navigate Route.Tests s
             , onEvent RestartDaemon "Restart the daemon" do
                 liftIO requestRestart
-                modify \s -> s {buildState = Waiting}
+                modify \s -> s {status = Waiting}
             , onEvent ExitView "Exit or go back" do
                 gets (.route) >>= \case
                     Route.Main -> halt

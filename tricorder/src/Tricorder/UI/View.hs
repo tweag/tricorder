@@ -43,8 +43,9 @@ import Tricorder.BuildState
     , DaemonInfo (..)
     , Diagnostic (..)
     , Severity (..)
-    , TestOutput (..)
+    , Status (..)
     , currentRecord
+    , suitesOf
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
@@ -113,7 +114,7 @@ viewRouteTab kc ws route =
 
 viewDaemonInfo :: State -> Widget Viewports
 viewDaemonInfo ws =
-    withBuildState ws (viewExpandedDaemonInfo . (.daemonInfo))
+    withStatus ws (viewExpandedDaemonInfo . (.daemon))
 
 
 viewTests :: State -> Widget Viewports
@@ -133,15 +134,21 @@ viewHelp kc = viewKeybindings kc handlers
     handlers = (.khHandler) . snd <$> keyDispatcherToList (Keys.dispatcher (pure ()) kc)
 
 
-withBuildState :: State -> (BuildState -> Widget Viewports) -> Widget Viewports
-withBuildState ws render =
-    case ws.buildState of
+-- | Render against the full 'Status' envelope (daemon config + build state).
+withStatus :: State -> (Status -> Widget Viewports) -> Widget Viewports
+withStatus ws render =
+    case ws.status of
         Waiting ->
             txt "Waiting for build..."
         Failure reason ->
             txt $ "Error when contacting daemon: " <> reason
-        Success bs ->
-            render bs
+        Success st ->
+            render st
+
+
+-- | Render against just the reduced 'BuildState'.
+withBuildState :: State -> (BuildState -> Widget Viewports) -> Widget Viewports
+withBuildState ws render = withStatus ws (render . (.build))
 
 
 viewAppHeader :: State -> Widget n
@@ -175,16 +182,8 @@ viewTestResultsPanel ws bs =
     vBoxSpaced
         1
         [ viewBuildPhaseLine ws.timeZone bs
-        , viewTestPanel ws.testFilter (recordSuites (currentRecord bs))
+        , viewTestPanel ws.testFilter (suitesOf (currentRecord bs).tests)
         ]
-
-
--- | The suites held in a build record, regardless of running/done.
-recordSuites :: BuildRecord -> Test.Suites
-recordSuites rec = case rec.tests of
-    TestsRunning s -> s
-    TestsDone s -> s
-    TestsIdle -> Test.Suites mempty
 
 
 viewExpandedDaemonInfo :: DaemonInfo -> Widget n
@@ -271,11 +270,11 @@ viewBuildPhase tz bs = case bs.cycle of
         warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting ->
         warn $ txt "Restarting..."
-    Failed msg ->
+    BuildFailed msg ->
         viewBuildFailed msg
-    Settled -> case rec.build of
+    _ -> case rec.build of
         Built result ->
-            vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns (recordSuites rec)]
+            vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns (suitesOf rec.tests)]
         NotBuilt ->
             warn $ txt "Building..."
   where
@@ -421,8 +420,8 @@ viewBuildPhaseLine tz bs = case bs.cycle of
     Building Nothing -> warn $ txt "Building..."
     Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
     Restarting -> warn $ txt "Restarting..."
-    Failed _ -> err $ txt "Build command failed"
-    Settled -> case (currentRecord bs).build of
+    BuildFailed _ -> err $ txt "Build command failed"
+    _ -> case (currentRecord bs).build of
         Built result -> viewBuildResultLine tz result
         NotBuilt -> warn $ txt "Building..."
 

@@ -28,7 +28,7 @@ import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
 
 import Tricorder.Arguments (Force (..))
-import Tricorder.BuildState (BuildState, Diagnostic)
+import Tricorder.BuildState (Diagnostic, Status)
 import Tricorder.Effects.UnixSocket (UnixSocket, withConnection)
 import Tricorder.GhcPkg.Types (SourceQuery)
 import Tricorder.Runtime (PidFile)
@@ -48,7 +48,7 @@ import Tricorder.Version qualified as Version
 queryStatus
     :: (File :> es, UnixSocket :> es)
     => FilePath
-    -> Eff es (Either Text BuildState)
+    -> Eff es (Either Text Status)
 queryStatus sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = False}))
     receiveState h
@@ -58,7 +58,7 @@ queryStatus sockPath = withConnection sockPath \h -> do
 queryStatusWait
     :: (File :> es, UnixSocket :> es)
     => FilePath
-    -> Eff es (Either Text BuildState)
+    -> Eff es (Either Text Status)
 queryStatusWait sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = True}))
     receiveState h
@@ -81,7 +81,7 @@ queryWatch
     => FilePath
     -> Eff es Bool
     -- ^ Whether a restart is currently in progress.
-    -> (Either Restarting BuildState -> Eff es ())
+    -> (Either Restarting Status -> Eff es ())
     -> Eff es ()
 queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
   where
@@ -179,7 +179,7 @@ sendQuery :: (File :> es) => Handle -> Query -> Eff es ()
 sendQuery h q = File.hPutLBsLn h $ encode ClientMessage {clientVersion = Version.gitHash, payload = q}
 
 
-receiveState :: (File :> es) => Handle -> Eff es (Either Text BuildState)
+receiveState :: (File :> es) => Handle -> Eff es (Either Text Status)
 receiveState h = do
     line <- File.hGetLine h
     case eitherDecode (BSL.fromStrict (encodeUtf8 (toText line))) of
