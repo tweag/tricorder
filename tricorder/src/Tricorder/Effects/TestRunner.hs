@@ -249,9 +249,9 @@ reportTestProgress target loading =
         BuildComplete result pb
             | Test.anyRunningTests pb.testSuites ->
                 let progress = BuildProgress {compiled = loading.index, total = loading.total}
-                    updateRun tgt (Test.SuiteRunning _) | tgt == target = Test.SuiteRunning (Just progress)
-                    updateRun _ r = r
-                    newRuns = Test.Suites $ Map.mapWithKey updateRun pb.testSuites.getSuites
+                    updateRun (Test.SuiteRunning _) = Test.SuiteRunning (Just progress)
+                    updateRun r = r
+                    newRuns = Test.Suites $ Map.adjust updateRun target pb.testSuites.getSuites
                 in  BuildComplete result pb {testSuites = newRuns}
         other -> other
 
