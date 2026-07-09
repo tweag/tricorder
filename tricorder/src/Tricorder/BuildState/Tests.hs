@@ -50,13 +50,6 @@ nullSuites :: Suites -> Bool
 nullSuites = Map.null . getSuites
 
 
-data Phase
-    = Testing [Suite]
-    | DoneTesting
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically Phase
-
-
 data Suite
     = SuiteRunning (Maybe BuildProgress)
     | SuiteErrored SuiteError
