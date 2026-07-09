@@ -502,3 +502,96 @@ drives the cycle to `Restarting`, so the two move together in practice.
 
 The principle, one more turn: **don't keep in the reduced state anything the
 reducer doesn't produce.** `daemonInfo` is an input — join it, don't store it.
+
+## The missing phase: `Settled` is a lie
+
+The sections above still call the cycle `Settled` the instant the build load
+finishes. But at that instant the system is not settled — it is about to run, or
+running, tests (and soon eval-comments). That "downstream work in progress" state
+genuinely exists; the earlier design just never *named* it, so it leaked into the
+registers: every "are we done?" reader had to cross-reference
+`Settled` with `anyRunningTests (currentSuites s)`. The cycle could not answer
+"done?" on its own.
+
+The fix is to name the phase that was always there. The transition is
+`build done → analyses running → idle`, and it is **generic over the downstream
+task** — tests today, evals tomorrow:
+
+```haskell
+data CyclePhase
+    = Restarting
+    | Building (Maybe BuildProgress)
+    | BuildFailed Text          -- no result at all
+    | Analysing                 -- build produced a result; post-build analyses running
+    | Idle                      -- cycle complete; read the build register for the result
+```
+
+`Analysing` deliberately does not mention tests; it is the phase-level home for the
+thing PR #263 called "post-build" — which was a real concept, just modelled as an
+*effect* (a capability) rather than a *phase* (a state). It is a phase.
+
+### What it simplifies
+
+- **Done-ness becomes a pure `cycle` predicate.** No reader inspects a register to
+  decide "are we finished": `isDone = cycle ∈ {Idle, BuildFailed}`. The only
+  register a reader still touches is the build register, and only to classify
+  `error / warning / ok` — which is inherent (you must read diagnostics to know a
+  build errored). Done-ness and classification both peeked before; now only
+  classification does.
+- **It generalizes to evals for free.** Eval-comments is another register filled
+  during `Analysing`: zero new phases, zero reducer changes, zero reader changes.
+- **The abort case falls out.** An analysis interrupted by a source change simply
+  stays `Analysing` (non-terminal, so no `status --wait` caller wakes) until the
+  incoming `SourceChanged` resets the cycle — replacing the spike's manual
+  skip-the-transition logic.
+
+### What it costs (and why it's contained)
+
+Materializing done-ness as a phase means the phase and the registers are two
+representations that must stay consistent. The mitigation: transitions are
+**orchestrator-driven** by the single sequential worker (`afterLoad`), not
+auto-detected by the reducer. `afterLoad` fills the register then emits the phase
+(`setBuild` before `EnterAnalysis`; the last `setTests` before `AnalysisComplete`),
+so `Idle` always implies the outputs are done. The reducer is given **no** counter
+and **no** register-scan — that tempting version reintroduces a genuine second
+source of truth. The reducer stays a pure phase machine; contents live only in the
+registers.
+
+### This subsumes the build/test asymmetry
+
+Because the build result now goes through `setBuild` like every other output, the
+reducer never writes output contents — but unlike bare "unify on setters", the
+cycle no longer *ignores* downstream work; it honestly represents it. The final
+ownership split:
+
+- **Reducer** — phase (incl. `Analysing` / `Idle`) + history *structure*
+  (slot insert / evict). Pure; never inspects or writes contents.
+- **Setters** — output *contents*: `setBuild` / `setTests` / `setEvals`, symmetric.
+- **Orchestrator** (`afterLoad`) — drives the phase transitions and runs analyses.
+
+`BuildFinished BuildResult` was itself a tiny "product wearing a sum's clothing" —
+one event carrying both a transition trigger and a data payload. Splitting it into
+`EnterAnalysis` (phase) + `setBuild` (contents) finishes the same move we began by
+splitting `BuildPhase`.
+
+## Consolidated final shape
+
+Folding the three post-spike refinements together (drop stored `current`; extract
+`daemonInfo`; formalize the post-build phase), the reduced state is two fields:
+
+```haskell
+data BuildState = BuildState
+    { cycle   :: CyclePhase                 -- Restarting | Building | BuildFailed | Analysing | Idle
+    , history :: Map BuildId BuildRecord    -- K = 2; currentId = max key
+    }
+```
+
+- `current` is derived (`currentId = maybe 0 fst . Map.lookupMax . history`), never
+  stored — so it cannot disagree with the map keys.
+- `daemonInfo` lives on the `Status { daemon, build }` wire envelope, joined at the
+  edge from `Input DaemonInfo`.
+- The reducer owns phase + which-builds-exist; setters own build/test/eval contents;
+  `afterLoad` orchestrates.
+
+`spec.md` holds the locked contracts (event set, `step`, `beginBuild`, setter
+semantics, wire format, straggler invariant).
