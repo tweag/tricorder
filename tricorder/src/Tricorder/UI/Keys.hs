@@ -79,6 +79,7 @@ data KeyEvent
     = ToggleDaemonInfoView
     | ToggleHelp
     | CycleTestView
+    | ToggleEvalComments
     | RestartDaemon
     | ExitView
     | ScrollUp
@@ -105,6 +106,7 @@ keys =
         [ ("toggle daemon info", ToggleDaemonInfoView)
         , ("toggle help", ToggleHelp)
         , ("cycle test view", CycleTestView)
+        , ("toggle eval comments", ToggleEvalComments)
         , ("restart daemon", RestartDaemon)
         , ("exit view", ExitView)
         , ("scroll up", ScrollUp)
@@ -118,6 +120,7 @@ bindings =
     [ (ToggleDaemonInfoView, [bind 'g'])
     , (ToggleHelp, [bind 'h'])
     , (CycleTestView, [bind 't'])
+    , (ToggleEvalComments, [bind 'e'])
     , (RestartDaemon, [bind 'R'])
     , (ExitView, [binding KEsc []])
     , (ScrollUp, [binding KUp []])
@@ -197,6 +200,12 @@ dispatcher requestRestart cfg =
                         else
                             s {testFilter = cycleTestFilter s.testFilter}
                     _ -> navigate Route.Tests s
+            , onEvent ToggleEvalComments "Toggle eval comments view" do
+                modify \s ->
+                    if currentRoute s == Route.Evals then
+                        navigate Route.Main s
+                    else
+                        navigate Route.Evals s
             , onEvent RestartDaemon "Restart the daemon" do
                 liftIO requestRestart
                 modify \s -> s {buildState = Waiting}
@@ -252,3 +261,4 @@ keybindForRoute kc = \case
     Route.DaemonInfo -> firstActiveBinding kc ToggleDaemonInfoView
     Route.Help -> firstActiveBinding kc ToggleHelp
     Route.Tests -> firstActiveBinding kc CycleTestView
+    Route.Evals -> firstActiveBinding kc ToggleEvalComments

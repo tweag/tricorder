@@ -16,7 +16,6 @@ import Effectful.Writer.Static.Shared (Writer, tell)
 import Tricorder.BuildState (BuildPhase (..), BuildResult, BuildState (..), PostBuild (..))
 import Tricorder.Effects.BuildStore (BuildStore)
 
-import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
 
 
@@ -44,7 +43,12 @@ runPostBuildStore initialBuildResult = do
                 BuildComplete buildResult postBuild ->
                     BuildComplete buildResult $ f postBuild
                 _ ->
-                    BuildComplete initialBuildResult $ f $ PostBuild $ Test.Suites mempty
+                    BuildComplete initialBuildResult
+                        $ f
+                        $ PostBuild
+                            { testSuites = mempty
+                            , evalComments = mempty
+                            }
 
 
 runPostBuildState :: (State PostBuild :> es) => Eff (PostBuildStore : es) a -> Eff es a

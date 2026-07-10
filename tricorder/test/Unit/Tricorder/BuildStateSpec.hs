@@ -15,8 +15,6 @@ import Tricorder.BuildState
     , Severity (..)
     )
 
-import Tricorder.BuildState.Test qualified as Test
-
 
 spec_BuildState :: Spec
 spec_BuildState = do
@@ -94,8 +92,7 @@ mkBuildState msgs =
                     , diagnostics = msgs
                     }
                 )
-                $ PostBuild
-                $ Test.Suites mempty
+                $ PostBuild mempty mempty
         , daemonInfo =
             DaemonInfo
                 { targets = []

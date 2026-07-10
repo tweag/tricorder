@@ -31,7 +31,7 @@ import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (atomically, newTVar)
 import Effectful.Exception (finally, trySync)
 import Effectful.Reader.Static (Reader, ask)
-import Effectful.State.Static.Shared (State, get, modify, put, state)
+import Effectful.State.Static.Shared (State, get, modify, put)
 import System.FilePath (normalise)
 
 import Atelier.Effects.Clock qualified as Clock
@@ -40,6 +40,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing qualified as Sub
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.BuildState
     ( BuildId (..)
@@ -63,6 +64,7 @@ import Tricorder.Builder.Dispatch
     , preserveFailureVisibility
     )
 import Tricorder.Effects.BuildStore (BuildStore)
+import Tricorder.Effects.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
 import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Effects.GhciSession.GhciProcess (GhciProcessError (..))
@@ -80,8 +82,10 @@ import Tricorder.Session
     , renderTestTarget
     )
 
+import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.Effects.BuildStore qualified as BuildStore
+import Tricorder.Effects.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Effects.GhciSession qualified as GhciSession
 import Tricorder.Effects.PostBuildStore qualified as PostBuild
 import Tricorder.Effects.SessionStore qualified as SessionStore
@@ -97,6 +101,7 @@ component
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -156,6 +161,7 @@ runBuilder
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -247,6 +253,7 @@ data GhciSessionHooks es = GhciSessionHooks
 defaultGhciSessionHooks
     :: ( BuildStore :> es
        , Clock :> es
+       , EvalCommentRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -277,6 +284,7 @@ runGhciSessions
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -322,6 +330,7 @@ buildWithGhciOnChange
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
        , Reader ProjectRoot :> es
@@ -367,6 +376,7 @@ watchSourceChanges
        , Conc :> es
        , Concurrent :> es
        , Debounce Text :> es
+       , EvalCommentRunner :> es
        , Log :> es
        , State BuildId :> es
        , Sub SourceChangeDetected :> es
@@ -376,11 +386,12 @@ watchSourceChanges
     -> BuildConfig
     -> GhciSession.Controls (Eff es)
     -> Eff es Void
-watchSourceChanges hooks config controls = Conc.scoped do
+watchSourceChanges hooks config controls = do
     BuildId n <- get
     Log.debug $ "Builder: waiting for dirty flag (build #" <> show n <> ")"
     forever $ Conc.scoped do
         pending <- atomically (newTVar @(Maybe SourceChangeDetected) Nothing)
+        Log.debug "Builder: starting listeners"
         -- Write the latest event into a `TVar`, and a single worker fork
         -- drains it when it is ready to process a new event. Events that
         -- arrive while the worker is processing the previous one simply
@@ -390,7 +401,8 @@ watchSourceChanges hooks config controls = Conc.scoped do
         -- 'interruptCurrent' can't drop the in-flight cycle promptly — e.g.
         -- when a 'status --wait' caller has registered as a waiter, gating
         -- 'interruptCurrent' to a no-op.
-        Conc.fork_ $ Sub.listen_ \ev ->
+        Conc.fork_ $ Sub.listen_ \ev -> do
+            Log.debug $ "Builder: got source change"
             debounced 200 "source_change_reloader" do
                 atomically (writeTVar pending (Just ev))
                 -- Interrupts the currently running build as long as there are
@@ -400,19 +412,19 @@ watchSourceChanges hooks config controls = Conc.scoped do
         -- `hooks.onSourceChange` returns, which it will do once it completes
         -- or when it is interrupted. Only one worker should be running at any
         -- given time.
-        Conc.fork_ $ forever do
+        forever do
             ev <- atomically do
                 readTVar pending >>= \case
                     Nothing -> retry
                     Just e -> writeTVar pending Nothing >> pure e
             hooks.onSourceChange config controls ev
-        Conc.awaitAll
 
 
 -- 'controls.interrupt' is a safe no-op when GHCi is idle, and 'GhciSession'
 -- serialises subsequent reloads through its own STM state.
 interruptCurrent
     :: ( BuildStore :> es
+       , EvalCommentRunner :> es
        , Log :> es
        , TestRunner :> es
        )
@@ -420,14 +432,16 @@ interruptCurrent
 interruptCurrent controls = do
     hasWaiters <- BuildStore.hasWaiters
     unless hasWaiters do
-        Log.info "Change detected with no waiters. Interrupting current build/tests."
+        Log.info "Change detected with no waiters. Interrupting current build/tests/evals."
         controls.interrupt
         TestRunner.interruptCurrent
+        EvalCommentRunner.interruptCurrent
 
 
 reloadOnSourceChange
     :: ( BuildStore :> es
        , Clock :> es
+       , EvalCommentRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -484,10 +498,11 @@ runAction controls = \case
 
 
 -- | Run the post-load pipeline synchronously: compile diagnostics into a
--- 'BuildResult', then (optionally) run tests and transition through the
--- corresponding phases.
+-- 'BuildResult', run eval comments in clean builds, then (optionally) run
+-- tests and transition through the corresponding phases.
 afterLoad
     :: ( BuildStore :> es
+       , EvalCommentRunner :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
@@ -497,6 +512,7 @@ afterLoad
 afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
     runPostBuildStore buildResult do
+        processEvalComments newLoadResult.loadResult
         if hasTargets config.testTargets && noErrors buildResult then
             runTestsForTargets config.testTargets >>= \case
                 Aborted -> Log.debug "Test run aborted by source change; skipping BuildComplete transition."
@@ -509,7 +525,9 @@ afterLoad config newLoadResult = do
                             BuildStore.setPhase curr.buildId
                                 $ BuildComplete buildResult
                                 $ PostBuild
-                                $ Test.Suites mempty
+                                    { testSuites = mempty
+                                    , evalComments = mempty
+                                    }
                     pure ()
         else do
             PostBuild.modifyPostBuild \postBuild ->
@@ -517,6 +535,25 @@ afterLoad config newLoadResult = do
   where
     hasTargets testTargets = not $ null testTargets.getTestTargets
     noErrors result = all (\d -> d.severity /= SError) result.diagnostics
+    processEvalComments loadResult = do
+        builderState <- get @BuilderState
+        evalComments <- findEvalCommentsInModules (resolveKnownTargets builderState.loadedModules loadResult)
+
+        let pendingComments =
+                (\(p, (_, ecs)) -> toPending p <$> toList ecs)
+                    `concatMap` Map.toList evalComments
+        PostBuild.modifyPostBuild \br -> br {evalComments = Eval.Comments pendingComments}
+        EvalCommentRunner.resetAbort
+        evaluatedComments <- EvalCommentRunner.evaluateComments evalComments
+        aborted <- EvalCommentRunner.isAborted
+        unless aborted
+            $ PostBuild.modifyPostBuild \br -> br {evalComments = Eval.Comments evaluatedComments}
+    toPending file comment =
+        Eval.Evaluation
+            { file
+            , comment
+            , state = Eval.Pending
+            }
 
 
 compileLoadResultsIntoBuildResults
@@ -535,7 +572,7 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
                         $ filterToWatchDirs projectRoot watchDirs loadResult.diagnostics
                 }
 
-    newAccumulated <- state \s ->
+    newAccumulated <- State.state \s ->
         let merged = mergeDiagnostics s.diagnosticMap filteredResult
         in  (merged, s {diagnosticMap = merged})
 

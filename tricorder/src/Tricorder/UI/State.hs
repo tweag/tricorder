@@ -25,6 +25,7 @@ data Viewports
     = MainViewport
     | DiagnosticViewport
     | TestViewport
+    | EvalResultsViewport
     deriving stock (Eq, Ord, Show)
 
 
