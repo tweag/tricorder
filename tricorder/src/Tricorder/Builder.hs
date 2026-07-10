@@ -50,7 +50,6 @@ import Tricorder.BuildState
     , Diagnostic (..)
     , Severity (..)
     , SourceChangeDetected (..)
-    , TestOutput (..)
     , currentId
     )
 import Tricorder.Builder.Dispatch
@@ -74,7 +73,6 @@ import Tricorder.Session
     ( Command (..)
     , Session (..)
     , Target
-    , TestTarget
     , TestTargets
     , WatchDirs
     , getTestTargets
@@ -524,19 +522,20 @@ afterLoad
 afterLoad config newLoadResult = do
     buildResult <- compileLoadResultsIntoBuildResults config newLoadResult
     let output = Built buildResult
+    -- Publish the build register before any phase transition, so a terminal phase
+    -- ('Analysing' / 'Idle') always carries its result.
+    BuildStore.recordBuild output
     if noErrors buildResult && hasTargets config.testTargets then do
-        -- Publish the register and enter Analysing atomically, then run the
-        -- downstream analyses. 'Analysing' therefore always carries its result.
-        BuildStore.finishBuild output EnterAnalysis
+        BuildStore.emit EnterAnalysis
         runTestsForTargets config.testTargets >>= \case
             -- New build imminent: leave Analysing; beginBuild will reset it
             -- (no stale Idle). Do NOT emit AnalysisComplete. A no-op follow-up
             -- change instead settles it via 'settleStrandedAnalysis'.
             Aborted -> Log.debug "Test run aborted by source change; leaving cycle in Analysing."
             NotAborted -> BuildStore.emit AnalysisComplete
-    else -- Errors or no targets: nothing downstream to run. Publish the register
-    -- and settle to Idle atomically, so Idle never lacks its result.
-        BuildStore.finishBuild output AnalysisComplete
+    else
+        -- Errors or no targets: nothing downstream to run; settle straight to Idle.
+        BuildStore.emit AnalysisComplete
   where
     hasTargets testTargets = not $ null testTargets.getTestTargets
     noErrors result = all (\d -> d.severity /= SError) result.diagnostics
@@ -592,23 +591,19 @@ runTestsForTargets
     -> Eff es TestRunAborted
 runTestsForTargets testTargets = do
     TestRunner.resetAbort
-    BuildStore.setTests
-        $ TestsRunning
-        $ Test.Suites
-        $ Map.fromList
-        $ (,Test.SuiteRunning Nothing) <$> tgts
+    -- Seed every configured target as running via a delta, so the suite set is
+    -- complete from the first write ("none running" then unambiguously means
+    -- "all finished"). The done phase is derived, never asserted.
+    BuildStore.recordTests (Test.initSuites tgts)
 
     Log.info $ "Running " <> show (length tgts) <> " test suite(s)"
 
     runLoop tgts
   where
     tgts = testTargets.getTestTargets
-    -- Mark the register done once the last suite completes.
-    runLoop [] = do
-        BuildStore.modifyTests \case
-            TestsRunning suites -> TestsDone suites
-            other -> other
-        pure NotAborted
+    -- No suites left to run: report success. The done phase is derived from the
+    -- register, so this base case has nothing to write.
+    runLoop [] = pure NotAborted
     runLoop (target : rest) = do
         Log.info $ "Running tests: " <> renderTestTarget target
         result' <- TestRunner.runTestSuite target
@@ -616,19 +611,10 @@ runTestsForTargets testTargets = do
         if aborted then
             pure Aborted
         else do
-            BuildStore.modifyTests $ insertSuiteResult target result'
+            -- Emit a per-suite delta; the monoidal merge advances just this
+            -- target (terminal-wins) without touching its siblings.
+            BuildStore.recordTests (Test.suitesFromList [(target, result')])
             runLoop rest
-
-
--- | Insert a completed suite's result into whichever running/done register we
--- have, preserving the wrapper.
-insertSuiteResult :: TestTarget -> Test.Suite -> TestOutput -> TestOutput
-insertSuiteResult target result' = \case
-    TestsRunning suites -> TestsRunning (insert suites)
-    TestsDone suites -> TestsDone (insert suites)
-    TestsIdle -> TestsRunning (insert (Test.Suites mempty))
-  where
-    insert suites = Test.Suites $ Map.insert target result' suites.getSuites
 
 
 --------------------------------------------------------------------------------

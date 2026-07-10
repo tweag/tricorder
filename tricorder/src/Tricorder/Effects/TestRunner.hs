@@ -39,12 +39,10 @@ import Effectful.TH (makeEffect)
 
 import Atelier.Effects.Log qualified as Log
 import Data.List qualified as List
-import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.BuildState (TestOutput (..))
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
-import Tricorder.Effects.BuildStore (BuildStore, modifyTests)
+import Tricorder.Effects.BuildStore (BuildStore, recordTests)
 import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Effects.GhciSession.GhciProcess
     ( GhciProcess
@@ -235,19 +233,16 @@ abortGatedProgress abortedRef target loading = do
 -- update the matching 'SuiteRunning' entry as each @[N of M] Compiling …@
 -- line arrives so the UI shows @running... (N/M)@ live.
 --
--- 'modifyTests' writes only @history[current].tests@ — it cannot touch the
--- cycle or the build register, so this can no longer revert a phase. If the
--- register has moved on (idle/done), the event is a no-op.
+-- 'recordTests' writes only @history[current].tests@ — it cannot touch the
+-- cycle or the build register, so a progress tick never disturbs a phase. The
+-- monoidal merge advances only a 'SuiteRunning' target (terminal-wins), so a
+-- late tick for a suite that has already finished is discarded by the merge.
 reportTestProgress
     :: (BuildStore :> es) => TestTarget -> GhciLoading -> Eff es ()
 reportTestProgress target loading =
-    modifyTests \case
-        TestsRunning suites ->
-            let progress = BuildProgress {compiled = loading.index, total = loading.total}
-                updateRun (Test.SuiteRunning _) = Test.SuiteRunning (Just progress)
-                updateRun r = r
-            in  TestsRunning $ Test.Suites $ Map.adjust updateRun target suites.getSuites
-        other -> other
+    recordTests (Test.suitesFromList [(target, Test.SuiteRunning (Just progress))])
+  where
+    progress = BuildProgress {compiled = loading.index, total = loading.total}
 
 
 data GhciOutcome

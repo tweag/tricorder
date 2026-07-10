@@ -17,12 +17,11 @@ import Tricorder.BuildState
     , Diagnostic (..)
     , Severity (..)
     , Status (..)
-    , TestOutput (..)
     , currentId
     , liveSnapshot
-    , suitesOf
     )
-import Tricorder.Session (getTestTargets, parseTestTargets)
+import Tricorder.BuildState.BuildProgress (BuildProgress (..))
+import Tricorder.Session (TestTarget, getTestTargets, parseTestTargets)
 
 import Tricorder.BuildState.Test qualified as Test
 
@@ -97,8 +96,8 @@ spec_BuildState = do
                     bs
                         { history =
                             Map.fromList
-                                [ (BuildId 2, BuildRecord (Built (mkResult [])) (TestsDone (Test.Suites mempty)))
-                                , (BuildId 3, BuildRecord (Built (mkResult [])) TestsIdle)
+                                [ (BuildId 2, BuildRecord (Built (mkResult [])) sampleSuites)
+                                , (BuildId 3, BuildRecord (Built (mkResult [])) (Test.Suites mempty))
                                 ]
                         }
             eitherDecode (encode twoBuilds) `shouldBe` Right twoBuilds
@@ -109,16 +108,87 @@ spec_BuildState = do
             let st = Status {daemon = emptyDaemonInfo, build = mkBuildState []}
             eitherDecode (encode st) `shouldBe` Right st
 
-    -- The single suites extractor shared by every reader (CLI, TUI). Adding a
-    -- new 'TestOutput' constructor forces a change here rather than silently
-    -- returning 'mempty' in one copy.
-    describe "suitesOf" do
-        it "unwraps a running register" do
-            suitesOf (TestsRunning sampleSuites) `shouldBe` sampleSuites
-        it "unwraps a done register" do
-            suitesOf (TestsDone sampleSuites) `shouldBe` sampleSuites
-        it "is empty for the idle register" do
-            suitesOf TestsIdle `shouldBe` Test.Suites mempty
+    -- The per-suite merge is where monotonicity lives: a suite advances
+    -- SuiteRunning -> terminal and a terminal never regresses to running; the
+    -- newest terminal (and newest running tick) wins. 'Suites' inherits this via
+    -- MonoidalMap's unionWith.
+    describe "Semigroup Suite" do
+        it "is associative over the representative suite states" do
+            sequence_
+                [ ((a <> b) <> c) `shouldBe` (a <> (b <> c))
+                | a <- suiteReps
+                , b <- suiteReps
+                , c <- suiteReps
+                ]
+
+        it "a running suite yields to a terminal (completed / errored)" do
+            (running0 <> completedPass) `shouldBe` completedPass
+            (runningTick <> erroredBoom) `shouldBe` erroredBoom
+
+        it "a terminal suite never regresses to running" do
+            (completedPass <> running0) `shouldBe` completedPass
+            (erroredBoom <> runningTick) `shouldBe` erroredBoom
+
+        it "the newest terminal wins on a terminal/terminal merge" do
+            (completedPass <> completedFail) `shouldBe` completedFail
+            (completedFail <> completedPass) `shouldBe` completedPass
+
+        it "keeps the latest running progress tick" do
+            (running0 <> runningTick) `shouldBe` runningTick
+
+    describe "Semigroup Suites (per-target monoidal merge)" do
+        it "merges per target: seed running, then a terminal delta advances one suite" do
+            let seeded =
+                    Test.suitesFromList
+                        [ (fooTarget, Test.SuiteRunning Nothing)
+                        , (barTarget, Test.SuiteRunning Nothing)
+                        ]
+                delta = Test.suitesFromList [(fooTarget, completedPass)]
+            Test.suitesToList (seeded <> delta)
+                `shouldBe` [ (barTarget, Test.SuiteRunning Nothing)
+                           , (fooTarget, completedPass)
+                           ]
+
+    -- The running/done phase is a pure derivation of the register, not a stored
+    -- tag. The one edge: an empty register is 'NoTests', never 'Tested'.
+    describe "testPhase" do
+        it "an empty register is NoTests (not Tested)" do
+            Test.testPhase (Test.Suites mempty) `shouldBe` Test.NoTests
+
+        it "any running suite is Testing" do
+            Test.testPhase
+                ( Test.suitesFromList
+                    [ (fooTarget, completedPass)
+                    , (barTarget, Test.SuiteRunning Nothing)
+                    ]
+                )
+                `shouldBe` Test.Testing
+
+        it "all-terminal suites are Tested" do
+            Test.testPhase
+                ( Test.suitesFromList
+                    [ (fooTarget, completedPass)
+                    , (barTarget, erroredBoom)
+                    ]
+                )
+                `shouldBe` Test.Tested
+
+        it "phase advances monotonically Testing -> Tested as terminal deltas land" do
+            let seeded =
+                    Test.suitesFromList
+                        [ (fooTarget, Test.SuiteRunning Nothing)
+                        , (barTarget, Test.SuiteRunning Nothing)
+                        ]
+                afterFoo = seeded <> Test.suitesFromList [(fooTarget, completedPass)]
+                afterBar = afterFoo <> Test.suitesFromList [(barTarget, completedFail)]
+            Test.testPhase seeded `shouldBe` Test.Testing
+            -- One suite done, one still running: still Testing.
+            Test.testPhase afterFoo `shouldBe` Test.Testing
+            -- Both terminal: Tested.
+            Test.testPhase afterBar `shouldBe` Test.Tested
+            -- A late running tick for a finished suite cannot pull it back.
+            Test.testPhase (afterBar <> Test.suitesFromList [(fooTarget, runningTick)])
+                `shouldBe` Test.Tested
 
     -- The projection streamed on each live 'watchStream' transition: a live
     -- (non-terminal) cycle renders only the current record, so the retained
@@ -150,8 +220,8 @@ twoBuildHistory phase =
         { cycle = phase
         , history =
             Map.fromList
-                [ (BuildId 1, BuildRecord (Built (mkResult [warnMsg])) (TestsDone (Test.Suites mempty)))
-                , (BuildId 2, BuildRecord NotBuilt TestsIdle)
+                [ (BuildId 1, BuildRecord (Built (mkResult [warnMsg])) (Test.Suites mempty))
+                , (BuildId 2, BuildRecord NotBuilt (Test.Suites mempty))
                 ]
         }
   where
@@ -169,11 +239,54 @@ twoBuildHistory phase =
 
 
 sampleSuites :: Test.Suites
-sampleSuites = Test.Suites $ Map.fromList [(tgt, Test.SuiteRunning Nothing)]
-  where
-    tgt = case (parseTestTargets ["test:foo"]).getTestTargets of
-        (t : _) -> t
-        [] -> error "sampleSuites: no test target parsed"
+sampleSuites = Test.suitesFromList [(fooTarget, Test.SuiteRunning Nothing)]
+
+
+--------------------------------------------------------------------------------
+-- Suite / Suites semigroup fixtures
+--------------------------------------------------------------------------------
+
+fooTarget :: TestTarget
+fooTarget = mkTestTarget "test:foo"
+
+
+barTarget :: TestTarget
+barTarget = mkTestTarget "test:bar"
+
+
+mkTestTarget :: Text -> TestTarget
+mkTestTarget name = case (parseTestTargets [name]).getTestTargets of
+    (t : _) -> t
+    [] -> error "mkTestTarget: no test target parsed"
+
+
+running0 :: Test.Suite
+running0 = Test.SuiteRunning Nothing
+
+
+runningTick :: Test.Suite
+runningTick = Test.SuiteRunning (Just BuildProgress {compiled = 3, total = 10})
+
+
+completedPass :: Test.Suite
+completedPass =
+    Test.SuiteCompleted
+        Test.SuiteCompletion {passed = True, output = "ok", testCases = [], duration = Nothing}
+
+
+completedFail :: Test.Suite
+completedFail =
+    Test.SuiteCompleted
+        Test.SuiteCompletion {passed = False, output = "boom", testCases = [], duration = Nothing}
+
+
+erroredBoom :: Test.Suite
+erroredBoom = Test.SuiteErrored Test.SuiteError {message = "crashed"}
+
+
+-- | Representative suite states covering every 'Semigroup' 'Suite' clause.
+suiteReps :: [Test.Suite]
+suiteReps = [running0, runningTick, completedPass, completedFail, erroredBoom]
 
 
 mkResult :: [Diagnostic] -> BuildResult
@@ -208,6 +321,5 @@ mkBuildState msgs =
         , history =
             Map.singleton (BuildId 1)
                 $ BuildRecord (Built (mkResult msgs))
-                $ TestsDone
                 $ Test.Suites mempty
         }

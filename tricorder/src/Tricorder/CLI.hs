@@ -39,7 +39,6 @@ import Tricorder.BuildState
     , Status (..)
     , currentBuild
     , currentTests
-    , suitesOf
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.CLI.Render
@@ -110,7 +109,7 @@ showStatus opts = do
             NotBuilt -> Console.putStrLn "Building..."
             Built result -> do
                 tz <- currentTimeZone
-                let suites = suitesOf (currentTests state)
+                let suites = currentTests state
                 case expand of
                     Just n ->
                         case result.diagnostics !!? (n - 1) of
@@ -133,7 +132,7 @@ showStatus opts = do
                                     Console.putTextLn $ diagnosticLineIndexed i d
                         mapM_ printDiag (zip [1 ..] result.diagnostics)
                         Console.putTextLn $ buildSummary tz result
-                        mapM_ (uncurry (printTestRun verbosity)) $ Map.toList suites.getSuites
+                        mapM_ (uncurry (printTestRun verbosity)) $ Map.toList (Tests.suitesToMap suites)
                         when (buildHasErrors result || Tests.hasFailedTests suites) exitFailure
 
     printTestRun verbosity tgt tr = do
@@ -212,9 +211,9 @@ showTests opts = do
             case status.build.cycle of
                 Building _ -> Console.putStrLn "Build in progress, no test results yet."
                 Restarting -> Console.putStrLn "Daemon restarting, no test results yet."
-                Analysing -> renderTestRuns (suitesOf (currentTests status.build)).getSuites
+                Analysing -> renderTestRuns (Tests.suitesToMap (currentTests status.build))
                 BuildFailed msg -> reportBuildFailed msg
-                Idle -> renderTestRuns (suitesOf (currentTests status.build)).getSuites
+                Idle -> renderTestRuns (Tests.suitesToMap (currentTests status.build))
   where
     renderTestRuns suites
         | Map.null suites = Console.putStrLn "No test results."

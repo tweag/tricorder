@@ -19,7 +19,6 @@ import Tricorder.BuildState
     , BuildState (..)
     , CycleEvent (..)
     , CyclePhase (..)
-    , TestOutput (..)
     , beginBuild
     , currentBuild
     , currentId
@@ -30,11 +29,10 @@ import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Effects.BuildStore
     ( BuildStore
     , emit
-    , finishBuild
     , getState
+    , recordBuild
     , runBuildStore
     , runBuildStoreScripted
-    , setBuild
     , waitForNext
     , waitUntilDone
     )
@@ -181,24 +179,25 @@ testSTM = do
             currentId r `shouldBe` BuildId 0
             r.cycle `shouldBe` Building Nothing
 
-    describe "setBuild / emit / getState" do
-        it "reflects a settled build (register written by setBuild, phase by emit)" do
+    describe "recordBuild / emit / getState" do
+        it "reflects a settled build (register merged by recordBuild, phase by emit)" do
             r <- runStm do
                 emit SourceChanged
-                setBuild (Built result)
+                recordBuild (Built result)
                 emit AnalysisComplete
                 getState
             r.cycle `shouldBe` Idle
             currentBuild r `shouldBe` Built result
 
-    -- The combined primitive couples the register write with the settle
-    -- transition in one step, so a settled 'Idle' can never be observed without
-    -- its result (the ordering can't slip at the call site).
-    describe "finishBuild" do
+    -- Publishing the build register BEFORE emitting the settle transition means a
+    -- settled 'Idle' can never be observed without its result: the register write
+    -- is already visible when the terminal phase broadcasts.
+    describe "recordBuild before settle" do
         it "settles directly to Idle carrying the result" do
             r <- runStm do
                 emit SourceChanged
-                finishBuild (Built result) AnalysisComplete
+                recordBuild (Built result)
+                emit AnalysisComplete
                 getState
             r.cycle `shouldBe` Idle
             currentBuild r `shouldBe` Built result
@@ -206,7 +205,8 @@ testSTM = do
         it "enters Analysing carrying the result" do
             r <- runStm do
                 emit SourceChanged
-                finishBuild (Built result) EnterAnalysis
+                recordBuild (Built result)
+                emit EnterAnalysis
                 getState
             r.cycle `shouldBe` Analysing
             currentBuild r `shouldBe` Built result
@@ -216,7 +216,8 @@ testSTM = do
                 emit SourceChanged
                 void $ Conc.fork do
                     liftIO (threadDelay 10_000)
-                    finishBuild (Built result) AnalysisComplete
+                    recordBuild (Built result)
+                    emit AnalysisComplete
                 waitUntilDone
             (r.cycle, currentBuild r) `shouldBe` (Idle, Built result)
 
@@ -226,7 +227,7 @@ testSTM = do
                 emit SourceChanged
                 void $ Conc.fork do
                     liftIO (threadDelay 10_000)
-                    setBuild (Built result)
+                    recordBuild (Built result)
                     emit AnalysisComplete
                 waitUntilDone
             r.cycle `shouldBe` Idle
@@ -235,11 +236,13 @@ testSTM = do
         it "blocks until a settled build with a different id appears from another thread" do
             r <- runStmConc do
                 emit SourceChanged -- build 1, Building
-                finishBuild (Built result) AnalysisComplete -- build 1 settles (id 1)
+                recordBuild (Built result) -- build 1 result
+                emit AnalysisComplete -- build 1 settles (id 1)
                 void $ Conc.fork do
                     liftIO (threadDelay 10_000)
                     emit SourceChanged -- build 2, Building
-                    finishBuild (Built result) AnalysisComplete -- build 2 settles
+                    recordBuild (Built result) -- build 2 result
+                    emit AnalysisComplete -- build 2 settles
                 waitForNext (BuildId 1)
             -- Must skip past build 1 (same id) and its Building frames, waking
             -- only on the settled build 2.
@@ -256,7 +259,7 @@ testSTM = do
                 emit SourceChanged -- build 1, Building
                 void $ Conc.fork do
                     liftIO (threadDelay 5_000)
-                    setBuild (Built result)
+                    recordBuild (Built result)
                     emit AnalysisComplete -- build 1 settles (transient Idle)
                     emit SourceChanged -- build 2, Building (overwrites TVar)
                 waitUntilDone
@@ -291,7 +294,7 @@ buildingAt :: Int -> BuildState
 buildingAt n =
     BuildState
         { cycle = Building Nothing
-        , history = Map.singleton (BuildId n) (BuildRecord NotBuilt TestsIdle)
+        , history = Map.singleton (BuildId n) (BuildRecord NotBuilt (Test.Suites mempty))
         }
 
 
@@ -299,7 +302,7 @@ doneAt :: Int -> BuildState
 doneAt n =
     BuildState
         { cycle = Idle
-        , history = Map.singleton (BuildId n) (BuildRecord (Built result) (TestsDone (Test.Suites mempty)))
+        , history = Map.singleton (BuildId n) (BuildRecord (Built result) (Test.Suites mempty))
         }
 
 

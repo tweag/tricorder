@@ -3,10 +3,9 @@ module Tricorder.Effects.BuildStore
       BuildStore (..)
     , getState
     , emit
-    , setBuild
-    , finishBuild
-    , setTests
-    , modifyTests
+    , mergeCurrent
+    , recordBuild
+    , recordTests
     , waitUntilDone
     , waitForNext
     , waitForAnyChange
@@ -29,19 +28,18 @@ import Effectful.TH (makeEffect)
 
 import Tricorder.BuildState
     ( BuildId
-    , BuildOutput
+    , BuildOutput (..)
+    , BuildRecord (..)
     , BuildState (..)
     , ChangeKind (..)
     , CycleEvent
-    , TestOutput
     , currentId
     , initialBuildState
     , isDone
-    , overCurrentTests
-    , setCurrentBuild
-    , setCurrentTests
+    , overCurrent
     , step
     )
+import Tricorder.BuildState.Test (Suites)
 
 
 data BuildStore :: Effect where
@@ -50,19 +48,17 @@ data BuildStore :: Effect where
     -- | Drive the cycle state machine. The reducer owns 'cycle' and the
     -- structure of the history; this is the only way to move them.
     Emit :: CycleEvent -> BuildStore m ()
-    -- | Overwrite the current build's build register.
-    SetBuild :: BuildOutput -> BuildStore m ()
-    -- | Write the build register AND apply the settle transition in one atomic
-    -- step. Couples "publish the result" with "signal the phase that exposes
-    -- it" so a reader can never observe a settled 'Idle' (or 'Analysing') with a
-    -- 'NotBuilt' register — the ordering the two separate ops must respect can't
-    -- slip at the call site. @ev@ is the settle transition (typically
-    -- 'EnterAnalysis' or 'AnalysisComplete').
-    FinishBuild :: BuildOutput -> CycleEvent -> BuildStore m ()
-    -- | Overwrite the current build's test register.
-    SetTests :: TestOutput -> BuildStore m ()
-    -- | Modify the current build's test register in place.
-    ModifyTests :: (TestOutput -> TestOutput) -> BuildStore m ()
+    -- | Merge a producer's delta into the current build's record. The single
+    -- register write path: each producer touches only its own field, the build
+    -- register a 'Last'-like monoid and the test register a per-target monoidal
+    -- merge. 'recordBuild' [ref:record_build] and 'recordTests' [ref:record_tests]
+    -- are the field-focused wrappers.
+    --
+    -- Ordering contract for the settle: merge the build delta BEFORE emitting the
+    -- terminal phase ('EnterAnalysis' / 'AnalysisComplete'), so a reader woken on
+    -- 'Idle' never observes a 'NotBuilt' register — the register write is already
+    -- visible when the terminal transition broadcasts.
+    MergeCurrent :: BuildRecord -> BuildStore m ()
     -- | Block until the current build cycle completes.
     WaitUntilDone :: BuildStore m BuildState
     -- | Block until a completed build with a different 'BuildId' is available.
@@ -79,6 +75,18 @@ data BuildStore :: Effect where
 
 
 makeEffect ''BuildStore
+
+
+-- | [tag:record_build] Record the compile step's result in the current build's
+-- build register.
+recordBuild :: (BuildStore :> es) => BuildOutput -> Eff es ()
+recordBuild b = mergeCurrent mempty {build = b}
+
+
+-- | [tag:record_tests] Record a test-suite delta in the current build's test
+-- register.
+recordTests :: (BuildStore :> es) => Suites -> Eff es ()
+recordTests t = mergeCurrent mempty {tests = t}
 
 
 -- | Mutable state shared between the production interpreters and writers
@@ -152,22 +160,10 @@ runBuildStoreScripted states = reinterpret (evalState states) $ \_ -> \case
         get >>= \case
             [] -> pure ()
             s : rest -> put (step s ev : rest)
-    SetBuild b ->
+    MergeCurrent delta ->
         get >>= \case
             [] -> pure ()
-            s : rest -> put (setCurrentBuild b s : rest)
-    FinishBuild b ev ->
-        get >>= \case
-            [] -> pure ()
-            s : rest -> put (step (setCurrentBuild b s) ev : rest)
-    SetTests t ->
-        get >>= \case
-            [] -> pure ()
-            s : rest -> put (setCurrentTests t s : rest)
-    ModifyTests f ->
-        get >>= \case
-            [] -> pure ()
-            s : rest -> put (overCurrentTests f s : rest)
+            s : rest -> put (overCurrent (<> delta) s : rest)
     WaitUntilDone -> advance isDone
     WaitForNext bid -> advance \s -> isDone s && currentId s /= bid
     WaitForAnyChange prev -> advance (/= prev)
@@ -194,10 +190,7 @@ runBuildStore eff = do
     interpretWith_ eff \case
         GetState -> atomically (readTVar refs.stateRef)
         Emit ev -> writeState refs (`step` ev)
-        SetBuild b -> writeState refs (setCurrentBuild b)
-        FinishBuild b ev -> writeState refs (\s -> step (setCurrentBuild b s) ev)
-        SetTests t -> writeState refs (setCurrentTests t)
-        ModifyTests f -> writeState refs (overCurrentTests f)
+        MergeCurrent delta -> writeState refs (overCurrent (<> delta))
         WaitUntilDone ->
             bracket_
                 (atomically (modifyTVar refs.waitersRef (+ 1)))

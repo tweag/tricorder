@@ -117,6 +117,7 @@ library tricorder-internal
     , filepath >=1.4 && <1.6
     , hashable ==1.5.*
     , megaparsec ==9.7.*
+    , monoidal-containers ==0.6.*
     , mtl ==2.3.*
     , network ==3.2.*
     , optparse-applicative ==0.19.*

@@ -62,6 +62,7 @@ in
         "process"
         "template-haskell"
         "megaparsec"
+        "monoidal-containers"
         "mtl"
         "network"
         "optparse-applicative"

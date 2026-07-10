@@ -43,6 +43,7 @@ let
     ki = ">=1.0 && <1.1";
     list-t = ">=1.0 && <1.1";
     megaparsec = ">=9.7 && <9.8";
+    monoidal-containers = ">=0.6 && <0.7";
     mtl = ">=2.3 && <2.4";
     network = ">=3.2 && <3.3";
     optparse-applicative = ">=0.19 && <0.20";

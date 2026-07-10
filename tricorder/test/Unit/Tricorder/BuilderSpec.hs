@@ -42,12 +42,9 @@ import Tricorder.BuildState
     , Diagnostic (..)
     , Severity (..)
     , SourceChangeDetected (..)
-    , TestOutput (..)
     , currentId
     , currentRecord
-    , overCurrentTests
-    , setCurrentBuild
-    , setCurrentTests
+    , overCurrent
     , step
     )
 import Tricorder.Builder
@@ -467,29 +464,22 @@ testRunTestsForTargets = do
                 [ Right suiteCompleted
                 , Right suiteCompleted
                 ]
-        -- setTests(running both), modifyTests(foo done), modifyTests(bar done),
-        -- then the finaliser flips TestsRunning -> TestsDone.
+        -- Seed delta (both running), then a per-suite terminal delta for foo, then
+        -- for bar. 'Tested' emerges from the last delta — there is no separate
+        -- finalise write, so the last two frames are no longer duplicated.
         map testsOf phases
-            `shouldBe` [ TestsRunning
-                            $ runsFrom
-                                [ (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
-                                , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
-                                ]
-                       , TestsRunning
-                            $ runsFrom
-                                [ (mkTestTarget "test:foo", suiteCompleted)
-                                , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
-                                ]
-                       , TestsRunning
-                            $ runsFrom
-                                [ (mkTestTarget "test:foo", suiteCompleted)
-                                , (mkTestTarget "test:bar", suiteCompleted)
-                                ]
-                       , TestsDone
-                            $ runsFrom
-                                [ (mkTestTarget "test:foo", suiteCompleted)
-                                , (mkTestTarget "test:bar", suiteCompleted)
-                                ]
+            `shouldBe` [ runsFrom
+                            [ (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
+                            , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
+                            ]
+                       , runsFrom
+                            [ (mkTestTarget "test:foo", suiteCompleted)
+                            , (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
+                            ]
+                       , runsFrom
+                            [ (mkTestTarget "test:foo", suiteCompleted)
+                            , (mkTestTarget "test:bar", suiteCompleted)
+                            ]
                        ]
 
     -- Regression for the abort handling: when an interrupt arrives mid-run
@@ -507,11 +497,10 @@ testRunTestsForTargets = do
                 $ runTestsForTargets
                 $ parseTestTargets ["test:foo", "test:bar"]
         map testsOf phases
-            `shouldBe` [ TestsRunning
-                            $ runsFrom
-                                [ (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
-                                , (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
-                                ]
+            `shouldBe` [ runsFrom
+                            [ (mkTestTarget "test:bar", Test.SuiteRunning Nothing)
+                            , (mkTestTarget "test:foo", Test.SuiteRunning Nothing)
+                            ]
                        ]
   where
     runTest testTargets script =
@@ -525,7 +514,7 @@ testRunTestsForTargets = do
             $ runTestsForTargets testTargets
 
     testsOf s = (currentRecord s).tests
-    runsFrom = Test.Suites . Map.fromList
+    runsFrom = Test.suitesFromList
 
     suiteCompleted =
         Test.SuiteCompleted
@@ -1204,11 +1193,8 @@ runBuildStoreWaiterPresent = interpret_ \case
     -- 'watchSourceChanges' reads the current build id for its debug log line.
     BuildStore.GetState -> pure completeBuildState
     BuildStore.Emit _ -> error "runBuildStoreWaiterPresent: Emit unsupported"
-    BuildStore.SetBuild _ -> error "runBuildStoreWaiterPresent: SetBuild unsupported"
-    BuildStore.FinishBuild _ _ -> error "runBuildStoreWaiterPresent: FinishBuild unsupported"
-    BuildStore.SetTests _ -> error "runBuildStoreWaiterPresent: SetTests unsupported"
+    BuildStore.MergeCurrent _ -> error "runBuildStoreWaiterPresent: MergeCurrent unsupported"
     BuildStore.MarkDirty _ -> error "runBuildStoreWaiterPresent: MarkDirty unsupported"
-    BuildStore.ModifyTests _ -> error "runBuildStoreWaiterPresent: ModifyTests unsupported"
     BuildStore.WaitUntilDone -> error "runBuildStoreWaiterPresent: WaitUntilDone unsupported"
     BuildStore.WaitForNext _ -> error "runBuildStoreWaiterPresent: WaitForNext unsupported"
     BuildStore.WaitForAnyChange _ -> error "runBuildStoreWaiterPresent: WaitForAnyChange unsupported"
@@ -1267,10 +1253,7 @@ testInterruptCurrent = do
         BuildStore.Emit _ -> error "interruptCurrent must not emit"
         BuildStore.MarkDirty _ -> error "interruptCurrent must not markDirty"
         BuildStore.GetState -> error "interruptCurrent must not getState"
-        BuildStore.SetBuild _ -> error "interruptCurrent must not setBuild"
-        BuildStore.FinishBuild _ _ -> error "interruptCurrent must not finishBuild"
-        BuildStore.SetTests _ -> error "interruptCurrent must not setTests"
-        BuildStore.ModifyTests _ -> error "interruptCurrent must not modifyTests"
+        BuildStore.MergeCurrent _ -> error "interruptCurrent must not mergeCurrent"
         BuildStore.WaitUntilDone -> error "interruptCurrent must not waitUntilDone"
         BuildStore.WaitForNext _ -> error "interruptCurrent must not waitForNext"
         BuildStore.WaitForAnyChange _ -> error "interruptCurrent must not waitForAnyChange"
@@ -1329,25 +1312,26 @@ completeBuildState =
                             , diagnostics = []
                             }
                     )
-                    (TestsDone (Test.Suites mempty))
+                    (Test.Suites mempty)
         }
 
 
--- | A 'BuildStore' interpreter that applies each mutation (via the pure
--- reducer / register setters) to a captured 'State BuildState' and records the
--- resulting 'BuildState' into a 'Writer' — one entry per phase/register
--- transition. 'SetBuild' is applied silently (it publishes the build register
--- but moves no phase); its data write surfaces in the next recorded snapshot,
--- matching the "publish output, then signal the phase" ordering.
+-- | A 'BuildStore' interpreter that applies each mutation (via the pure reducer
+-- / merge) to a captured 'State BuildState' and records the resulting
+-- 'BuildState' into a 'Writer' — one entry per phase/register transition.
+--
+-- A build-carrying delta (@build = Built _@) is applied silently: it publishes
+-- the build register but moves no phase, and its write surfaces in the next
+-- recorded snapshot — matching @afterLoad@'s "publish output, then signal the
+-- phase" ordering. A tests-only delta (@build = NotBuilt@) is recorded so the
+-- per-suite progression is observable.
 runBuildStoreCapture
     :: (State BuildState :> es, Writer [BuildState] :> es)
     => Eff (BuildStore.BuildStore : es) a -> Eff es a
 runBuildStoreCapture = interpret_ \case
     BuildStore.Emit ev -> record (`step` ev)
-    BuildStore.SetBuild b -> modify (setCurrentBuild b)
-    BuildStore.FinishBuild b ev -> record (\s -> step (setCurrentBuild b s) ev)
-    BuildStore.SetTests t -> record (setCurrentTests t)
-    BuildStore.ModifyTests f -> record (overCurrentTests f)
+    BuildStore.MergeCurrent delta@(BuildRecord {build = NotBuilt}) -> record (overCurrent (<> delta))
+    BuildStore.MergeCurrent delta -> modify (overCurrent (<> delta))
     BuildStore.HasWaiters -> pure False
     BuildStore.MarkDirty _ -> pure ()
     BuildStore.GetState -> get

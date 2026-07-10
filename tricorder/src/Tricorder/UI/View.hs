@@ -45,7 +45,6 @@ import Tricorder.BuildState
     , Severity (..)
     , Status (..)
     , currentRecord
-    , suitesOf
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
@@ -182,7 +181,7 @@ viewTestResultsPanel ws bs =
     vBoxSpaced
         1
         [ viewBuildPhaseLine ws.timeZone bs
-        , viewTestPanel ws.testFilter (suitesOf (currentRecord bs).tests)
+        , viewTestPanel ws.testFilter (currentRecord bs).tests
         ]
 
 
@@ -274,7 +273,7 @@ viewBuildPhase tz bs = case bs.cycle of
         viewBuildFailed msg
     _ -> case rec.build of
         Built result ->
-            vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns (suitesOf rec.tests)]
+            vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns rec.tests]
         NotBuilt ->
             warn $ txt "Building..."
   where
@@ -356,7 +355,7 @@ viewDuration d = txt $ "(" <> formatDuration d <> ")"
 
 
 viewTestRuns :: Test.Suites -> Widget n
-viewTestRuns suites = vBox $ uncurry viewTestRun <$> Map.toList suites.getSuites
+viewTestRuns suites = vBox $ uncurry viewTestRun <$> Map.toList (Test.suitesToMap suites)
 
 
 viewTestRun :: TestTarget -> Test.Suite -> Widget n
@@ -454,7 +453,7 @@ viewTestPanel tvf suites
 
 scrollableRuns :: TestFilter -> Test.Suites -> Widget Viewports
 scrollableRuns tvf suites =
-    vScrollViewport TestViewport (uncurry (viewTestRunDetail tvf) <$> Map.toList suites.getSuites)
+    vScrollViewport TestViewport (uncurry (viewTestRunDetail tvf) <$> Map.toList (Test.suitesToMap suites))
 
 
 viewTestRunDetail :: TestFilter -> TestTarget -> Test.Suite -> Widget n

@@ -11,7 +11,6 @@ module Tricorder.BuildState
     , Status (..)
     , CyclePhase (..)
     , BuildOutput (..)
-    , TestOutput (..)
     , BuildRecord (..)
     , emptyRecord
     , CycleEvent (..)
@@ -22,13 +21,10 @@ module Tricorder.BuildState
     , currentRecord
     , currentBuild
     , currentTests
-    , suitesOf
     , atBuild
     , overHistoryAt
     , overCurrent
-    , setCurrentBuild
-    , setCurrentTests
-    , overCurrentTests
+    , mergeCurrent
     , isDone
     , liveSnapshot
     , BuildResult (..)
@@ -129,7 +125,9 @@ data CyclePhase
     deriving (FromJSON, ToJSON) via Generically CyclePhase
 
 
--- | The build register: written by the compile step (via 'setCurrentBuild').
+-- | The build register: the compile step's result for a build.
+--
+-- A 'Last'-like monoid: 'NotBuilt' is the identity and the newest 'Built' wins.
 data BuildOutput
     = NotBuilt
     | Built BuildResult
@@ -137,26 +135,29 @@ data BuildOutput
     deriving (FromJSON, ToJSON) via Generically BuildOutput
 
 
--- | The test register: written by the test runner.
-data TestOutput
-    = TestsIdle
-    | TestsRunning Test.Suites
-    | TestsDone Test.Suites
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically TestOutput
+instance Semigroup BuildOutput where
+    _ <> b@(Built _) = b
+    a <> NotBuilt = a
 
 
--- | The per-build accumulator value. Single-writer registers, one per producer.
+instance Monoid BuildOutput where
+    mempty = NotBuilt
+
+
+-- | The per-build accumulator: one single-writer register per producer. Each
+-- producer merges only its own field into the current build's record via a
+-- delta-merge ('mergeCurrent'), and the record is the product monoid of its
+-- registers.
 data BuildRecord = BuildRecord
     { build :: BuildOutput
-    , tests :: TestOutput
+    , tests :: Test.Suites
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically BuildRecord
+    deriving (FromJSON, Monoid, Semigroup, ToJSON) via Generically BuildRecord
 
 
 emptyRecord :: BuildRecord
-emptyRecord = BuildRecord {build = NotBuilt, tests = TestsIdle}
+emptyRecord = mempty
 
 
 -- | Keep this many builds (current + previous). Retention/display only, NOT a
@@ -226,7 +227,7 @@ beginBuild :: BuildState -> BuildState
 beginBuild s =
     s
         { cycle = Building Nothing
-        , history = evictHistory historyBound (Map.insert next emptyRecord s.history)
+        , history = evictHistory historyBound (Map.insert next mempty s.history)
         }
   where
     next = maybe (BuildId 0) ((+ 1) . fst) (Map.lookupMax s.history)
@@ -264,18 +265,8 @@ currentBuild s = (currentRecord s).build
 
 
 -- | The current build's test register.
-currentTests :: BuildState -> TestOutput
+currentTests :: BuildState -> Test.Suites
 currentTests s = (currentRecord s).tests
-
-
--- | The suites held in a test register, regardless of running/done. The single
--- extractor every reader (CLI, TUI) funnels through, so a new 'TestOutput'
--- constructor is a compile error here rather than a silent @mempty@ in one copy.
-suitesOf :: TestOutput -> Test.Suites
-suitesOf = \case
-    TestsRunning s -> s
-    TestsDone s -> s
-    TestsIdle -> Test.Suites mempty
 
 
 atBuild :: BuildId -> BuildState -> Maybe BuildRecord
@@ -283,7 +274,7 @@ atBuild bid s = Map.lookup bid s.history
 
 
 --------------------------------------------------------------------------------
--- Output setters (symmetric — build is not special)
+-- Output writes: monoidal delta-merges (symmetric — build is not special)
 --------------------------------------------------------------------------------
 
 -- | Modify a /specific/ build's record. A 'Map.adjust' — a no-op if @bid@ has
@@ -303,19 +294,12 @@ overCurrent :: (BuildRecord -> BuildRecord) -> BuildState -> BuildState
 overCurrent f s = s {history = Map.updateMax (Just . f) s.history}
 
 
-setCurrentBuild :: BuildOutput -> BuildState -> BuildState
--- Explicit construction (not @rec {build = b}@) because the @build@ label is
--- shared with 'Status', which makes a bare record update ambiguous
--- (-Wambiguous-fields). The constructor pins it to 'BuildRecord'.
-setCurrentBuild b = overCurrent \rec -> BuildRecord {build = b, tests = rec.tests}
-
-
-setCurrentTests :: TestOutput -> BuildState -> BuildState
-setCurrentTests t = overCurrent \rec -> rec {tests = t}
-
-
-overCurrentTests :: (TestOutput -> TestOutput) -> BuildState -> BuildState
-overCurrentTests f = overCurrent \rec -> rec {tests = f rec.tests}
+-- | Merge a producer's delta into the current build's record — the single write
+-- path all producers share. A producer sets only its own field of the delta;
+-- the monoidal merge folds it into the current record, so the build register
+-- takes the latest result and the test register merges each suite monotonically.
+mergeCurrent :: BuildRecord -> BuildState -> BuildState
+mergeCurrent delta = overCurrent (<> delta)
 
 
 --------------------------------------------------------------------------------

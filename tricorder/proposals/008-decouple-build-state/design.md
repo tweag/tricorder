@@ -595,3 +595,111 @@ data BuildState = BuildState
 
 `spec.md` holds the locked contracts (event set, `step`, `beginBuild`, setter
 semantics, wire format, straggler invariant).
+
+## Post-review refinement: dissolve `TestOutput` into a monoidal suites register
+
+The shape above still models the test register as a tagged sum:
+
+```haskell
+data TestOutput = TestsIdle | TestsRunning Suites | TestsDone Suites
+newtype Suites  = Suites { getSuites :: Map TestTarget Suite }
+```
+
+Apply this proposal's own opening move — "a product wearing a sum's clothing" — one
+level deeper and `TestOutput` fails the same test. The `Running` / `Done` tag is not
+independent information: it is *derivable* from the suites (`Done` ⟺ no suite is still
+`SuiteRunning`), because `runTestsForTargets` **seeds every configured target as
+`SuiteRunning` up front**, so the suite set is complete from the first write and
+"none running" unambiguously means "all finished". The tag is `Suites` ⊗ a bit that
+`anyRunningTests` already computes. It is redundant, and — as the review caught — a
+tag that one delta can *set* invites lies: a single suite completing must not flip the
+aggregate to `Done` while its siblings still run.
+
+So dissolve the wrapper. The register **is** the map, made a genuine monoid, and the
+phase becomes a pure derivation the way `currentId` and `daemonInfo` already are:
+
+```haskell
+-- The register: a monoidal map (monoidal-containers). No Idle/Running/Done wrapper.
+newtype Suites = Suites { getSuites :: MonoidalMap TestTarget Suite }
+
+data BuildRecord = BuildRecord
+    { build :: BuildOutput   -- single register, Last-like: NotBuilt | Built BuildResult
+    , tests :: Suites        -- many-suite register, merged per target
+    }
+```
+
+`MonoidalMap`'s `Semigroup` is `unionWith (<>)` — exactly the per-target merge we want,
+and the reason to reach for the library rather than `Data.Map`, whose stock `<>` is
+**left-biased `union`** (it would keep the *stale* suite on a key collision and silently
+drop the completion). The per-suite merge is where monotonicity actually lives:
+
+```haskell
+-- A suite advances SuiteRunning → terminal; a terminal never regresses.
+instance Semigroup Suite where
+    _                <> SuiteCompleted c = SuiteCompleted c   -- newest terminal wins
+    _                <> SuiteErrored   e = SuiteErrored   e
+    SuiteCompleted c <> SuiteRunning _   = SuiteCompleted c   -- don't fall back to running
+    SuiteErrored   e <> SuiteRunning _   = SuiteErrored   e
+    SuiteRunning _   <> SuiteRunning  b  = SuiteRunning  b    -- latest progress tick
+```
+
+With `Suite` a semigroup, `Suites` gets `Monoid` for free from `MonoidalMap`
+(`mempty = Suites mempty`), and `BuildRecord` is the product monoid — so
+`mempty :: BuildRecord` *is* `emptyRecord`, and `beginBuild`'s seed becomes `mempty`.
+
+### Everything a producer writes is now a delta
+
+The four setters (`setBuild` / `finishBuild` / `setTests` / `modifyTests`) collapse to a
+single "merge a partial record into the current build", reusing the existing
+`overCurrent` (which is `Map.adjust` on `currentId`, so an evicted build is dropped, not
+resurrected):
+
+```haskell
+mergeCurrent :: BuildRecord -> BuildState -> BuildState
+mergeCurrent delta = overCurrent (<> delta)
+
+-- run start:      mergeCurrent mempty{ tests = Suites (all targets ↦ SuiteRunning Nothing) }
+-- suite finishes: mergeCurrent mempty{ tests = Suites (singleton target result) }
+-- build result:   mergeCurrent mempty{ build = Built result }
+```
+
+This deletes two things the earlier shape still carried: `insertSuiteResult` (a
+read-modify-write over the whole map) and the manual `runLoop []` finalize — `Done`
+now *emerges* when the last running suite's terminal delta lands, rather than being
+asserted.
+
+### The phase is derived, never stored
+
+```haskell
+data TestPhase = NoTests | Testing | Tested   -- computed by readers, not a field
+
+testPhase :: Suites -> TestPhase
+testPhase ss
+    | nullSuites ss        = NoTests   -- empty map is idle, NOT "done"
+    | anyRunningTests ss   = Testing
+    | otherwise            = Tested
+```
+
+The one edge to respect: an empty map is `NoTests`, so a reader must not read
+`not anyRunning` as `Tested`. `stateLabel`'s "testing" arm becomes `anyRunningTests
+s.tests`; every `TestsRunning` / `TestsDone` match across the CLI / TUI / specs
+collapses to a `testPhase` call.
+
+### What stays untouched
+
+The **cycle** is unchanged. `Analysing → Idle` is still orchestrator-driven
+(`afterLoad` emits `AnalysisComplete` after `runTestsForTargets` returns), and
+`status --wait` / `isDone` key off the *cycle* (`Idle | BuildFailed`), never this
+register. Dissolving the tag is therefore **display-only** — it cannot affect
+settledness semantics. The wire shape of the test register also stays a
+target-keyed object; only the `TestsRunning` / `TestsDone` envelope tag disappears.
+
+### Why the map here but not on `history`
+
+Comment (#9) originally proposed a `monoidal-containers` map for `history`; that is the
+wrong target — `history` is only ever `insert`-fresh-key + `evict`, never a per-key
+*merge*, so a monoidal map buys nothing there (and eviction is not a monoid op — see
+"Eviction, not just merge" above). The suites register is where merging deltas is the
+actual operation, so it is where the monoidal map earns its place. `build` stays a
+scalar `Last`-register (one result, not a collection). If a future keyed register
+appears, it follows `tests`, not `history`.
