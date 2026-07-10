@@ -2,8 +2,9 @@ module Unit.Tricorder.TestOutputSpec (spec_TestOutput) where
 
 import Test.Hspec
 
-import Tricorder.BuildState (TestCase (..), TestCaseOutcome (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput, stripGhciNoise)
+
+import Tricorder.BuildState.Test qualified as Test
 
 
 spec_TestOutput :: Spec
@@ -15,12 +16,12 @@ spec_TestOutput = do
         it "parses a passing test" do
             let output = "  foo\n    bar baz:                                      OK\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "bar baz:", outcome = TestCasePassed}]
+                `shouldBe` [Test.Case {description = "bar baz:", outcome = Test.Passed}]
 
         it "parses a failing test" do
             let output = "  foo\n    bar baz:                                      FAIL\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "bar baz:", outcome = TestCaseFailed ""}]
+                `shouldBe` [Test.Case {description = "bar baz:", outcome = Test.Failed ""}]
 
         it "captures failure details" do
             let output =
@@ -29,11 +30,11 @@ spec_TestOutput = do
                         <> "       but got: 2\n"
                         <> "    another test:                                       OK\n"
             parseHspecOutput output
-                `shouldBe` [ TestCase
+                `shouldBe` [ Test.Case
                                 { description = "a test:"
-                                , outcome = TestCaseFailed "expected: 1\nbut got: 2"
+                                , outcome = Test.Failed "expected: 1\nbut got: 2"
                                 }
-                           , TestCase {description = "another test:", outcome = TestCasePassed}
+                           , Test.Case {description = "another test:", outcome = Test.Passed}
                            ]
 
         it "stops collecting details when indentation returns to test level" do
@@ -44,7 +45,7 @@ spec_TestOutput = do
             let cases = parseHspecOutput output
             length cases `shouldBe` 2
             case cases of
-                (c : _) -> c.outcome `shouldBe` TestCaseFailed "detail line"
+                (c : _) -> c.outcome `shouldBe` Test.Failed "detail line"
                 [] -> expectationFailure "expected at least one test case"
 
         it "skips group header lines" do
@@ -53,7 +54,7 @@ spec_TestOutput = do
                         <> "    someFunction\n"
                         <> "      does the thing:                                  OK\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "does the thing:", outcome = TestCasePassed}]
+                `shouldBe` [Test.Case {description = "does the thing:", outcome = Test.Passed}]
 
         it "parses mixed passing and failing tests" do
             let output =
@@ -63,30 +64,30 @@ spec_TestOutput = do
                         <> "      reason\n"
                         <> "    also passes:                                       OK\n"
             parseHspecOutput output
-                `shouldBe` [ TestCase {description = "passes:", outcome = TestCasePassed}
-                           , TestCase {description = "fails:", outcome = TestCaseFailed "reason"}
-                           , TestCase {description = "also passes:", outcome = TestCasePassed}
+                `shouldBe` [ Test.Case {description = "passes:", outcome = Test.Passed}
+                           , Test.Case {description = "fails:", outcome = Test.Failed "reason"}
+                           , Test.Case {description = "also passes:", outcome = Test.Passed}
                            ]
 
         it "parses a passing test with a timing annotation" do
             let output = "  slow test:                                          OK (0.05s)\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "slow test:", outcome = TestCasePassed}]
+                `shouldBe` [Test.Case {description = "slow test:", outcome = Test.Passed}]
 
         it "parses a passing test with a millisecond annotation" do
             let output = "  fast property:                                      OK (12ms)\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "fast property:", outcome = TestCasePassed}]
+                `shouldBe` [Test.Case {description = "fast property:", outcome = Test.Passed}]
 
         it "parses a failing test with a timing annotation" do
             let output = "  slow fail:                                          FAIL (0.03s)\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "slow fail:", outcome = TestCaseFailed ""}]
+                `shouldBe` [Test.Case {description = "slow fail:", outcome = Test.Failed ""}]
 
         it "does not strip a non-timing parenthetical in the description" do
             let output = "  test (corner case):                                 OK\n"
             parseHspecOutput output
-                `shouldBe` [TestCase {description = "test (corner case):", outcome = TestCasePassed}]
+                `shouldBe` [Test.Case {description = "test (corner case):", outcome = Test.Passed}]
 
     describe "parseHspecDuration" do
         it "returns Nothing for empty output" do

@@ -31,6 +31,8 @@ library tricorder-internal
       Tricorder.Builder
       Tricorder.Builder.Dispatch
       Tricorder.BuildState
+      Tricorder.BuildState.BuildProgress
+      Tricorder.BuildState.Test
       Tricorder.CLI
       Tricorder.CLI.Main
       Tricorder.CLI.Render
@@ -46,6 +48,7 @@ library tricorder-internal
       Tricorder.Effects.GhciSession.GhciProcess
       Tricorder.Effects.GhcPkg
       Tricorder.Effects.Logging
+      Tricorder.Effects.PostBuildStore
       Tricorder.Effects.SessionStore
       Tricorder.Effects.TestRunner
       Tricorder.Effects.UnixSocket

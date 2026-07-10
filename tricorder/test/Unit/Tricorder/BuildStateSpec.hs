@@ -4,7 +4,18 @@ import Data.Aeson (eitherDecode, encode)
 import Data.Time (UTCTime (..), fromGregorian)
 import Test.Hspec
 
-import Tricorder.BuildState (BuildId (..), BuildPhase (..), BuildResult (..), BuildState (..), DaemonInfo (..), Diagnostic (..), PostBuild (..), Severity (..), TestPhase (..))
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , DaemonInfo (..)
+    , Diagnostic (..)
+    , PostBuild (..)
+    , Severity (..)
+    )
+
+import Tricorder.BuildState.Test qualified as Test
 
 
 spec_BuildState :: Spec
@@ -76,14 +87,15 @@ mkBuildState msgs =
         { buildId = BuildId 1
         , phase =
             BuildComplete
-                $ PostBuild DoneTesting
-                $ BuildResult
+                ( BuildResult
                     { completedAt = epoch
                     , duration = 0
                     , moduleCount = 0
                     , diagnostics = msgs
-                    , testRuns = []
                     }
+                )
+                $ PostBuild
+                $ Test.Suites mempty
         , daemonInfo =
             DaemonInfo
                 { targets = []

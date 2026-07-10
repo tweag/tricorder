@@ -9,6 +9,8 @@ module Tricorder.Session
     , ComponentKind (..)
     , parseTarget
     , renderTarget
+    , TestTarget (..)
+    , renderTestTarget
     , WatchDirs (..)
     , WatchExclusionPatterns (..)
     , ReplBuildDir (..)
@@ -33,7 +35,7 @@ import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, rea
 import Atelier.Effects.Log (Log)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Atelier.Types.WithDefaults (WithDefaults (..))
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Data.Default (Default (..))
 import Data.List (nub)
 import Data.Traversable (for)
@@ -132,19 +134,19 @@ newtype Command = Command {getCommand :: Text}
 -- target list onto its @test:@ components via 'projectTestTargets'; the data
 -- constructor is not exported, so a 'TestTargets' can never hold a non-test
 -- target [ref:test_targets_invariant].
-newtype TestTargets = TestTargets {getTestTargets :: [Target]}
+newtype TestTargets = TestTargets {getTestTargets :: [TestTarget]}
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via [Target]
+    deriving (FromJSON, ToJSON) via [TestTarget]
 
 
 -- | [tag:test_targets_invariant] Project a target list onto its test suites —
 -- the only way to build a 'TestTargets', so the @test:@-only invariant holds by
 -- construction.
 projectTestTargets :: [Target] -> TestTargets
-projectTestTargets = TestTargets . filter isTestTarget
+projectTestTargets = TestTargets . mapMaybe mkTestTarget
   where
-    isTestTarget (Qualified Test _) = True
-    isTestTarget _ = False
+    mkTestTarget tgt@(Qualified Test _) = Just $ TestTarget tgt
+    mkTestTarget _ = Nothing
 
 
 -- | Parse raw target strings (e.g. the @test_targets@ config) and project them
@@ -164,13 +166,13 @@ data Target
       Bare Text
     | -- | A form we don't recognize: an unknown kind, or extra colons.
       Unrecognized Text
-    deriving stock (Eq, Show)
+    deriving stock (Eq, Generic, Ord, Show)
 
 
 -- | The kind of cabal component a 'Qualified' target names. Covers every
 -- component kind cabal models (matching @Distribution.Types.ComponentName@).
 data ComponentKind = Lib | FLib | Exe | Test | Bench
-    deriving stock (Bounded, Enum, Eq, Show)
+    deriving stock (Bounded, Enum, Eq, Generic, Ord, Show)
 
 
 -- | [tag:kind_prefix_sole_source] The canonical prefix cabal uses for each
@@ -227,6 +229,20 @@ instance FromJSON Target where
     parseJSON = fmap parseTarget . parseJSON
 
 
+instance ToJSONKey Target
+instance FromJSONKey Target
+
+
+newtype TestTarget = TestTarget {getTestTarget :: Target}
+    deriving stock (Eq, Generic, Ord, Show)
+    deriving (FromJSON, ToJSON) via Target
+    deriving (FromJSONKey, ToJSONKey) via Target
+
+
+renderTestTarget :: TestTarget -> Text
+renderTestTarget = renderTarget . getTestTarget
+
+
 newtype WatchDirs = WatchDirs {getWatchDirs :: [FilePath]}
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via [FilePath]
@@ -278,7 +294,7 @@ detectCommand targets (TestTargets testTargets) replBuildDir (ProjectRoot projec
     hasStack <- doesFileExist (projectRoot </> "stack.yaml")
     let targetStr
             | not (null targets) = unwords (map renderTarget targets)
-            | otherwise = unwords ("all" : map renderTarget testTargets)
+            | otherwise = unwords ("all" : map renderTestTarget testTargets)
         buildDirFlag = "--builddir " <> toText replBuildDir <> " "
     pure
         if
