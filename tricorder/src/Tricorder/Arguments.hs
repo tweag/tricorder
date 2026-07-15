@@ -1,6 +1,7 @@
 module Tricorder.Arguments
     ( Command (..)
     , FollowMode (..)
+    , LogMode (..)
     , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
@@ -22,6 +23,7 @@ import Options.Applicative
     , command
     , eitherReader
     , flag
+    , flag'
     , fullDesc
     , header
     , help
@@ -67,6 +69,11 @@ data FollowMode
     deriving stock (Eq)
 
 
+data LogMode
+    = ShowLog FollowMode
+    | ShowLogPath
+
+
 data StatusOptions = StatusOptions
     { wait :: WaitMode
     , format :: OutputFormat
@@ -90,7 +97,7 @@ data Command
     | Status StatusOptions
     | Test TestOptions
     | UI
-    | Log FollowMode
+    | Log LogMode
     | Source [SourceQuery]
     | Restart Force
 
@@ -133,14 +140,23 @@ commandParser =
 
 logParser :: Parser Command
 logParser =
-    Log
-        <$> flag
-            NoFollow
-            Follow
-            ( long "follow"
-                <> short 'f'
-                <> help "Keep streaming new log lines as they are written"
+    Log <$> (pathFlag <|> followFlag)
+  where
+    pathFlag =
+        flag'
+            ShowLogPath
+            ( long "print-path"
+                <> help "Print the path to the log file instead of its contents"
             )
+    followFlag =
+        ShowLog
+            <$> flag
+                NoFollow
+                Follow
+                ( long "follow"
+                    <> short 'f'
+                    <> help "Keep streaming new log lines as they are written"
+                )
 
 
 statusParser :: Parser Command
