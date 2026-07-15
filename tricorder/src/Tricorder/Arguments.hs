@@ -145,7 +145,7 @@ logParser =
     pathFlag =
         flag'
             ShowLogPath
-            ( long "path"
+            ( long "print-path"
                 <> help "Print the path to the log file instead of its contents"
             )
     followFlag =
