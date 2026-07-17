@@ -37,9 +37,13 @@ import Atelier.Observe
     , Plan
     , Sampler
     , Tap (..)
+    , atRegion
     , consumer
     , eachMoment
+    , enterWith
     , entering
+    , exitWith
+    , failWith
     , failing
     , foldMoments
     , gauge
@@ -53,6 +57,7 @@ import Atelier.Observe
     , sampling
     , silent
     , tap
+    , tapping
     , teeC
     , tracedBy
     , watch
@@ -272,6 +277,51 @@ runBracketed = interpret \env -> \case
 overAround :: OverActions Bracketed
 overAround wrap = \case
     Around act -> Around (wrap act)
+
+
+-- A multi-constructor fixture for 'describe': three operations of differing result type — 'Get'
+-- returns @Maybe Text@, 'Put'\/'Wipe' return @()@ — so a per-lane setter chain would need three
+-- \\case scrutinees, while 'describe' matches once and refines the result type per branch.
+data Kv :: Effect where
+    Put :: Text -> Text -> Kv m ()
+    Get :: Text -> Kv m (Maybe Text)
+    Wipe :: Kv m ()
+
+
+type instance DispatchOf Kv = Dynamic
+
+
+-- "known" resolves; anything else misses. Enough for a result-derived exit signal on 'Get'.
+runKv :: Eff (Kv : es) a -> Eff es a
+runKv = interpret \_ -> \case
+    Put _ _ -> pure ()
+    Get k -> pure (if k == "known" then Just "v" else Nothing)
+    Wipe -> pure ()
+
+
+-- The inverted tap: one exhaustive \\case, all facets of each operation declared together. 'Get'\'s
+-- 'exitWith' reads the refined @Maybe Text@ result directly; 'Wipe' omits 'atRegion', so it opens no
+-- region (an untapped operation of a tapped effect).
+kvTap :: Tap Kv () Text Signal
+kvTap = tapping \case
+    Put k v -> do
+        atRegion "put"
+        enterWith [Golden "key" k, Golden "val" v]
+    Get k -> do
+        atRegion "get"
+        enterWith [Golden "key" k]
+        exitWith \mv -> [Golden "hit" (maybe "miss" (const "hit") mv)]
+    Wipe -> pure ()
+
+
+-- Puts once, gets a hit and a miss, wipes in between (the untapped op).
+kvProg :: (Kv :> es) => Eff es ()
+kvProg = do
+    send (Put "a" "1")
+    _ <- send (Get "known")
+    send Wipe
+    _ <- send (Get "missing")
+    pure ()
 
 
 -- The constructor a 'Moment' fell on, as a tag the log consumer records.
@@ -568,6 +618,67 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
         flushed <- tryReadMVar result
         -- the first note exits cleanly; the throwing second note closes as Failed ("fail")
         flushed `shouldBe` Just ["enter", "exit", "enter", "fail"]
+
+    it "describe builds a Tap equivalent to the setter-chain form" do
+        -- the two surfaces compile to the same record: same region, same enter/leave signals, so the
+        -- same harvest. 'describe' matches the operation once; the setters match it per lane.
+        let viaSetters :: Tap Note () Region2 Signal
+            viaSetters =
+                watch (const RegionA)
+                    & entering (\(Note t) -> [Golden "in" t])
+                    & leaving (\_ _ -> [Tally "done" 1])
+            viaDescribe :: Tap Note () Region2 Signal
+            viaDescribe = tapping \case
+                Note t -> do
+                    atRegion RegionA
+                    enterWith [Golden "in" t]
+                    exitWith \_ -> [Tally "done" 1]
+            harvest :: Tap Note () Region2 Signal -> Region Region2 (Report Obs Res)
+            harvest tp =
+                collapse (snd (runPureEff (runNote (observe (collecting reduce) (tap tp) (note "hi")))))
+        harvest viaDescribe `shouldBe` harvest viaSetters
+
+    it "describe drives a multi-constructor effect from one exhaustive match" do
+        let (_, traces :: Traces () Text Obs Res) =
+                runPureEff . runKv $ observe (collecting reduce) (tap kvTap) kvProg
+            summary = collapse traces
+        -- 'Wipe' omitted 'atRegion', so it opened no region: only "get" and "put" appear
+        MMap.keys (children summary) `shouldBe` ["get", "put"]
+        -- 'Get' ran twice; its result-derived exit signal recorded both a hit and a miss
+        MMap.lookup "hit" (reportAt ["get"] summary).observations.goldens
+            `shouldBe` Just (Set.fromList ["hit", "miss"])
+        -- 'Put'\'s entry signals landed at its own region
+        MMap.lookup "key" (reportAt ["put"] summary).observations.goldens
+            `shouldBe` Just (Set.singleton "a")
+
+    it "describe captures input on entry and the exception on Failed (failure path)" do
+        -- the failure lanes through the builder: 'enterWith' fires before the work (so input survives
+        -- a throw), 'exitWith' never runs, and the region closes as Failed carrying 'failWith'.
+        seen <- newIORef []
+        let inputTap :: Tap Note () Region2 Signal
+            inputTap = tapping \case
+                Note t -> do
+                    atRegion RegionA
+                    enterWith [Golden "input" t]
+                    exitWith \_ -> [Tally "done" 1]
+                    failWith \e -> [Golden "error" (Text.pack (show e))]
+            sigTag = \case
+                Golden k v -> "golden " <> Text.unpack k <> "=" <> Text.unpack v
+                Check k _ -> "check " <> Text.unpack k
+                Tally k n -> "tally " <> Text.unpack k <> "=" <> show n
+            entry :: Moment () Region2 Signal Res -> (String, [String])
+            entry = \case
+                Entered _ _ es -> ("enter", map sigTag es)
+                Exited _ es -> ("exit", map sigTag es)
+                Failed _ es _ -> ("fail", map sigTag es)
+                Measured {} -> ("measure", [])
+            sink :: (IOE :> es) => Consumer es () Region2 Signal Res ()
+            sink = eachMoment \m -> liftIO (modifyIORef' seen (entry m :))
+        _ <-
+            E.try (runEff . runNoteThrowing $ observe sink (tap inputTap) (note "boom"))
+                :: IO (Either E.SomeException ((), ()))
+        recorded <- reverse <$> readIORef seen
+        recorded `shouldBe` [("enter", ["golden input=boom"]), ("fail", ["golden error=boom"])]
 
     describe "the trie" do
         -- A hand-built nested harvest: region "a" is a spine (entered, never observed) whose child

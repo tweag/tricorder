@@ -48,6 +48,24 @@ execTap = watch (const Query)
     & entering (\(Execute (Sql s)) -> [Attr "db.sql" s])
 ```
 
+### Building a tap: `tapping` is the preferred surface
+
+`execTap` above uses the `watch` / `entering` setter chain — each setter pattern-matches the effect once, per lane. That reads fine for a one-operation effect, but for a bigger effect every lane repeats the same `\case`, and it is easy to leave one non-exhaustive. **`tapping` is the preferred way to build a first-order tap:** match the operation *once* and declare all its facets together in a `do` block. The operation's result type is refined by the match, so `exitWith` reads the result directly — no re-match, no catch-all:
+
+```haskell
+kvTap = tapping \case
+    Put k v -> do
+        atRegion  (Region "put")
+        enterWith [Attr "key" k, Attr "val" v]
+    Get k -> do
+        atRegion  (Region "get")
+        enterWith [Attr "key" k]
+        exitWith  \mv -> [Attr "hit" (maybe "miss" (const "hit") mv)]   -- result refined to Maybe here
+    Wipe -> pure ()                                                     -- no atRegion ⇒ opens no region
+```
+
+The commands mirror the setters — `atRegion` (region), `underTrace` (trace), `linkTo` (links), `enterWith` / `exitWith` / `failWith` (the signal lanes) — and a branch that omits `atRegion` opens no region, the mixed-effect case (an untapped barrier operation). `tapping` compiles to exactly the same record a setter chain does, so it merges with `<>` and composes with `nesting` / `rerooting` like any tap. It is a **first-order** surface: the higher-order wrapping (`nesting` / `rerooting`) stays a separate tap, combined via `<>`.
+
 ### The program is oblivious
 
 ```haskell

@@ -20,3 +20,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   two-laned `Report`s keyed into `Traces`, with the `collecting` consumer that
   builds it. A pure function of the public `Moment` stream, so the core never
   depends on it.
+- `tapping` — the preferred inverted surface for building a first-order `Tap`:
+  match an operation once and declare all its facets (`atRegion`, `underTrace`,
+  `linkTo`, `enterWith`, `exitWith`, `failWith`) together in a `do` block. It
+  compiles to the same record the `watch` / `entering` setter chain does.

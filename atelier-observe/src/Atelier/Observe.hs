@@ -28,6 +28,16 @@ module Atelier.Observe
     , entering
     , leaving
     , failing
+
+      -- ** Inverted per-operation builder
+    , tapping
+    , Describe
+    , atRegion
+    , underTrace
+    , linkTo
+    , enterWith
+    , exitWith
+    , failWith
     , nesting
     , rerooting
     , OverActions
@@ -277,6 +287,127 @@ leaving f t = t {onLeave = f}
 -- @'watch' label & 'failing' (\\op e -> …)@. The setter form of the 'onError' field.
 failing :: (forall localEs b. eff (Eff localEs) b -> SomeException -> [e]) -> Tap eff i r e -> Tap eff i r e
 failing f t = t {onError = f}
+
+
+-- | The preferred way to build a first-order 'Tap'. An inverted, per-operation surface: where the
+-- 'watch'\/'entering'\/'leaving' setters each pattern-match /every/ operation of an effect once per
+-- lane — fine for one operation, repetitive and easy to leave non-exhaustive for a big effect —
+-- 'tapping' matches the operation __once__ and declares all its facets together in a @do@ block. The
+-- operation's result type @b@ is refined by the (GADT) match, so 'exitWith' reads the operation's own
+-- result with no re-match and no catch-all:
+--
+-- @
+-- kvTap = 'tapping' \\case
+--     Put k v -> do
+--         'atRegion'  (Region \"put\")
+--         'enterWith' [Attr \"key\" k, Attr \"val\" v]
+--     Get k -> do
+--         'atRegion'  (Region \"get\")
+--         'enterWith' [Attr \"key\" k]
+--         'exitWith'  \\mv -> [Attr \"hit\" (maybe \"miss\" (const \"hit\") mv)]
+--     Wipe -> pure ()   -- no 'atRegion' ⇒ this operation opens no region
+-- @
+--
+-- It compiles to exactly the same record a setter chain does, so it merges with @'<>'@ and composes
+-- with 'nesting'\/'rerooting' like any 'Tap'. It is purely a __first-order__ surface: the
+-- higher-order wrapping facet stays with 'nesting'\/'rerooting', combined via @'<>'@. A branch that
+-- omits 'atRegion' opens no region (region @'Nothing'@) — the mixed-effect case, e.g. an untapped
+-- barrier operation.
+tapping
+    :: (forall localEs b. eff (Eff localEs) b -> Describe b i r e ())
+    -> Tap eff i r e
+tapping f =
+    Tap
+        { region = \op -> facetRegion (exec (f op))
+        , under = \op -> facetUnder (exec (f op))
+        , linking = \op -> facetLink (exec (f op))
+        , onEnter = \op -> facetEnter (exec (f op))
+        , onLeave = \op -> facetLeave (exec (f op))
+        , onError = \op -> facetError (exec (f op))
+        , wrapping = NoWrap
+        }
+  where
+    exec (Describe g) = snd (g emptyFacets)
+
+
+-- One operation's accumulated facets, indexed by the operation's result type @b@ (the only lane that
+-- needs it is 'facetLeave', which maps the result to exit signals). 'atRegion'\/'underTrace' overwrite
+-- (last wins); the signal and link lanes append.
+data Facets b i r e = Facets
+    { facetRegion :: Maybe r
+    , facetUnder :: Maybe i
+    , facetLink :: [i]
+    , facetEnter :: [e]
+    , facetLeave :: b -> [e]
+    , facetError :: SomeException -> [e]
+    }
+
+
+emptyFacets :: Facets b i r e
+emptyFacets = Facets Nothing Nothing [] [] (const []) (const [])
+
+
+-- | The builder monad threaded through a 'describe' branch: a small state over one operation's
+-- 'Facets', so @do@-sequenced commands accumulate into a single 'Tap' facet set. Abstract — its only
+-- inhabitants are the commands ('atRegion', 'enterWith', …) and @do@ notation.
+newtype Describe b i r e a = Describe (Facets b i r e -> (a, Facets b i r e))
+
+
+instance Functor (Describe b i r e) where
+    fmap f (Describe g) = Describe \s -> let (a, s') = g s in (f a, s')
+
+
+instance Applicative (Describe b i r e) where
+    pure a = Describe \s -> (a, s)
+    Describe f <*> Describe g = Describe \s ->
+        let (h, s') = f s
+            (a, s'') = g s'
+        in  (h a, s'')
+
+
+instance Monad (Describe b i r e) where
+    Describe g >>= k = Describe \s ->
+        let (a, s') = g s
+            Describe h = k a
+        in  h s'
+
+
+edit :: (Facets b i r e -> Facets b i r e) -> Describe b i r e ()
+edit f = Describe \s -> ((), f s)
+
+
+-- | File the operation under a region (the 'region' facet). Required for the operation to open a
+-- span\/scope at all; omit it to leave the operation unregioned. Called more than once, the last
+-- wins.
+atRegion :: r -> Describe b i r e ()
+atRegion r = edit \s -> s {facetRegion = Just r}
+
+
+-- | Run the operation under a named trace (the 'under' facet). Last wins.
+underTrace :: i -> Describe b i r e ()
+underTrace i = edit \s -> s {facetUnder = Just i}
+
+
+-- | Add cross-trace link targets for this operation's region (the 'linking' facet); accumulates.
+linkTo :: [i] -> Describe b i r e ()
+linkTo is = edit \s -> s {facetLink = facetLink s <> is}
+
+
+-- | Add entry signals derived from the operation's input (the 'onEnter' facet); accumulates.
+enterWith :: [e] -> Describe b i r e ()
+enterWith es = edit \s -> s {facetEnter = facetEnter s <> es}
+
+
+-- | Add exit signals derived from the operation's result (the 'onLeave' facet); accumulates
+-- pointwise. The result type is the one refined by this branch's match.
+exitWith :: (b -> [e]) -> Describe b i r e ()
+exitWith f = edit \s -> s {facetLeave = \b -> facetLeave s b <> f b}
+
+
+-- | Add failure signals derived from the exception the operation threw (the 'onError' facet);
+-- accumulates pointwise.
+failWith :: (SomeException -> [e]) -> Describe b i r e ()
+failWith f = edit \s -> s {facetError = \x -> facetError s x <> f x}
 
 
 -- A higher-order 'Tap' opens no region around the operation itself — its regions sit on the carried
