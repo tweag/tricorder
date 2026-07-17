@@ -112,7 +112,7 @@ collectMoment reduce = \case
     -- Reduce a boundary's signals into its region's observations half.
     fileSignals ctx es = fileAt ctx (Report (foldMap reduce es) mempty)
     -- File a report under the ambient identity (outer key) and down the given path (the trie).
-    fileAt (MomentCtx mid path _ _ _) = MMap.singleton mid . singletonPath path
+    fileAt (MomentCtx mid path _ _ _ _) = MMap.singleton mid . singletonPath path
 
 
 -- A spine of mempty ancestor nodes down to a leaf holding the payload; the payload sits at the

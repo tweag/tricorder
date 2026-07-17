@@ -68,7 +68,7 @@ spec_ObserveCore = describe "Atelier.Observe.Core.concForkLinks" do
         let plan = tap parentTap <> concForkLinks <> tap workTap
             sink :: (IOE :> es) => Consumer es () Text () () ()
             sink = eachMoment \case
-                Entered (MomentCtx _ p _ _ _) links _ -> liftIO (modifyIORef' seen ((p, links) :))
+                Entered (MomentCtx _ p _ _ _ _) links _ -> liftIO (modifyIORef' seen ((p, links) :))
                 _ -> pure ()
         (_, ()) <-
             runEff . runConcurrent . runConc . runWork . runParent

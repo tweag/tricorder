@@ -22,5 +22,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   depends on it.
 - `tapping` — the preferred inverted surface for building a first-order `Tap`:
   match an operation once and declare all its facets (`atRegion`, `underTrace`,
-  `linkTo`, `enterWith`, `exitWith`, `failWith`) together in a `do` block. It
-  compiles to the same record the `watch` / `entering` setter chain does.
+  `linkTo`, `enterWith`, `exitWith`, `failWith`, `tagWith`) together in a `do`
+  block. It compiles to the same record the `watch` / `entering` setter chain
+  does.
+- Scope signals — a new `Tap` lane (`tagging` setter, `tagWith` builder command,
+  `onScope` field) whose signals are in effect over a region *and every region
+  nested inside it*, riding `MomentCtx.tags` on every descendant moment. The seam
+  for tagging a whole subtree (a component name, request id, tenant) so a consumer
+  can filter or attribute by it; the OpenTelemetry exporter attaches them as
+  attributes on every span in the subtree. `MomentCtx` gains a `tags` field.

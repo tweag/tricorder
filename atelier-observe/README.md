@@ -64,7 +64,20 @@ kvTap = tapping \case
     Wipe -> pure ()                                                     -- no atRegion ⇒ opens no region
 ```
 
-The commands mirror the setters — `atRegion` (region), `underTrace` (trace), `linkTo` (links), `enterWith` / `exitWith` / `failWith` (the signal lanes) — and a branch that omits `atRegion` opens no region, the mixed-effect case (an untapped barrier operation). `tapping` compiles to exactly the same record a setter chain does, so it merges with `<>` and composes with `nesting` / `rerooting` like any tap. It is a **first-order** surface: the higher-order wrapping (`nesting` / `rerooting`) stays a separate tap, combined via `<>`.
+The commands mirror the setters — `atRegion` (region), `underTrace` (trace), `linkTo` (links), `enterWith` / `exitWith` / `failWith` / `tagWith` (the signal lanes) — and a branch that omits `atRegion` opens no region, the mixed-effect case (an untapped barrier operation). `tapping` compiles to exactly the same record a setter chain does, so it merges with `<>` and composes with `nesting` / `rerooting` like any tap. It is a **first-order** surface: the higher-order wrapping (`nesting` / `rerooting`) stays a separate tap, combined via `<>`.
+
+### Scope signals: tag a whole subtree
+
+`enterWith` / `exitWith` / `failWith` (and the `entering` / `leaving` / `failing` setters) attach a signal to **this region's own moment**. A **scope signal** — `tagWith`, or the `tagging` setter — is different: it is in effect over the region *and every region nested inside it*, riding the `MomentCtx.tags` of every descendant moment. It is the seam for tagging a whole subtree with something a consumer can then filter or attribute by — a component name, a request id, a tenant:
+
+```haskell
+componentTap = tapping \case
+    RunSupervised name _ -> do
+        atRegion (Component name)
+        tagWith  [Attr "component" name]   -- rides every moment the component produces
+```
+
+Every span the component emits then carries `component = name`, so a backend query (or a `Control.Foldl.prefilter` over the `Moment` stream on `tags`) selects the whole subtree. Scope signals never change control flow — like every other lane, they are pure observation.
 
 ### The program is oblivious
 

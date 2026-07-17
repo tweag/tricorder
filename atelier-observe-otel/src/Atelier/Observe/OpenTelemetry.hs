@@ -130,14 +130,17 @@ exporting
 exporting tracer render = consumer (pure (Live Map.empty Map.empty (emptyLru regionCtxBound))) step stop
   where
     step live = \case
-        Entered (MomentCtx mid path _ _ tid) links entrySigs -> liftIO do
+        Entered (MomentCtx mid path scopeSigs _ _ tid) links entrySigs -> liftIO do
             let key = (tid, mid, path)
                 parent = Map.lookup (tid, mid, parentPath path) live.openSpans
                 ctx = maybe Ctx.empty (`Ctx.insertSpan` Ctx.empty) parent
                 (linkCtxs, regionCtxs') = resolveLinks live.rootCtxs live.regionCtxs links
+                -- scope signals in effect here (this region's plus every enclosing one) attach to
+                -- every span in the subtree, so a whole subtree can be filtered/attributed by them
                 attrs =
                     HM.fromList
                         ( concatMap (renderSignal render) entrySigs
+                            <> concatMap (renderSignal render) scopeSigs
                             <> foldMap (renderTraceId render) mid
                         )
                 args =
@@ -156,14 +159,14 @@ exporting tracer render = consumer (pure (Live Map.empty Map.empty (emptyLru reg
                 -- every region's context is kept (past its exit, bounded) for LinkRegion
                 regionCtxs'' = insertLru (mid, path) sctx regionCtxs'
             pure live {openSpans = Map.insert key sp live.openSpans, rootCtxs = roots', regionCtxs = regionCtxs''}
-        Exited (MomentCtx mid path _ _ tid) exitSigs -> liftIO do
+        Exited (MomentCtx mid path _ _ _ tid) exitSigs -> liftIO do
             let key = (tid, mid, path)
             onSpan live key \sp -> do
                 OT.addAttributes sp (HM.fromList (concatMap (renderSignal render) exitSigs))
                 OT.setStatus sp OT.Ok
                 OT.endSpan sp Nothing
             pure (close key live)
-        Failed (MomentCtx mid path _ _ tid) failSigs ex -> liftIO do
+        Failed (MomentCtx mid path _ _ _ tid) failSigs ex -> liftIO do
             let key = (tid, mid, path)
             onSpan live key \sp -> do
                 OT.addAttributes sp (HM.fromList (concatMap (renderSignal render) failSigs))
@@ -171,7 +174,7 @@ exporting tracer render = consumer (pure (Live Map.empty Map.empty (emptyLru reg
                 OT.setStatus sp (OT.Error (Text.pack (show ex)))
                 OT.endSpan sp Nothing
             pure (close key live)
-        Measured (MomentCtx mid path _ _ tid) reading -> liftIO do
+        Measured (MomentCtx mid path _ _ _ tid) reading -> liftIO do
             onSpan live (tid, mid, path) \sp ->
                 OT.addEvent
                     sp

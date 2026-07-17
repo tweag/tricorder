@@ -28,6 +28,7 @@ module Atelier.Observe
     , entering
     , leaving
     , failing
+    , tagging
 
       -- ** Inverted per-operation builder
     , tapping
@@ -38,6 +39,7 @@ module Atelier.Observe
     , enterWith
     , exitWith
     , failWith
+    , tagWith
     , nesting
     , rerooting
     , OverActions
@@ -121,12 +123,21 @@ data Link i r
     deriving stock (Eq, Show)
 
 
--- The one internal observation effect. A 'Scope' carries its link targets and entry signals up
--- front, a function from a thrown exception to its failure signals, and a body that yields its exit
--- signals alongside the result (so the discharge can attach them to 'Exited'); a 'Trace' sets the
--- ambient identity. A 'Tap' is the only producer, a discharge the only consumer (internal).
+-- A distinct carrier for the ambient scope-signal 'Reader'. It must not be a bare @[e]@: the discharge
+-- already threads a @'Reader' [Link i r]@, and effectful resolves the effect row /by type/, so two
+-- @Reader [_]@s would overlap. Wrapping keeps the scope-signal lane unambiguous (as @'Endo' (Path r)@
+-- does for the path lane).
+newtype Tags e = Tags [e]
+    deriving newtype (Monoid, Semigroup)
+
+
+-- The one internal observation effect. A 'Scope' carries its link targets, entry signals, and scope
+-- signals up front (the scope signals ride every moment nested inside it, the entry signals only its
+-- own 'Entered'), a function from a thrown exception to its failure signals, and a body that yields
+-- its exit signals alongside the result (so the discharge can attach them to 'Exited'); a 'Trace'
+-- sets the ambient identity. A 'Tap' is the only producer, a discharge the only consumer (internal).
 data Obs i r e :: Effect where
-    Scope :: r -> [Link i r] -> [e] -> (SomeException -> [e]) -> m (a, [e]) -> Obs i r e m a
+    Scope :: r -> [Link i r] -> [e] -> [e] -> (SomeException -> [e]) -> m (a, [e]) -> Obs i r e m a
     Trace :: i -> m a -> Obs i r e m a
     -- Read the caller's scope cursor — the ambient trace identity and region path active right
     -- here — answered by a discharge from its two Readers. The seam an instrumentation-layer
@@ -175,6 +186,10 @@ type Observed es i r e = Obs i r e :> es
 --   * 'onLeave' — signals from input and result, fired into 'Exited' after the work;
 --   * 'onError' — signals from input and the thrown exception, fired into 'Failed' when the work
 --     throws ('onLeave' never runs on that path — there is no result to derive it from).
+--   * 'onScope' — /scope signals/ from the operation's input: where the three lanes above attach to
+--     this region's own moment, a scope signal is in effect over this region /and every region nested
+--     inside it/, so it rides the 'MomentCtx' of every descendant moment. The seam for tagging a whole
+--     subtree (e.g. a component name on everything a component does).
 --
 -- Build the first-order cases with 'watch' and the 'entering'\/'leaving'\/'tracedBy'\/'linkedTo'
 -- setters (or record updates); build the higher-order cases — instrumenting an operation's /carried/
@@ -187,6 +202,7 @@ data Tap eff i r e = Tap
     , onEnter :: forall localEs b. eff (Eff localEs) b -> [e]
     , onLeave :: forall localEs b. eff (Eff localEs) b -> b -> [e]
     , onError :: forall localEs b. eff (Eff localEs) b -> SomeException -> [e]
+    , onScope :: forall localEs b. eff (Eff localEs) b -> [e]
     , wrapping :: Wrapping eff i r e
     }
 
@@ -235,6 +251,7 @@ instance Semigroup (Tap eff i r e) where
             , onEnter = \op -> onEnter t1 op <> onEnter t2 op
             , onLeave = \op b -> onLeave t1 op b <> onLeave t2 op b
             , onError = \op e -> onError t1 op e <> onError t2 op e
+            , onScope = \op -> onScope t1 op <> onScope t2 op
             , -- the first wrapping wins: merging is for layering signals on a first-order region,
               -- where both sides are 'NoWrap'; a higher-order facet is not something one '<>'s onto.
               wrapping = case wrapping t1 of NoWrap -> wrapping t2; w -> w
@@ -253,6 +270,7 @@ watch label =
         , onEnter = \_ -> []
         , onLeave = \_ _ -> []
         , onError = \_ _ -> []
+        , onScope = \_ -> []
         , wrapping = NoWrap
         }
 
@@ -287,6 +305,15 @@ leaving f t = t {onLeave = f}
 -- @'watch' label & 'failing' (\\op e -> …)@. The setter form of the 'onError' field.
 failing :: (forall localEs b. eff (Eff localEs) b -> SomeException -> [e]) -> Tap eff i r e -> Tap eff i r e
 failing f t = t {onError = f}
+
+
+-- | Set the /scope signals/ derived from an operation's input: @'watch' label & 'tagging' (\\op -> …)@.
+-- The setter form of the 'onScope' field. Unlike 'entering'\/'leaving' (which attach to this region's
+-- own moment), a scope signal is in effect over the region /and every region nested inside it/ — it
+-- rides the 'MomentCtx' of every descendant moment, so a consumer can filter or attribute a whole
+-- subtree by it (e.g. @'tagging' (\\(Run name _) -> [Attr "component" name])@).
+tagging :: (forall localEs b. eff (Eff localEs) b -> [e]) -> Tap eff i r e -> Tap eff i r e
+tagging f t = t {onScope = f}
 
 
 -- | The preferred way to build a first-order 'Tap'. An inverted, per-operation surface: where the
@@ -324,6 +351,7 @@ tapping f =
         , onEnter = \op -> facetEnter (exec (f op))
         , onLeave = \op -> facetLeave (exec (f op))
         , onError = \op -> facetError (exec (f op))
+        , onScope = \op -> facetScope (exec (f op))
         , wrapping = NoWrap
         }
   where
@@ -340,14 +368,15 @@ data Facets b i r e = Facets
     , facetEnter :: [e]
     , facetLeave :: b -> [e]
     , facetError :: SomeException -> [e]
+    , facetScope :: [e]
     }
 
 
 emptyFacets :: Facets b i r e
-emptyFacets = Facets Nothing Nothing [] [] (const []) (const [])
+emptyFacets = Facets Nothing Nothing [] [] (const []) (const []) []
 
 
--- | The builder monad threaded through a 'describe' branch: a small state over one operation's
+-- | The builder monad threaded through a 'tapping' branch: a small state over one operation's
 -- 'Facets', so @do@-sequenced commands accumulate into a single 'Tap' facet set. Abstract — its only
 -- inhabitants are the commands ('atRegion', 'enterWith', …) and @do@ notation.
 newtype Describe b i r e a = Describe (Facets b i r e -> (a, Facets b i r e))
@@ -410,6 +439,12 @@ failWith :: (SomeException -> [e]) -> Describe b i r e ()
 failWith f = edit \s -> s {facetError = \x -> facetError s x <> f x}
 
 
+-- | Add /scope signals/ (the 'onScope' facet): signals in effect over this region and every region
+-- nested inside it, riding every descendant moment's 'MomentCtx'. Accumulates.
+tagWith :: [e] -> Describe b i r e ()
+tagWith es = edit \s -> s {facetScope = facetScope s <> es}
+
+
 -- A higher-order 'Tap' opens no region around the operation itself — its regions sit on the carried
 -- actions — so every first-order projection defaults to empty; only the 'wrapping' facet is set.
 higherOrder :: Wrapping eff i r e -> Tap eff i r e
@@ -421,6 +456,7 @@ higherOrder w =
         , onEnter = \_ -> []
         , onLeave = \_ _ -> []
         , onError = \_ _ -> []
+        , onScope = \_ -> []
         , wrapping = w
         }
 
@@ -467,7 +503,7 @@ instrument t = interpose \(env :: LocalEnv localEs (Observing es i r e)) (op :: 
         -- A 'Tap' links at root-granularity: each named trace identity becomes a 'LinkTrace' target.
         withRegion body = case region t op of
             Nothing -> fst <$> body
-            Just r -> scope r (map LinkTrace (linking t op)) (onEnter t op) (onError t op) body
+            Just r -> scope r (map LinkTrace (linking t op)) (onEnter t op) (onScope t op) (onError t op) body
         withTrace observed = case under t op of
             Nothing -> observed
             Just i -> trace i observed
@@ -493,7 +529,7 @@ instrument t = interpose \(env :: LocalEnv localEs (Observing es i r e)) (op :: 
             WrapReroot strat overActions -> runWrapped strat overActions rerootLinked
             -- …or nest each as a region under the current scope, labelled from the operation.
             WrapNest strat label overActions ->
-                runWrapped strat overActions \m -> scope (label op) [] [] (const []) ((,[]) <$> m)
+                runWrapped strat overActions \m -> scope (label op) [] [] [] (const []) ((,[]) <$> m)
 
 
 -- A program transformer that installs some taps; composes by function composition (internal).
@@ -630,16 +666,19 @@ gauge probe delta = Sampler \record act ->
 
 -- | The ambient coordinate of a 'Moment', plus the metadata captured at the instant it fired. It
 -- factors out the @(mid, path)@ every 'Moment' used to carry — 'mid' the ambient trace identity
--- ('Nothing' outside any trace), 'path' the region 'Path' — and adds three fire-time captures:
--- 'at' (a timestamp), 'seq' (a monotonic counter that recovers program order after a concurrent
--- discharge reorders the stream), and 'tid' (an identifier of the emitting thread, @0@ when
--- single-threaded). Capture is pluggable: the pure discharges ('observe'\/'observeInto') stamp a
--- deterministic logical clock (@at == seq@, @tid == 0@), while the concurrent 'observeConc' stamps
--- a wall clock with a shared sequence and the real thread id. The three captured fields are opaque
--- to the core — only an exporter interprets them (e.g. as span timestamps).
-data MomentCtx i r = MomentCtx
+-- ('Nothing' outside any trace), 'path' the region 'Path' — carries the ambient 'tags' (the scope
+-- signals in effect here: those of this region and every enclosing one, so a scope signal set on a
+-- region reaches every moment nested inside it), and adds three fire-time captures: 'at' (a
+-- timestamp), 'seq' (a monotonic counter that recovers program order after a concurrent discharge
+-- reorders the stream), and 'tid' (an identifier of the emitting thread, @0@ when single-threaded).
+-- Capture is pluggable: the pure discharges ('observe'\/'observeInto') stamp a deterministic logical
+-- clock (@at == seq@, @tid == 0@), while the concurrent 'observeConc' stamps a wall clock with a
+-- shared sequence and the real thread id. The three captured fields are opaque to the core — only an
+-- exporter interprets them (e.g. as span timestamps).
+data MomentCtx i r e = MomentCtx
     { mid :: Maybe i
     , path :: Path r
+    , tags :: [e]
     , at :: Word64
     , seq :: Word64
     , tid :: Word64
@@ -655,10 +694,10 @@ data MomentCtx i r = MomentCtx
 -- never cross. Maps onto OpenTelemetry as span-start \/ span-end \/ span-end-with-error-status \/
 -- span-metric, with signals as the spans' start\/end attributes.
 data Moment i r e s
-    = Entered (MomentCtx i r) [Link i r] [e]
-    | Exited (MomentCtx i r) [e]
-    | Failed (MomentCtx i r) [e] SomeException
-    | Measured (MomentCtx i r) s
+    = Entered (MomentCtx i r e) [Link i r] [e]
+    | Exited (MomentCtx i r e) [e]
+    | Failed (MomentCtx i r e) [e] SomeException
+    | Measured (MomentCtx i r e) s
 
 
 -- The shared discharge core, used by all three discharges: install nothing itself, just interpret
@@ -675,26 +714,30 @@ data Moment i r e s
 -- 'Reroot' starts a fresh trace root, 'CurrentScope' reads the cursor.
 interpretObs
     :: forall i r e s esX a
-     . (Reader (Endo (Path r)) :> esX, Reader (Maybe i) :> esX, Reader [Link i r] :> esX)
+     . (Reader (Endo (Path r)) :> esX, Reader (Maybe i) :> esX, Reader (Tags e) :> esX, Reader [Link i r] :> esX)
     => (forall x. (s -> Eff esX ()) -> Eff esX x -> Eff esX x)
-    -> (Maybe i -> Path r -> (MomentCtx i r -> Moment i r e s) -> Eff esX ())
+    -> (Maybe i -> Path r -> [e] -> (MomentCtx i r e -> Moment i r e s) -> Eff esX ())
     -> Eff (Obs i r e : esX) a
     -> Eff esX a
 interpretObs sample fire =
     interpret \env -> \case
-        Scope r links entrySigs onErr act -> do
+        Scope r links entrySigs scopeSigs onErr act -> do
             ambient <- ask
             -- the ancestor path as a difference list; extending it for the body and materializing
             -- this region's full path are both cheap
             prefix <- ask
             pending <- ask
+            -- the scope signals in effect from enclosing regions; this region adds its own for the
+            -- body (and for its own moments — a scope signal covers the region it is set on too)
+            Tags inherited <- ask
             let full = appEndo prefix [r]
-                body = localSeqUnlift env \unlift -> enterRegion r (unlift act)
-            fire ambient full \ctx -> Entered ctx (pending <> links) entrySigs
+                tags' = inherited <> scopeSigs
+                body = localSeqUnlift env \unlift -> enterRegion r (local (const (Tags tags')) (unlift act))
+            fire ambient full tags' \ctx -> Entered ctx (pending <> links) entrySigs
             (result, exitSigs) <-
-                sample (\res -> fire ambient full \ctx -> Measured ctx res) body
-                    `catch` \(e :: SomeException) -> fire ambient full (\ctx -> Failed ctx (onErr e) e) >> throwIO e
-            fire ambient full \ctx -> Exited ctx exitSigs
+                sample (\res -> fire ambient full tags' \ctx -> Measured ctx res) body
+                    `catch` \(e :: SomeException) -> fire ambient full tags' (\ctx -> Failed ctx (onErr e) e) >> throwIO e
+            fire ambient full tags' \ctx -> Exited ctx exitSigs
             pure result
         CurrentScope -> do
             ambient <- ask
@@ -729,12 +772,13 @@ observe (FoldM step start stop) (Plan (Instrument install) (Sampler sample)) pro
         runReader (mempty :: Endo (Path r))
             . runReader (Nothing :: Maybe i)
             . runReader ([] :: [Link i r])
+            . runReader (mempty :: Tags e)
             . runState (x0, 0 :: Word64)
             $ ( interpretObs
                     sample
-                    ( \ambient full mk -> do
+                    ( \ambient full tgs mk -> do
                         (acc, n) <- get
-                        acc' <- inject (step acc (mk (logical ambient full n)))
+                        acc' <- inject (step acc (mk (logical ambient full tgs n)))
                         put (acc', n + 1)
                     )
                     . inject
@@ -750,8 +794,8 @@ observe (FoldM step start stop) (Plan (Instrument install) (Sampler sample)) pro
 
 -- The deterministic logical-clock stamp the pure discharges ('observe'\/'observeInto') file each
 -- moment under: the timestamp and sequence both take the fire counter, on the single (zero) thread.
-logical :: Maybe i -> Path r -> Word64 -> MomentCtx i r
-logical ambient full n = MomentCtx {mid = ambient, path = full, at = n, seq = n, tid = 0}
+logical :: Maybe i -> Path r -> [e] -> Word64 -> MomentCtx i r e
+logical ambient full tgs n = MomentCtx {mid = ambient, path = full, tags = tgs, at = n, seq = n, tid = 0}
 
 
 -- Within a region's body, shared by every discharge: extend the ambient path with this region's
@@ -846,15 +890,16 @@ observeConc (FoldM step start stop) (Plan (Instrument install) (Sampler sample))
         ( runReader (mempty :: Endo (Path r))
             . runReader (Nothing :: Maybe i)
             . runReader ([] :: [Link i r])
+            . runReader (mempty :: Tags e)
             $ ( interpretObs
                     sample
                     -- the capture happens in the firing thread, before the enqueue: wall clock,
                     -- process-shared sequence, real thread id
-                    ( \ambient full mk -> do
+                    ( \ambient full tgs mk -> do
                         n <- liftIO (atomicModifyIORef' seqRef \k -> (k + 1, k))
                         t <- liftIO getMonotonicTimeNSec
                         th <- fromThreadId <$> myThreadId
-                        writeChan chan (Just (mk MomentCtx {mid = ambient, path = full, at = t, seq = n, tid = th}))
+                        writeChan chan (Just (mk MomentCtx {mid = ambient, path = full, tags = tgs, at = t, seq = n, tid = th}))
                     )
                     . inject
                     . install
@@ -902,13 +947,14 @@ observeInto contribute (Plan (Instrument install) (Sampler sample)) program =
     runReader (mempty :: Endo (Path r))
         . runReader (Nothing :: Maybe i)
         . runReader ([] :: [Link i r])
+        . runReader (mempty :: Tags e)
         $ ( interpretObs
                 sample
                 -- 'observeInto' feeds order-insensitive monoidal folds that read only @(mid, path)@,
                 -- so it stamps a constant logical zero rather than thread a counter (which would
                 -- collide with the caller's @State w@). A discharge that needs real timing/order is
                 -- 'observe' or 'observeConc'.
-                (\ambient full mk -> modify (<> contribute (mk (logical ambient full 0))))
+                (\ambient full tgs mk -> modify (<> contribute (mk (logical ambient full tgs 0))))
                 . inject
                 . install
                 . inject
@@ -924,7 +970,7 @@ silent :: Plan es i r e s -> Eff es a -> Eff es a
 silent (Plan (Instrument install) _) =
     interpret
         ( \env -> \case
-            Scope _ _ _ _ act -> localSeqUnlift env \unlift -> fst <$> unlift act
+            Scope _ _ _ _ _ act -> localSeqUnlift env \unlift -> fst <$> unlift act
             CurrentScope -> pure (Nothing, [])
             Reroot _ act -> localSeqUnlift env \unlift -> unlift act
             Trace _ act -> localSeqUnlift env \unlift -> unlift act

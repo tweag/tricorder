@@ -17,6 +17,7 @@ import Atelier.Observe
     , observe
     , rerootLinked
     , sampling
+    , tagging
     , tap
     , tracedBy
     , watch
@@ -190,6 +191,22 @@ spec_OpenTelemetry = describe "Atelier.Observe.OpenTelemetry" do
         lookupAttribute (spanAttributes inner) "phase" `shouldBe` Just (OT.toAttribute ("inner" :: Text))
         -- the sampler reading became a measurement event on the inner span
         map (.eventName) (eventsOf inner) `shouldBe` ["measurement"]
+
+    it "attaches a scope signal (tagging) as an attribute on the region's span and every descendant span" do
+        (tracer, recorded) <- newInMemory
+        -- "outer" carries a scope signal; it must land on both "outer"'s span and the nested "inner"
+        -- span, so a whole subtree can be filtered/attributed by it in the backend.
+        let outerTagged :: Tap Outer Int Text (Text, Text)
+            outerTagged = watch (const "outer") & tagging (const [("component", "svc")])
+        (_, ()) <-
+            runEff . runInner . runOuter
+                $ observe (exporting tracer render) (tap outerTagged <> tap innerTap) (send Outer)
+        spans <- readIORef recorded
+        outer <- spanNamed spans "outer"
+        inner <- spanNamed spans "inner"
+        let componentOf s = lookupAttribute (spanAttributes s) "component"
+        componentOf outer `shouldBe` Just (OT.toAttribute ("svc" :: Text))
+        componentOf inner `shouldBe` Just (OT.toAttribute ("svc" :: Text))
 
     it "marks a failing region's span with Error status" do
         (tracer, recorded) <- newInMemory

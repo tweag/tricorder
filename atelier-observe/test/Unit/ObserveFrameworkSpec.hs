@@ -56,6 +56,8 @@ import Atelier.Observe
     , rerootLinked
     , sampling
     , silent
+    , tagWith
+    , tagging
     , tap
     , tapping
     , teeC
@@ -279,7 +281,7 @@ overAround wrap = \case
     Around act -> Around (wrap act)
 
 
--- A multi-constructor fixture for 'describe': three operations of differing result type — 'Get'
+-- A multi-constructor fixture for 'tapping': three operations of differing result type — 'Get'
 -- returns @Maybe Text@, 'Put'\/'Wipe' return @()@ — so a per-lane setter chain would need three
 -- \\case scrutinees, while 'describe' matches once and refines the result type per branch.
 data Kv :: Effect where
@@ -367,7 +369,7 @@ data Drain = Push String | Eof
 -- An aggregate: count region exits per path.
 counting :: Consumer es () Region2 Signal Res (MonoidalMap (Path Region2) (Sum Int))
 counting = foldMoments \case
-    Exited (MomentCtx _ path _ _ _) _ -> MMap.singleton path (Sum 1)
+    Exited (MomentCtx _ path _ _ _ _) _ -> MMap.singleton path (Sum 1)
     _ -> mempty
 
 
@@ -536,7 +538,7 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
             plan = tap innerTap <> interposing spawnInner <> tap outerTap
             sink :: (IOE :> es) => Consumer es () Text Signal Res ()
             sink = eachMoment \case
-                Entered (MomentCtx _ p _ _ _) links _ -> liftIO (modifyIORef' seen ((p, links) :))
+                Entered (MomentCtx _ p _ _ _ _) links _ -> liftIO (modifyIORef' seen ((p, links) :))
                 _ -> pure ()
         (_, ()) <- runEff . runInner . runOuter $ observe sink plan outerOp
         recorded <- reverse <$> readIORef seen
@@ -553,7 +555,7 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
         let plan = tap innerTap <> tap (nesting SeqUnlift (const "around") overAround)
             sink :: (IOE :> es) => Consumer es () Text Signal Res ()
             sink = eachMoment \case
-                Entered (MomentCtx _ p _ _ _) _ _ -> liftIO (modifyIORef' seen (p :))
+                Entered (MomentCtx _ p _ _ _ _) _ _ -> liftIO (modifyIORef' seen (p :))
                 _ -> pure ()
         (_, ()) <- runEff . runInner . runBracketed $ observe sink plan (around innerOp)
         recorded <- reverse <$> readIORef seen
@@ -619,7 +621,7 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
         -- the first note exits cleanly; the throwing second note closes as Failed ("fail")
         flushed `shouldBe` Just ["enter", "exit", "enter", "fail"]
 
-    it "describe builds a Tap equivalent to the setter-chain form" do
+    it "tapping builds a Tap equivalent to the setter-chain form" do
         -- the two surfaces compile to the same record: same region, same enter/leave signals, so the
         -- same harvest. 'describe' matches the operation once; the setters match it per lane.
         let viaSetters :: Tap Note () Region2 Signal
@@ -638,7 +640,7 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
                 collapse (snd (runPureEff (runNote (observe (collecting reduce) (tap tp) (note "hi")))))
         harvest viaDescribe `shouldBe` harvest viaSetters
 
-    it "describe drives a multi-constructor effect from one exhaustive match" do
+    it "tapping drives a multi-constructor effect from one exhaustive match" do
         let (_, traces :: Traces () Text Obs Res) =
                 runPureEff . runKv $ observe (collecting reduce) (tap kvTap) kvProg
             summary = collapse traces
@@ -651,7 +653,7 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
         MMap.lookup "key" (reportAt ["put"] summary).observations.goldens
             `shouldBe` Just (Set.singleton "a")
 
-    it "describe captures input on entry and the exception on Failed (failure path)" do
+    it "tapping captures input on entry and the exception on Failed (failure path)" do
         -- the failure lanes through the builder: 'enterWith' fires before the work (so input survives
         -- a throw), 'exitWith' never runs, and the region closes as Failed carrying 'failWith'.
         seen <- newIORef []
@@ -679,6 +681,48 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
                 :: IO (Either E.SomeException ((), ()))
         recorded <- reverse <$> readIORef seen
         recorded `shouldBe` [("enter", ["golden input=boom"]), ("fail", ["golden error=boom"])]
+
+    it "a scope signal (tagging) rides its region and every moment nested inside it" do
+        -- 'Outer'\'s interpreter performs 'Inner', so "inner" nests under "outer". A scope signal set
+        -- on "outer" must appear in the ambient 'tags' of both "outer"\'s own moment and the nested
+        -- "inner"\'s — unlike an entry signal, which would land only on "outer".
+        seen <- newIORef []
+        let taggedOuter :: Tap Outer () Text Signal
+            taggedOuter = watch (const "outer") & tagging (const [Golden "component" "svc"])
+            plan = tap innerTap <> tap taggedOuter
+            sink :: (IOE :> es) => Consumer es () Text Signal Res ()
+            sink = eachMoment \case
+                Entered (MomentCtx _ p tgs _ _ _) _ _ ->
+                    liftIO (modifyIORef' seen ((p, [(k, v) | Golden k v <- tgs]) :))
+                _ -> pure ()
+        (_, ()) <- runEff . runInner . runOuter $ observe sink plan outerOp
+        recorded <- reverse <$> readIORef seen
+        recorded
+            `shouldBe` [ (["outer"], [("component", "svc")]) -- the region it is set on carries it…
+                       , (["outer", "inner"], [("component", "svc")]) -- …and the nested child inherits it
+                       ]
+
+    it "tapping's tagWith sets the same inherited scope signal as the tagging setter" do
+        -- the builder command and the setter feed the same 'onScope' facet, so both taps produce the
+        -- same ambient tags on every moment.
+        let viaSetter, viaBuilder :: Tap Outer () Text Signal
+            viaSetter = watch (const "outer") & tagging (const [Golden "component" "svc"])
+            viaBuilder = tapping \case
+                Outer -> do
+                    atRegion "outer"
+                    tagWith [Golden "component" "svc"]
+            tagsOf tp = do
+                ref <- newIORef []
+                let sink :: (IOE :> es) => Consumer es () Text Signal Res ()
+                    sink = eachMoment \case
+                        Entered (MomentCtx _ p tgs _ _ _) _ _ ->
+                            liftIO (modifyIORef' ref ((p, [(k, v) | Golden k v <- tgs]) :))
+                        _ -> pure ()
+                _ <- runEff . runInner . runOuter $ observe sink (tap innerTap <> tap tp) outerOp
+                reverse <$> readIORef ref
+        fromSetter <- tagsOf viaSetter
+        fromBuilder <- tagsOf viaBuilder
+        fromBuilder `shouldBe` fromSetter
 
     describe "the trie" do
         -- A hand-built nested harvest: region "a" is a spine (entered, never observed) whose child
