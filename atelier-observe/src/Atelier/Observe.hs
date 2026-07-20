@@ -51,12 +51,14 @@ module Atelier.Observe
     , Observed
     , currentScope
     , rerootLinked
+    , beginTrace
 
       -- * The plan
     , Plan
     , tap
     , interposing
     , sampling
+    , idGenerator
 
       -- * Consumers
     , Consumer
@@ -95,6 +97,7 @@ import Effectful.State.Static.Local (State, get, modify, put, runState)
 import Effectful.TH (makeEffect)
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Conc.Sync (fromThreadId)
+import GHC.Generics (Generically (..))
 import Prelude hiding (seq, trace)
 
 import Control.Foldl qualified as L
@@ -143,10 +146,11 @@ data Obs i r e :: Effect where
     -- here — answered by a discharge from its two Readers. The seam an instrumentation-layer
     -- wrapper uses to capture where work was spawned, for linking the spawned action back to it.
     CurrentScope :: Obs i r e m (Maybe i, Path r)
-    -- Run an action as a fresh trace root — ambient identity reset to 'Nothing', region path reset
-    -- to empty — whose first region additionally links to the given targets. The seam 'rerootLinked'
-    -- uses so spawned work starts its own trace (no nesting under, and no unbounded growth of, the
-    -- spawner's) yet still links back to the spawn site.
+    -- Run an action as a fresh trace root — ambient identity reset (to a freshly minted id when the
+    -- run has an 'idGenerator', else to 'Nothing'), region path reset to empty — whose first region
+    -- additionally links to the given targets. The seam 'rerootLinked' uses so spawned work starts
+    -- its own trace (no nesting under, and no unbounded growth of, the spawner's) yet still links
+    -- back to the spawn site.
     Reroot :: [Link i r] -> m a -> Obs i r e m a
 
 
@@ -479,9 +483,10 @@ nesting strat label overActions = higherOrder (WrapNest strat label overActions)
 -- links back to the scope active where the operation ran (via 'rerootLinked'). The spawn\/detached
 -- case: a forked thread (@'Atelier.Effects.Conc.Conc'@), a daemon body, an event delivery — work
 -- that should start its own trace rather than nest under (and grow) the spawner's, yet still link to
--- the exact spawn site. The 'OverActions' mapping says where the actions are; the 'UnliftStrategy'
--- crosses into their row (@concStrat@ for forks, so the captured handler survives the new thread).
--- Contrast 'nesting', which keeps the action's region in the current trace.
+-- the exact spawn site. Each detached action's trace gets a fresh identity minted by the run's
+-- 'idGenerator' (or 'Nothing' if none was supplied). The 'OverActions' mapping says where the actions
+-- are; the 'UnliftStrategy' crosses into their row (@concStrat@ for forks, so the captured handler
+-- survives the new thread). Contrast 'nesting', which keeps the action's region in the current trace.
 rerooting :: UnliftStrategy -> OverActions eff -> Tap eff i r e
 rerooting strat overActions = higherOrder (WrapReroot strat overActions)
 
@@ -544,19 +549,27 @@ instance Monoid (Instrument es) where
     mempty = Instrument id
 
 
--- | The program-side configuration of a run: the taps to install and the 'Sampler' to bracket
--- each region. Assemble with 'tap' and 'sampling', merge with @'<>'@; 'mempty' instruments
--- nothing. It carries no observers and no harvest type — what to do with the 'Moment's a run
--- produces is a 'Consumer', chosen at the discharge.
-data Plan es i r e s = Plan (Instrument (Observing es i r e)) (Sampler es s)
-
-
-instance Semigroup (Plan es i r e s) where
-    Plan t1 s1 <> Plan t2 s2 = Plan (t1 <> t2) (s1 <> s2)
-
-
-instance Monoid (Plan es i r e s) where
-    mempty = Plan mempty mempty
+-- | The program-side configuration of a run: the taps to install, the 'Sampler' to bracket each
+-- region, and — optionally — an @id generator@ that mints a fresh trace identity whenever a fresh
+-- trace root opens (the 'rerooting' tap, 'beginTrace'). Assemble with 'tap', 'sampling', and
+-- 'idGenerator', merge with @'<>'@; 'mempty' instruments nothing. It carries no observers and no
+-- harvest type — what to do with the 'Moment's a run produces is a 'Consumer', chosen at the
+-- discharge.
+data Plan es i r e s = Plan
+    { planInstrument :: Instrument (Observing es i r e)
+    -- ^ the taps and raw interposes to install over the oblivious program
+    , planSampler :: Sampler es s
+    -- ^ the 'Sampler' that brackets each region to read a resource
+    , planIdGen :: First (Eff es i)
+    -- ^ the optional id generator that mints a fresh identity at each fresh trace root ('idGenerator').
+    -- 'First' (rather than 'Maybe') so the slot is an /unconditional/ 'Monoid' — @'Eff' es i@ is no
+    -- 'Semigroup', so @'Maybe' ('Eff' es i)@ would not be one — and so a 'Plan' keeps the leftmost
+    -- generator when merged (a run has one identity source; @plan '<>' 'idGenerator' g@ is then a
+    -- no-op when @plan@ already sets one — the least surprising rule).
+    }
+    -- every field is a 'Monoid', so the whole merge is field-wise — exactly what 'Generically' derives.
+    deriving stock (Generic)
+    deriving (Monoid, Semigroup) via Generically (Plan es i r e s)
 
 
 -- | A 'Plan' that installs one 'Tap' and nothing else. Merge several with @'<>'@ to observe
@@ -565,7 +578,7 @@ tap
     :: (Observes es eff i r e)
     => Tap eff i r e
     -> Plan es i r e s
-tap t = Plan (Instrument (instrument t)) mempty
+tap t = mempty {planInstrument = Instrument (instrument t)}
 
 
 -- | A 'Plan' that installs a raw instrumentation-layer transformer — an 'interpose' that
@@ -576,13 +589,28 @@ tap t = Plan (Instrument (instrument t)) mempty
 -- may use 'currentScope'\/'rerootLinked' and re-dispatch the effect it wraps. Merges with @'<>'@ like
 -- any 'Plan'; the transformers compose by function composition.
 interposing :: (forall x. Eff (Observing es i r e) x -> Eff (Observing es i r e) x) -> Plan es i r e s
-interposing f = Plan (Instrument f) mempty
+interposing f = mempty {planInstrument = Instrument f}
 
 
 -- | A 'Plan' that adds a 'Sampler' and nothing else: the resource it folds surfaces as a
 -- 'Measured' 'Moment' that a 'Consumer' may handle.
 sampling :: Sampler es s -> Plan es i r e s
-sampling s = Plan mempty s
+sampling s = mempty {planSampler = s}
+
+
+-- | A 'Plan' that supplies the run's __id generator__: an effectful action in the program's own row
+-- that mints a fresh trace identity @i@. The framework runs it wherever a fresh trace root opens —
+-- automatically for every action a 'rerooting' tap detaches (a @Conc@ fork, a daemon body, a
+-- per-event delivery), and explicitly at a 'beginTrace'. Without one, those roots carry no identity
+-- (@'mid' == 'Nothing'@), exactly as before.
+--
+-- The generator is any @'Eff' es i@, so /what/ an identity is stays entirely the caller's: 'gen'
+-- from a UUID effect, a random 'Word64', a monotonic counter in 'State', or a constant for
+-- deterministic tests. The framework never names the generator's effects — that is how a package
+-- that depends on @atelier-observe@ plugs its own id effect in without @atelier-observe@ depending
+-- back on it. A 'Plan' carries at most one; merging keeps the leftmost (see the 'Semigroup').
+idGenerator :: Eff es i -> Plan es i r e s
+idGenerator gen = mempty {planIdGen = First (Just gen)}
 
 
 -- | What to do with a run's 'Moment' stream: a monadic left fold over the moments in the base row
@@ -711,15 +739,17 @@ data Moment i r e s
 -- operation's input survives a throw; then 'Exited' with the body's exit signals (and 'Measured' for
 -- each 'Sampler' reading), or — if the body throws — 'Failed' with the 'onError' signals in place of
 -- 'Exited' (no result, so 'onLeave' cannot run), re-raising. A 'Trace' sets the ambient identity, a
--- 'Reroot' starts a fresh trace root, 'CurrentScope' reads the cursor.
+-- 'Reroot' starts a fresh trace root — minting a fresh identity for it with @mint@ when the run has
+-- an 'idGenerator', else resetting it to 'Nothing' — and 'CurrentScope' reads the cursor.
 interpretObs
     :: forall i r e s esX a
      . (Reader (Endo (Path r)) :> esX, Reader (Maybe i) :> esX, Reader (Tags e) :> esX, Reader [Link i r] :> esX)
-    => (forall x. (s -> Eff esX ()) -> Eff esX x -> Eff esX x)
+    => Maybe (Eff esX i)
+    -> (forall x. (s -> Eff esX ()) -> Eff esX x -> Eff esX x)
     -> (Maybe i -> Path r -> [e] -> (MomentCtx i r e -> Moment i r e s) -> Eff esX ())
     -> Eff (Obs i r e : esX) a
     -> Eff esX a
-interpretObs sample fire =
+interpretObs mint sample fire =
     interpret \env -> \case
         Scope r links entrySigs scopeSigs onErr act -> do
             ambient <- ask
@@ -746,7 +776,7 @@ interpretObs sample fire =
         Trace i act ->
             localSeqUnlift env \unlift -> local (const (Just i)) (unlift act)
         Reroot newLinks act ->
-            localSeqUnlift env \unlift -> rerooted newLinks (unlift act)
+            localSeqUnlift env \unlift -> rerooted mint newLinks (unlift act)
 
 
 -- | The discharge: install the 'Plan's taps, run the program, and fold the 'Moment' stream
@@ -766,7 +796,7 @@ observe
     -> Plan es i r e s
     -> Eff es a
     -> Eff es (a, h)
-observe (FoldM step start stop) (Plan (Instrument install) (Sampler sample)) program = do
+observe (FoldM step start stop) (Plan (Instrument install) (Sampler sample) gen) program = do
     x0 <- start
     (a, (xFinal, _)) <-
         runReader (mempty :: Endo (Path r))
@@ -775,6 +805,7 @@ observe (FoldM step start stop) (Plan (Instrument install) (Sampler sample)) pro
             . runReader (mempty :: Tags e)
             . runState (x0, 0 :: Word64)
             $ ( interpretObs
+                    (inject <$> getFirst gen)
                     sample
                     ( \ambient full tgs mk -> do
                         (acc, n) <- get
@@ -810,19 +841,24 @@ enterRegion
 enterRegion r = local (<> Endo (r :)) . local (const ([] :: [Link i r]))
 
 
--- Run an action as a fresh trace root, shared by every discharge: ambient identity reset to
--- 'Nothing' and region path reset to empty (so its regions start a new trace), with the given links
--- pending for its outermost region(s).
+-- Run an action as a fresh trace root, shared by every discharge: ambient identity reset (to a
+-- freshly minted id when a @mint@ is supplied, else to 'Nothing') and region path reset to empty (so
+-- its regions start a new trace), with the given links pending for its outermost region(s). The mint
+-- runs once per reroot, before the body, so every detached action gets its own identity.
 rerooted
     :: forall i r es a
      . (Reader (Endo (Path r)) :> es, Reader (Maybe i) :> es, Reader [Link i r] :> es)
-    => [Link i r]
+    => Maybe (Eff es i)
+    -> [Link i r]
     -> Eff es a
     -> Eff es a
-rerooted newLinks =
-    local (const (Nothing :: Maybe i))
-        . local (const (mempty :: Endo (Path r)))
-        . local (const newLinks)
+rerooted mint newLinks act = do
+    fresh <- sequenceA mint
+    ( local (const (fresh :: Maybe i))
+            . local (const (mempty :: Endo (Path r)))
+            . local (const newLinks)
+        )
+        act
 
 
 -- | Run an action so it starts its /own/ trace yet links back to the scope active where it was
@@ -840,6 +876,19 @@ rerootLinked :: (Observed es i r e) => Eff es a -> Eff es a
 rerootLinked act = do
     (ambient, here) <- currentScope
     reroot [LinkRegion ambient here] act
+
+
+-- | Begin a fresh trace at an entry point: run the action as a new trace root — region path reset to
+-- empty, ambient identity minted anew by the run's 'idGenerator' (or 'Nothing' if none was supplied)
+-- — with no link back to any spawn site. The __explicit__ counterpart to the automatic minting the
+-- 'rerooting' tap does for detached work: use it where a trace should /originate/, e.g. the top of a
+-- request handler that has no id to derive one from yet. To put a whole run under one minted trace,
+-- wrap the program with @'interposing' 'beginTrace'@.
+--
+-- It is 'rerootLinked' without the back-link — same fresh-root, same minting — so like it, it runs
+-- only in the instrumented layer (the 'Observed' constraint).
+beginTrace :: (Observed es i r e) => Eff es a -> Eff es a
+beginTrace = reroot []
 
 
 -- | The concurrent streaming discharge: like 'observe', but the observed program may /fork/, and
@@ -868,7 +917,7 @@ observeConc
     -> Plan es i r e s
     -> Eff es a
     -> Eff es (a, h)
-observeConc (FoldM step start stop) (Plan (Instrument install) (Sampler sample)) program = do
+observeConc (FoldM step start stop) (Plan (Instrument install) (Sampler sample) gen) program = do
     x0 <- start
     chan <- newChan :: Eff es (Chan (Maybe (Moment i r e s)))
     seqRef <- liftIO (newIORef (0 :: Word64))
@@ -892,6 +941,7 @@ observeConc (FoldM step start stop) (Plan (Instrument install) (Sampler sample))
             . runReader ([] :: [Link i r])
             . runReader (mempty :: Tags e)
             $ ( interpretObs
+                    (inject <$> getFirst gen)
                     sample
                     -- the capture happens in the firing thread, before the enqueue: wall clock,
                     -- process-shared sequence, real thread id
@@ -943,12 +993,13 @@ observeInto
     -> Plan es i r e s
     -> Eff es a
     -> Eff es a
-observeInto contribute (Plan (Instrument install) (Sampler sample)) program =
+observeInto contribute (Plan (Instrument install) (Sampler sample) gen) program =
     runReader (mempty :: Endo (Path r))
         . runReader (Nothing :: Maybe i)
         . runReader ([] :: [Link i r])
         . runReader (mempty :: Tags e)
         $ ( interpretObs
+                (inject <$> getFirst gen)
                 sample
                 -- 'observeInto' feeds order-insensitive monoidal folds that read only @(mid, path)@,
                 -- so it stamps a constant logical zero rather than thread a counter (which would
@@ -967,7 +1018,7 @@ observeInto contribute (Plan (Instrument install) (Sampler sample)) program =
 -- 'Scope'\/'Trace' body, dropping the entry signals, the yielded exit signals, and the unused
 -- failure-signal function without forcing any of them.
 silent :: Plan es i r e s -> Eff es a -> Eff es a
-silent (Plan (Instrument install) _) =
+silent (Plan (Instrument install) _ _) =
     interpret
         ( \env -> \case
             Scope _ _ _ _ _ act -> localSeqUnlift env \unlift -> fst <$> unlift act

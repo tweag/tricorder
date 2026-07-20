@@ -15,7 +15,7 @@ import Effectful.Concurrent.Chan (newChan, readChan, writeChan)
 import Effectful.Concurrent.MVar (putMVar, readMVar)
 import Effectful.Dispatch.Dynamic (interpose, interpret, localSeqUnlift, send)
 import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
-import Effectful.State.Static.Local (runState)
+import Effectful.State.Static.Local (State, runState, state)
 import Effectful.Writer.Static.Local (Writer, runWriter, tell)
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Prelude hiding (trace)
@@ -38,6 +38,7 @@ import Atelier.Observe
     , Sampler
     , Tap (..)
     , atRegion
+    , beginTrace
     , consumer
     , eachMoment
     , enterWith
@@ -47,6 +48,7 @@ import Atelier.Observe
     , failing
     , foldMoments
     , gauge
+    , idGenerator
     , interposing
     , leaving
     , linkedTo
@@ -546,6 +548,48 @@ spec_ObserveFramework = describe "Atelier.Observe framework" do
             `shouldBe` [ (["outer"], [])
                        , (["inner"], [LinkRegion Nothing ["outer"]])
                        ]
+
+    it "idGenerator mints a fresh identity for each rerooted trace root" do
+        -- with an id generator supplied, every reroot (here the 'rerootLinked' child of each Outer)
+        -- gets its ambient identity minted anew, so two spawns carry two distinct ids; the un-rerooted
+        -- outer region stays outside any trace ('Nothing').
+        seen <- newIORef []
+        let spawnInner :: (Inner :> es, Observed es Int Text Signal, Outer :> es) => Eff es x -> Eff es x
+            spawnInner = interpose \_ op -> case op of
+                Outer -> rerootLinked innerOp
+            -- a deterministic generator standing in for a real UUID/random effect: a monotonic counter
+            counter :: (State Int :> es) => Eff es Int
+            counter = state (\n -> (n, n + 1))
+            plan = tap innerTap <> interposing spawnInner <> tap outerTap <> idGenerator counter
+            sink :: (IOE :> es) => Consumer es Int Text Signal Res ()
+            sink = eachMoment \case
+                Entered (MomentCtx m p _ _ _ _) _ _ -> liftIO (modifyIORef' seen ((p, m) :))
+                _ -> pure ()
+        _ <-
+            runEff . runInner . runOuter . runState (0 :: Int)
+                $ observe sink plan (outerOp >> outerOp)
+        recorded <- reverse <$> readIORef seen
+        recorded
+            `shouldBe` [ (["outer"], Nothing)
+                       , (["inner"], Just 0)
+                       , (["outer"], Nothing)
+                       , (["inner"], Just 1)
+                       ]
+
+    it "beginTrace opens a fresh minted trace at an entry point" do
+        -- 'interposing beginTrace' puts the whole run under one fresh trace root; with an idGenerator
+        -- its identity is minted, so the inner region rides the minted id rather than 'Nothing'.
+        seen <- newIORef []
+        let counter :: (State Int :> es) => Eff es Int
+            counter = state (\n -> (n, n + 1))
+            plan = tap innerTap <> interposing beginTrace <> idGenerator counter
+            sink :: (IOE :> es) => Consumer es Int Text Signal Res ()
+            sink = eachMoment \case
+                Entered (MomentCtx m p _ _ _ _) _ _ -> liftIO (modifyIORef' seen ((p, m) :))
+                _ -> pure ()
+        _ <- runEff . runInner . runState (0 :: Int) $ observe sink plan innerOp
+        recorded <- reverse <$> readIORef seen
+        recorded `shouldBe` [(["inner"], Just 0)]
 
     it "nesting wraps a carried action as a region nested under the current scope" do
         -- the inline higher-order case: 'around' carries an action; a 'nesting' tap files it under a
