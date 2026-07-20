@@ -5,6 +5,10 @@ coding agents. It does so by providing operations to surface the right
 information required at a given stage: documentation, build status,
 diagnostics, etc.
 
+
+> ℹ️ More information about how to use `tricorder` can be found in [this presentation](https://youtu.be/vDmyl0ZJRF8?t=4815)
+for the Haskell Foundation's "Haskell and AI Workshop".
+
 Like similar tools (`ghcid`, `ghciwatch`), it builds the code continuously on
 every change, presents diagnostics, and runs the tests afterwards. However,
 `tricorder` offers other advantages:
