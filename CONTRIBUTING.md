@@ -26,9 +26,3 @@ Create the others when the work warrants it.
 
 Each `proposals/` directory has a `README.md` index listing all proposals with their
 status. Keep it up to date when adding or completing proposals.
-
-### Roadmap
-
-`ROADMAP.md` is the entry point for understanding what is planned. Features link to
-their proposal folder using `[WP-NNN](path/)`. Dependencies between proposals are
-expressed as `_Depends on:_ WP-NNN`.
