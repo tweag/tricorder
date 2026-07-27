@@ -14,10 +14,10 @@ Relational database access via [Hasql](https://github.com/nikita-volkov/hasql) a
 
 ## Part of atelier
 
-- [`atelier-prelude`](https://github.com/atelier-hub/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
-- [`atelier-core`](https://github.com/atelier-hub/tricorder/tree/main/atelier-core) — foundational effects and utilities
-- [`atelier-db`](https://github.com/atelier-hub/tricorder/tree/main/atelier-db) — this package
-- [`atelier-testing`](https://github.com/atelier-hub/tricorder/tree/main/atelier-testing) — database-backed test utilities
+- [`atelier-prelude`](https://github.com/tweag/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
+- [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — foundational effects and utilities
+- [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — this package
+- [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — database-backed test utilities
 
 ## License
 

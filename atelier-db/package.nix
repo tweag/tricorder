@@ -7,7 +7,7 @@ in
   version = "0.1.1.0";
   synopsis = "Relational database effect for atelier (Hasql/Rel8)";
   description = "Relational database access via Hasql and Rel8, exposed as an Effectful effect — part of the atelier toolkit.";
-  github = "atelier-hub/tricorder";
+  github = "tweag/tricorder";
   category = "Database";
   extra-doc-files = [
     "CHANGELOG.md"

@@ -4,7 +4,7 @@ Test utilities for database-backed tests using [tmp-postgres](https://github.com
 
 ## Overview
 
-`atelier-testing` spins up a throwaway PostgreSQL instance for integration tests, so suites that exercise [`atelier-db`](https://github.com/atelier-hub/tricorder/tree/main/atelier-db) can run against a real database without external setup.
+`atelier-testing` spins up a throwaway PostgreSQL instance for integration tests, so suites that exercise [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) can run against a real database without external setup.
 
 | Module | Purpose |
 |---|---|
@@ -12,10 +12,10 @@ Test utilities for database-backed tests using [tmp-postgres](https://github.com
 
 ## Part of atelier
 
-- [`atelier-prelude`](https://github.com/atelier-hub/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
-- [`atelier-core`](https://github.com/atelier-hub/tricorder/tree/main/atelier-core) — foundational effects and utilities
-- [`atelier-db`](https://github.com/atelier-hub/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
-- [`atelier-testing`](https://github.com/atelier-hub/tricorder/tree/main/atelier-testing) — this package
+- [`atelier-prelude`](https://github.com/tweag/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
+- [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — foundational effects and utilities
+- [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
+- [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — this package
 
 ## License
 

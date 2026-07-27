@@ -23,10 +23,10 @@ It also wraps a number of `IO`-based primitives (environment, clock, file system
 
 ## Part of atelier
 
-- [`atelier-prelude`](https://github.com/atelier-hub/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
-- [`atelier-core`](https://github.com/atelier-hub/tricorder/tree/main/atelier-core) — this package
-- [`atelier-db`](https://github.com/atelier-hub/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
-- [`atelier-testing`](https://github.com/atelier-hub/tricorder/tree/main/atelier-testing) — database-backed test utilities
+- [`atelier-prelude`](https://github.com/tweag/tricorder/tree/main/atelier-prelude) — relude-based prelude with Effectful conventions
+- [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — this package
+- [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
+- [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — database-backed test utilities
 
 ## License
 

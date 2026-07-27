@@ -19,7 +19,7 @@
 ## Try it out
 
 ```bash
-nix run --accept-flake-config github:atelier-hub/tricorder -- ui
+nix run --accept-flake-config github:tweag/tricorder -- ui
 ```
 
 `--accept-flake-config` tells Nix to use the binary caches declared in this
@@ -31,7 +31,7 @@ To make `tricorder` available in a project's dev shell without installing it
 system-wide:
 
 ```nix
-inputs.tricorder.url = "github:atelier-hub/tricorder";
+inputs.tricorder.url = "github:tweag/tricorder";
 
 devShells.default = pkgs.mkShell {
   packages = [ inputs.tricorder.packages.${system}.tricorder ];
@@ -43,7 +43,7 @@ devShells.default = pkgs.mkShell {
 Add the flake input and apply the overlay:
 
 ```nix
-inputs.tricorder.url = "github:atelier-hub/tricorder";
+inputs.tricorder.url = "github:tweag/tricorder";
 
 nixpkgs.overlays = [ inputs.tricorder.overlays.default ];
 ```

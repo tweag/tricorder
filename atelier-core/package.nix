@@ -7,7 +7,7 @@ in
   version = "0.2.0.0";
   synopsis = "Foundational Effectful-based effects and utilities";
   description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
-  github = "atelier-hub/tricorder";
+  github = "tweag/tricorder";
   category = "Control";
 
   extra-doc-files = [

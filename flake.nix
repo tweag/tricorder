@@ -79,7 +79,7 @@
       nixosModules.default = import ./nix/nixos-module.nix;
 
       # Atelier-based web-server starter. Instantiate with:
-      #   nix flake init -t github:atelier-hub/tricorder#canvas
+      #   nix flake init -t github:tweag/tricorder#canvas
       templates.canvas = {
         path = ./templates/canvas;
         description = "Atelier-based web server starter (library + executable, WAI/Warp, rel8/Postgres, haskell.nix)";

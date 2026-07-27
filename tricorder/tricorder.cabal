@@ -9,8 +9,8 @@ version:        0.1.1.0
 synopsis:       Continuous Haskell build status, diagnostics, and tests via a shared daemon
 description:    tricorder rebuilds your Haskell project continuously and surfaces build status, diagnostics, test results, and documentation - for developers and LLM coding agents. Like ghcid and ghciwatch it reloads on every change, but builds run in a background daemon so multiple clients (an interactive TUI, a status CLI, an agent skill) share a single build state without triggering redundant rebuilds. It discovers components across multi-package cabal.project workspaces automatically and ships context-friendly output for agentic use via the CLI.
 category:       Development
-homepage:       https://github.com/atelier-hub/tricorder#readme
-bug-reports:    https://github.com/atelier-hub/tricorder/issues
+homepage:       https://github.com/tweag/tricorder#readme
+bug-reports:    https://github.com/tweag/tricorder/issues
 author:         Christian Georgii
 maintainer:     christian.georgii@tweag.io
 license:        MIT
@@ -22,7 +22,7 @@ extra-doc-files:
 
 source-repository head
   type: git
-  location: https://github.com/atelier-hub/tricorder
+  location: https://github.com/tweag/tricorder
 
 library tricorder-internal
   exposed-modules:
