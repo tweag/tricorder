@@ -7,11 +7,11 @@
 > nixConfig = {
 >   extra-substituters = [
 >     "https://cache.iog.io"
->     "https://atelier.cachix.org"
+>     "https://tweag-tricorder.cachix.org"
 >   ];
 >   extra-trusted-public-keys = [
 >     "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
->     "atelier.cachix.org-1:rEyd/Z4TiXZbBVuU/lDnKZ/7WtnFTwJ17OKHGcahVUo="
+>     "tweag-tricorder.cachix.org-1:PbwYPJ9gF8Wns14ai0sHK3iblqFd5YUrj0zEzGsJ/wg="
 >   ];
 > };
 > ```
