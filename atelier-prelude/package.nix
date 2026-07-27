@@ -7,8 +7,8 @@ in
   version = "0.1.0.0";
   synopsis = "Custom relude-based prelude with Effectful conventions";
   description = "A custom prelude based on relude, adapted for Effectful — part of the atelier toolkit.";
-  github = "atelier-hub/tricorder";
-  homepage = "https://github.com/atelier-hub/tricorder/tree/main/atelier-prelude";
+  github = "tweag/tricorder";
+  homepage = "https://github.com/tweag/tricorder/tree/main/atelier-prelude";
   category = "Prelude";
   extra-doc-files = [
     "CHANGELOG.md"

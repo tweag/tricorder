@@ -9,8 +9,8 @@ version:        0.2.0.0
 synopsis:       Foundational Effectful-based effects and utilities
 description:    Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.
 category:       Control
-homepage:       https://github.com/atelier-hub/tricorder#readme
-bug-reports:    https://github.com/atelier-hub/tricorder/issues
+homepage:       https://github.com/tweag/tricorder#readme
+bug-reports:    https://github.com/tweag/tricorder/issues
 author:         Christian Georgii
 maintainer:     christian.georgii@tweag.io
 license:        MIT
@@ -27,7 +27,7 @@ extra-doc-files:
 
 source-repository head
   type: git
-  location: https://github.com/atelier-hub/tricorder
+  location: https://github.com/tweag/tricorder
 
 library
   exposed-modules:

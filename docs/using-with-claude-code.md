@@ -14,7 +14,7 @@ project-level `.claude/settings.json` or user-level `~/.claude/settings.json`):
     "atelier": {
       "source": {
         "source": "github",
-        "repo": "atelier-hub/tricorder"
+        "repo": "tweag/tricorder"
       }
     }
   },

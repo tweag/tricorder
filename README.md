@@ -96,10 +96,10 @@ Postgres access, sqitch migrations, and a
 
 ```bash
 # Into a new directory:
-nix flake new -t github:atelier-hub/tricorder#canvas ./my-service
+nix flake new -t github:tweag/tricorder#canvas ./my-service
 
 # …or into the current (empty) directory:
-nix flake init -t github:atelier-hub/tricorder#canvas
+nix flake init -t github:tweag/tricorder#canvas
 ```
 
 Then, from the generated project:

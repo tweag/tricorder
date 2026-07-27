@@ -37,10 +37,10 @@ Use the corresponding `atelier-core` effects instead — e.g. `Atelier.Effects.E
 
 ## Part of atelier
 
-- [`atelier-prelude`](https://github.com/atelier-hub/tricorder/tree/main/atelier-prelude) — this package
-- [`atelier-core`](https://github.com/atelier-hub/tricorder/tree/main/atelier-core) — foundational effects and utilities
-- [`atelier-db`](https://github.com/atelier-hub/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
-- [`atelier-testing`](https://github.com/atelier-hub/tricorder/tree/main/atelier-testing) — database-backed test utilities
+- [`atelier-prelude`](https://github.com/tweag/tricorder/tree/main/atelier-prelude) — this package
+- [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — foundational effects and utilities
+- [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
+- [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — database-backed test utilities
 
 ## License
 
