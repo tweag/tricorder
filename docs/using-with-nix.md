@@ -7,13 +7,18 @@
 > nixConfig = {
 >   extra-substituters = [
 >     "https://cache.iog.io"
->     "https://atelier.cachix.org"
+>     "https://tweag.cachix.org"
 >   ];
 >   extra-trusted-public-keys = [
 >     "hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="
->     "atelier.cachix.org-1:rEyd/Z4TiXZbBVuU/lDnKZ/7WtnFTwJ17OKHGcahVUo="
+>     "tweag.cachix.org-1:1kI0+PcOXktlm12UUDAEz7SErbLXsxOEKaEsAjxT8Dg="
 >   ];
 > };
+>
+> ```
+>
+> ```
+>
 > ```
 
 ## Try it out

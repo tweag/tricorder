@@ -59,8 +59,8 @@ jobs:
             extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
       - uses: cachix/cachix-action@v17
         with:
-          name: atelier
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          name: tweag
+          authToken: "${{ secrets.TWEAG_CACHIX_AUTH_TOKEN }}"
       - run: nix build '.#legacyChecks.${{ matrix.system }}.${{ matrix.ghc-version }}.all' -L
 
   results:
