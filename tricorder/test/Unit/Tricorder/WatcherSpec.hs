@@ -2,7 +2,6 @@ module Unit.Tricorder.WatcherSpec (spec_Watcher) where
 
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.FileWatcher (FileEvent (..), matchesAny)
-import Atelier.Effects.Publishing (runPubWriter)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Dispatch.Dynamic (reinterpret_)
@@ -11,6 +10,8 @@ import Effectful.State.Static.Shared (execState, put)
 import Effectful.Writer.Static.Shared (runWriter)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList)
 import Text.Regex.TDFA.ReadRegex (parseRegex)
+
+import Atelier.Effects.Publishing.Pub qualified as Pub
 
 import Tricorder.BuildState
     ( CabalChangeDetected (..)
@@ -50,9 +51,9 @@ testMarkWatchedFiles = do
             . runDelay
             . runReader emptyDaemonInfo
             . runWriter
-            . runPubWriter @SourceChangeDetected
+            . Pub.toWriter @SourceChangeDetected
             . runWriter
-            . runPubWriter @CabalChangeDetected
+            . Pub.toWriter @CabalChangeDetected
             . mockBuildStore
             . markWatchedFiles
             . (`WatchedFile` Modified)

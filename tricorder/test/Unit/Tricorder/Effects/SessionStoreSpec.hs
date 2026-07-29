@@ -4,7 +4,9 @@ import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClockConst)
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
-import Atelier.Effects.Publishing (Pub, Sub, publish, runPubSub)
+import Atelier.Effects.Publishing (runPubSub)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
 import Control.Concurrent (threadDelay)
 import Data.Default (def)
 import Data.IORef (IORef)
@@ -15,6 +17,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Error.Static (Error, runErrorNoCallStack, throwError)
 import Test.Hspec (Spec, describe, it, shouldBe)
 
+import Atelier.Effects.Publishing.Pub qualified as Pub
 import Data.IORef qualified as IORef
 
 import Tricorder.Effects.SessionStore
@@ -66,7 +69,7 @@ testWithSession = do
                     -- Give withSession time to call listenOnce_ before we publish.
                     liftIO $ threadDelay 1_000
                     liftIO $ IORef.writeIORef sessionRef session2
-                    publish (SessionStoreReloaded session2)
+                    Pub.publish (SessionStoreReloaded session2)
                 else
                     throwError StopSignal
         sessions <- reverse <$> IORef.readIORef sessionsRef

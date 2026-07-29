@@ -22,7 +22,7 @@ import Atelier.Effects.Clock (Clock, UTCTime)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Debounce (Debounce, debounced)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Publishing (Sub)
+import Atelier.Effects.Publishing.Sub (Sub)
 import Atelier.Time (Millisecond, nominalDiffTime)
 import Control.Concurrent.STM (check, readTVar, retry, writeTVar)
 import Data.Default (Default (..))
@@ -37,7 +37,7 @@ import System.FilePath (normalise)
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
-import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Effectful.State.Static.Shared qualified as State

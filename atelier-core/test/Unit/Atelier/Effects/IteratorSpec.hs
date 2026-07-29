@@ -9,9 +9,12 @@ import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, fork, runConc)
 import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
-import Atelier.Effects.Publishing (Pub, Sub, publish, runPubSub)
+import Atelier.Effects.Publishing (runPubSub)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
 
 import Atelier.Effects.Iterator qualified as Iter
+import Atelier.Effects.Publishing.Pub qualified as Pub
 
 
 spec_Iterator :: Spec
@@ -28,7 +31,7 @@ testFromEvents = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    publish (42 :: Int)
+                    Pub.publish (42 :: Int)
                 Iter.next iter
         result `shouldBe` 42
 
@@ -37,7 +40,7 @@ testFromEvents = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [1, 2, 3]
+                    traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next iter)
         result `shouldBe` [1, 2, 3]
 
@@ -46,7 +49,7 @@ testFromEvents = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [1, 2, 3]
+                    traverse_ Pub.publish [1, 2, 3]
                 liftIO $ threadDelay 5_000
                 replicateM 3 (Iter.next iter)
         result `shouldBe` [1, 2, 3]
@@ -59,7 +62,7 @@ testFilter = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [1 .. 4]
+                    traverse_ Pub.publish [1 .. 4]
                 Iter.next (Iter.filter even iter)
         result `shouldBe` 2
 
@@ -68,7 +71,7 @@ testFilter = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [1 .. 6]
+                    traverse_ Pub.publish [1 .. 6]
                 replicateM 3 (Iter.next (Iter.filter even iter))
         result `shouldBe` [2, 4, 6]
 
@@ -80,7 +83,7 @@ testChanges = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [0, 0, 1]
+                    traverse_ Pub.publish [0, 0, 1]
                 Iter.next (Iter.changes 0 iter)
         result `shouldBe` 1
 
@@ -89,7 +92,7 @@ testChanges = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [1, 2, 3]
+                    traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
         result `shouldBe` [1, 2, 3]
 
@@ -98,7 +101,7 @@ testChanges = do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
-                    traverse_ publish [0, 1, 0, 2, 0, 3]
+                    traverse_ Pub.publish [0, 1, 0, 2, 0, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
         result `shouldBe` [1, 2, 3]
 
