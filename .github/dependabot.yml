@@ -6,6 +6,11 @@ updates:
       interval: "weekly"
       day: monday
       time: "02:00"
+    groups:
+      github-actions-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: "nix"
     directory: "/"
     schedule:
