@@ -1,4 +1,4 @@
-module Tricorder.Builder.Dispatch
+module Tricorder.Daemon.Dispatch
     ( BuilderState (..)
     , DiagnosticMap
     , DispatchAction (..)
@@ -12,7 +12,6 @@ module Tricorder.Builder.Dispatch
     ) where
 
 import Atelier.Effects.FileWatcher (FileEvent (..))
-import Data.Default (Default (..))
 import System.FilePath (isAbsolute, normalise, splitDirectories, takeExtension, (</>))
 
 import Data.List qualified as List
@@ -20,9 +19,10 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.BuildState (Diagnostic (..), Severity (..))
-import Tricorder.Effects.GhciSession (LoadResult (..), LoadedModule (..))
 import Tricorder.Effects.GhciSession.GhciParser
-    ( isLocationLess
+    ( LoadResult (..)
+    , LoadedModule (..)
+    , isLocationLess
     , pathSuffixesAsModuleName
     , unattributedFailure
     )
@@ -39,10 +39,6 @@ data BuilderState = BuilderState
     , diagnosticMap :: DiagnosticMap
     }
     deriving stock (Eq, Show)
-
-
-instance Default BuilderState where
-    def = emptyBuilderState
 
 
 emptyBuilderState :: BuilderState

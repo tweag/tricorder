@@ -28,7 +28,8 @@ import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
 
 import Tricorder.Arguments (Force (..))
-import Tricorder.BuildState (BuildState, Diagnostic)
+import Tricorder.BuildState (Diagnostic)
+import Tricorder.Daemon.BuildState (BuildState (..))
 import Tricorder.Effects.UnixSocket (UnixSocket, withConnection)
 import Tricorder.GhcPkg.Types (SourceQuery)
 import Tricorder.Runtime (PidFile)

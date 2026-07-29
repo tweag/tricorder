@@ -10,22 +10,19 @@ module Tricorder.Effects.Cabal
       Cabal
     , FetchResult (..)
     , fetchSource
-    , cabalVersion
 
       -- * Interpreters
     , runCabalIO
     , runCabalFetchWith
-    , runCabalScripted
     , CabalScript (..)
     ) where
 
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Process (Process, proc, readProcess, readProcessSafe, setWorkingDir)
+import Atelier.Effects.Process (Process, proc, readProcess, setWorkingDir)
 import Effectful (Effect)
-import Effectful.Dispatch.Dynamic (interpret, reinterpret)
+import Effectful.Dispatch.Dynamic (interpret)
 import Effectful.Exception (trySync)
 import Effectful.Reader.Static (Reader, ask)
-import Effectful.State.Static.Shared (evalState, get, put)
 import Effectful.TH (makeEffect)
 import System.Exit (ExitCode (..))
 
@@ -54,9 +51,6 @@ data Cabal :: Effect where
     -- (offline, stale index, yanked) stays distinguishable from a genuine
     -- absence and is not cached.
     FetchSource :: PackageId -> Cabal m FetchResult
-    -- | @cabal --version@, trimmed to its first line. 'Nothing' if @cabal@ is
-    -- absent or errors — a capability probe callers can branch on.
-    CabalVersion :: Cabal m (Maybe Text)
 
 
 makeEffect ''Cabal
@@ -85,9 +79,6 @@ runCabalIO = interpret \_ -> \case
             Left e -> do
                 Log.warn $ "Source: cabal fetch failed for " <> unPackageId pkgId <> ": " <> show e
                 pure FetchFailed
-    CabalVersion -> do
-        out <- readProcessSafe "cabal" ["--version"]
-        pure $ T.strip . fst . T.breakOn "\n" <$> out
 
 
 -- | Test interpreter: every 'fetchSource' yields the result of @onFetch@, which
@@ -98,7 +89,6 @@ runCabalIO = interpret \_ -> \case
 runCabalFetchWith :: Eff es FetchResult -> Eff (Cabal : es) a -> Eff es a
 runCabalFetchWith onFetch = interpret \_ -> \case
     FetchSource _ -> onFetch
-    CabalVersion -> error "runCabalFetchWith: cabalVersion is not supported"
 
 
 -- | Script element for the pure test interpreter.
@@ -107,16 +97,3 @@ data CabalScript
       NextFetch FetchResult
     | -- | Return this value for the next 'cabalVersion' call.
       NextVersion (Maybe Text)
-
-
--- | Scripted interpreter for testing. Does not require 'IOE'.
-runCabalScripted :: [CabalScript] -> Eff (Cabal : es) a -> Eff es a
-runCabalScripted script = reinterpret (evalState script) \_ -> \case
-    FetchSource _ ->
-        get >>= \case
-            NextFetch r : rest -> put rest >> pure r
-            _ -> error "CabalScripted: expected NextFetch but queue was empty or mismatched"
-    CabalVersion ->
-        get >>= \case
-            NextVersion r : rest -> put rest >> pure r
-            _ -> error "CabalScripted: expected NextVersion but queue was empty or mismatched"

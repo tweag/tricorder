@@ -11,11 +11,12 @@
 -- block until the subscription is live and therefore cannot miss early events.
 module Atelier.Effects.Publishing
     ( runPubSub
+    , runPubSub_
     )
 where
 
 import Data.Time (UTCTime)
-import Effectful.Dispatch.Dynamic (interpretWith, interpretWith_, localSeqUnlift)
+import Effectful.Dispatch.Dynamic (interpret, interpretWith, interpretWith_, interpret_, localSeqUnlift)
 
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
@@ -62,5 +63,27 @@ runPubSub action = do
                 forever do
                     TracedEvent {event, timestamp, publisherSpanContext} <- Chan.readChan chan
                     Tracing.withLinkPropagation publisherSpanContext $ unlift $ listener timestamp event
+
+    handleSub . handlePub $ action
+
+
+runPubSub_
+    :: forall event es a
+     . (Chan :> es, Clock :> es)
+    => Eff (Pub event : Sub event : es) a -> Eff es a
+runPubSub_ action = do
+    (inChan, _) <- Chan.newChan @(UTCTime, event)
+    let handlePub = interpret_ \case
+            Publish event -> do
+                timestamp <- Clock.currentTime
+                Chan.writeChan inChan (timestamp, event)
+
+        handleSub = interpret \env -> \case
+            ListenWith onSubscribed listener -> localSeqUnlift env \unlift -> do
+                chan <- Chan.dupChan inChan
+                unlift onSubscribed
+                forever do
+                    (timestamp, event) <- Chan.readChan chan
+                    unlift $ listener timestamp event
 
     handleSub . handlePub $ action

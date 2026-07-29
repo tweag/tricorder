@@ -35,17 +35,17 @@ import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 
 import Tricorder.BuildState
-    ( BuildPhase (..)
-    , BuildResult (..)
-    , BuildState (..)
-    , DaemonInfo (..)
+    ( BuildResult (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
     )
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
 import Tricorder.BuildState.EvalComments (Comment (..))
-import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
+import Tricorder.Daemon.BuildState (BuildState (..))
+import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
+import Tricorder.Daemon.Progress (Progress)
+import Tricorder.Session (Target, TestTarget, TestTargets, getTestTargets, renderTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 import Tricorder.UI.Keys (KeyEvent, keybindForRoute, viewKeybindings)
 import Tricorder.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
@@ -54,6 +54,7 @@ import Tricorder.UI.State (Processed (..), State (..), TestFilter (..), Viewport
 
 import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Daemon.Progress qualified as Progress
 import Tricorder.UI.Keys qualified as Keys
 import Tricorder.UI.Route qualified as Route
 import Tricorder.Version qualified as Version
@@ -174,15 +175,15 @@ viewHeading ws = case currentRoute ws of
 
 
 viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports
-viewDefaultPanel tz bs = viewBuildPhase tz bs.phase
+viewDefaultPanel tz bs = viewBuildProgress tz bs.progress
 
 
 viewTestResultsPanel :: State -> BuildState -> Widget Viewports
 viewTestResultsPanel ws bs =
     vBoxSpaced
         1
-        [ viewBuildPhaseLine ws.timeZone bs.phase
-        , viewTestPanel ws.testFilter (phaseTestRuns bs.phase)
+        [ viewBuildProgressLine ws.timeZone bs.progress
+        , viewTestPanel ws.testFilter (progressTestRuns bs.progress)
         ]
 
 
@@ -190,18 +191,22 @@ viewEvalCommentsPanel :: State -> BuildState -> Widget Viewports
 viewEvalCommentsPanel ws bs =
     vBoxSpaced
         1
-        [ viewBuildPhaseLine ws.timeZone bs.phase
-        , case bs.phase of
-            BuildComplete _ postBuild -> viewEvalComments postBuild.evalComments
+        [ viewBuildProgressLine ws.timeZone bs.progress
+        , case bs.progress of
+            Progress.Finished _ postBuild -> viewEvalComments postBuild.evalComments
+            Progress.PostBuilding _ postBuild -> viewEvalComments postBuild.evalComments
             _ -> txt "Waiting for build..."
         ]
 
 
-viewEvalComments :: Eval.Comments -> Widget Viewports
-viewEvalComments (Eval.Comments []) =
-    txt "No eval comments detected"
-viewEvalComments (Eval.Comments results) =
-    vScrollViewport EvalResultsViewport $ vBoxSpaced 1 $ viewEvaluation <$> results
+viewEvalComments :: Eval.Phase -> Widget Viewports
+viewEvalComments Eval.Looking = txt "Looking for eval comments..."
+viewEvalComments Eval.NoneFound = txt "No eval comments detected"
+viewEvalComments (Eval.Found (Eval.Comments results)) =
+    vScrollViewport EvalResultsViewport
+        $ vBoxSpaced 1
+        $ toList
+        $ viewEvaluation <$> results
 
 
 viewEvaluation :: Eval.Evaluation -> Widget n
@@ -233,7 +238,6 @@ viewExpandedDaemonInfo di =
         , viewWatchDirs di.watchDirs
         , viewSockPath di.sockPath
         , viewLogFile di.logFile
-        , viewMetrics di.metricsPort
         ]
 
 
@@ -255,21 +259,6 @@ viewTargets targets =
             txt "(all)"
           else
             txtWrap (T.intercalate " " (map renderTarget targets))
-        ]
-
-
-viewMetrics :: Maybe Int -> Widget n
-viewMetrics Nothing =
-    hBoxSpaced
-        1
-        [ emphasis $ txt "Metrics:"
-        , warn $ txt "disabled"
-        ]
-viewMetrics (Just port) =
-    hBoxSpaced
-        1
-        [ emphasis $ txt "Metrics:"
-        , ok $ txt $ "http://localhost:" <> show port <> "/metrics"
         ]
 
 
@@ -301,18 +290,38 @@ viewWatchDir dir = hBox [txt "- ", txt $ toText displayDir]
         | otherwise = "./" <> dir
 
 
-viewBuildPhase :: TimeZone -> BuildPhase -> Widget Viewports
-viewBuildPhase tz = \case
-    Building Nothing ->
-        warn $ txt "Building..."
-    Building (Just p) ->
-        warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
-    Restarting ->
-        warn $ txt "Restarting..."
-    BuildComplete result postBuild ->
-        vBoxSpaced 1 [viewBuildResult tz result, viewTestRuns postBuild.testSuites]
-    BuildFailed msg ->
+viewBuildProgress :: TimeZone -> Progress -> Widget Viewports
+viewBuildProgress tz = \case
+    Progress.Starting ->
+        warn $ txt "Starting..."
+    Progress.Building testTargets progress ->
+        vBoxSpaced
+            1
+            [ warn $ txt $ "Building (" <> show progress.compiled <> "/" <> show progress.total <> ")..."
+            , viewPendingTestTargets testTargets
+            ]
+    Progress.PostBuilding result postBuild ->
+        vBoxSpaced
+            1
+            [ viewBuildResult tz result
+            , viewTestRuns postBuild.testSuites
+            ]
+    Progress.Finished result postBuild ->
+        vBoxSpaced
+            1
+            [ viewBuildResult tz result
+            , viewTestRuns postBuild.testSuites
+            ]
+    Progress.Failed msg ->
         viewBuildFailed msg
+
+
+viewPendingTestTargets :: TestTargets -> Widget n
+viewPendingTestTargets =
+    vBox
+        . ([txt "Pending test suites:"] <>)
+        . fmap (subtle . txt . renderTestTarget)
+        . getTestTargets
 
 
 viewBuildFailed :: Text -> Widget Viewports
@@ -448,13 +457,18 @@ formatDuration d =
 
 -- | Single-line build status with no scrollable diagnostics list, used as a
 -- compact header when a secondary panel (test results, daemon info) is open.
-viewBuildPhaseLine :: TimeZone -> BuildPhase -> Widget n
-viewBuildPhaseLine tz = \case
-    Building Nothing -> warn $ txt "Building..."
-    Building (Just p) -> warn $ txt $ "Building (" <> show p.compiled <> "/" <> show p.total <> ")..."
-    Restarting -> warn $ txt "Restarting..."
-    BuildComplete result _ -> viewBuildResultLine tz result
-    BuildFailed _ -> err $ txt "Build command failed"
+viewBuildProgressLine :: TimeZone -> Progress -> Widget n
+viewBuildProgressLine tz = \case
+    Progress.Starting ->
+        warn $ txt "Starting..."
+    Progress.Building _ progress ->
+        warn $ txt $ "Building (" <> show progress.compiled <> "/" <> show progress.total <> ")..."
+    Progress.PostBuilding result _ ->
+        viewBuildResultLine tz result
+    Progress.Finished result _ ->
+        viewBuildResultLine tz result
+    Progress.Failed _ ->
+        err $ txt "Build command failed"
 
 
 viewBuildResultLine :: TimeZone -> BuildResult -> Widget n
@@ -477,9 +491,10 @@ viewBuildResultLine tz result
         in  hBoxSpaced 1 [header, viewDuration result.duration, viewTimestamp tz result.completedAt]
 
 
-phaseTestRuns :: BuildPhase -> Test.Suites
-phaseTestRuns (BuildComplete _ postBuild) = postBuild.testSuites
-phaseTestRuns _ = Test.Suites mempty
+progressTestRuns :: Progress -> Test.Suites
+progressTestRuns (Progress.PostBuilding _ postBuild) = postBuild.testSuites
+progressTestRuns (Progress.Finished _ postBuild) = postBuild.testSuites
+progressTestRuns _ = Test.Suites mempty
 
 
 viewTestPanel :: TestFilter -> Test.Suites -> Widget Viewports

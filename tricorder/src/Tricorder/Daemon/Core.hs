@@ -1,0 +1,418 @@
+module Tricorder.Daemon.Core (main) where
+
+import Atelier.Config (LoadedConfig)
+import Atelier.Effects.Chan (Chan)
+import Atelier.Effects.Clock (Clock)
+import Atelier.Effects.Conc (Conc)
+import Atelier.Effects.Debounce (Debounce)
+import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
+import Atelier.Effects.Input (Input)
+import Atelier.Effects.Log (Log)
+import Atelier.Effects.Publishing (runPubSub_)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
+import Data.List (isSuffixOf)
+import Effectful.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
+import Effectful.Concurrent.STM (Concurrent, atomically, newEmptyTMVar, takeTMVar, writeTMVar)
+import Effectful.Reader.Static (Reader)
+import Effectful.State.Static.Shared (State)
+import Relude.Extra.Tuple (dup)
+
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.FileWatcher qualified as FileWatcher
+import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing.Pub qualified as Pub
+import Atelier.Effects.Publishing.Sub qualified as Sub
+import Data.Map.Strict qualified as Map
+import Effectful.Reader.Static qualified as Reader
+import Effectful.State.Static.Shared qualified as State
+
+import Tricorder.BuildState
+    ( BuildId (..)
+    , BuildResult (..)
+    , CabalChangeDetected (..)
+    , Diagnostic (..)
+    , PostBuild (..)
+    , Severity (..)
+    , SourceChangeDetected (..)
+    )
+import Tricorder.Daemon.Builder
+    ( BuildConsideration (..)
+    , BuildFailure
+    , Builder
+    , NewLoadResult
+    , compileBuildResults
+    )
+import Tricorder.Daemon.Dispatch
+    ( BuilderState (..)
+    , DispatchAction
+    , emptyBuilderState
+    )
+import Tricorder.Daemon.EvalCommentRunner
+    ( EvalCommentRunner
+    , findEvalCommentsInModules
+    )
+import Tricorder.Daemon.Progress (Progress)
+import Tricorder.Daemon.TestRunner (TestRunner)
+import Tricorder.Daemon.Watch (WatchedFile)
+import Tricorder.Effects.GhciSession (GhciSession)
+import Tricorder.Effects.GhciSession.GhciParser
+    ( LoadResult
+    , LoadedModule (..)
+    , resolveKnownTargets
+    )
+import Tricorder.Effects.Waiters (Waiters)
+import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Session
+    ( CabalFile
+    , Session (..)
+    , TestTargets (..)
+    , TestTimeout
+    , loadSession
+    , renderTestTarget
+    )
+
+import Tricorder.BuildState.EvalComments qualified as Eval
+import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Config qualified as Config
+import Tricorder.Daemon.Builder qualified as Builder
+import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
+import Tricorder.Daemon.Progress qualified as Progress
+import Tricorder.Daemon.TestRunner qualified as TestRunner
+import Tricorder.Daemon.Watch qualified as Watch
+import Tricorder.Effects.Waiters qualified as Waiters
+
+
+data ReloadSession = ReloadSession
+data RestartBuilder = RestartBuilder
+data ReloadBuilder = ReloadBuilder FilePath FileEvent
+
+
+-- | Top of the build loop. Responsible for handling changes to the Tricorder
+-- config, as well as setting up other build-specific effects.
+main
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Debounce FilePath :> es
+       , EvalCommentRunner :> es
+       , FileSystem :> es
+       , FileWatcher :> es
+       , GhciSession :> es
+       , Input LoadedConfig :> es
+       , Input [CabalFile] :> es
+       , Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuildId :> es
+       , TestRunner :> es
+       , Waiters :> es
+       )
+    => Eff es Void
+main = runPubSub_ @ReloadSession
+    . runPubSub_ @WatchedFile
+    . runPubSub_ @CabalChangeDetected
+    . runPubSub_ @SourceChangeDetected
+    . runPubSub_ @RestartBuilder
+    . runPubSub_ @ReloadBuilder
+    $ Conc.restartableFork waitForReloadSession do
+        root <- Reader.ask
+        session <- loadSession
+        Conc.fork_ $ watchConfigFile root
+
+        Conc.fork_ $ Watch.files root session
+        Conc.fork_ $ Sub.listen_ Watch.publishChange
+
+        Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) -> do
+            needsSessionReload <- shouldReloadSession session
+            if needsSessionReload then
+                Pub.publish ReloadSession
+            else
+                Pub.publish RestartBuilder
+        Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
+            Pub.publish $ ReloadBuilder fp event
+
+        State.evalState emptyBuilderState $ withSession session
+  where
+    waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
+
+
+shouldReloadSession
+    :: ( FileSystem :> es
+       , Input LoadedConfig :> es
+       , Input [CabalFile] :> es
+       , Log :> es
+       , Reader ProjectRoot :> es
+       )
+    => Session -> Eff es Bool
+shouldReloadSession oldSession = do
+    newSession <- loadSession
+    pure $ newSession /= oldSession
+
+
+watchConfigFile
+    :: ( Debounce FilePath :> es
+       , FileWatcher :> es
+       , Pub ReloadSession :> es
+       )
+    => ProjectRoot -> Eff es Void
+watchConfigFile root = do
+    FileWatcher.watchFilePathsDebounced
+        [FileWatcher.dirWhere root.getProjectRoot (Config.configFileName `isSuffixOf`)]
+        \_ _ -> Pub.publish $ ReloadSession
+
+
+-- | For a given session, handles controlling the build process itself,
+-- restarting it as necessary.
+withSession
+    :: ( Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , EvalCommentRunner :> es
+       , GhciSession :> es
+       , Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuildId :> es
+       , State BuilderState :> es
+       , Sub ReloadBuilder :> es
+       , Sub RestartBuilder :> es
+       , TestRunner :> es
+       , Waiters :> es
+       )
+    => Session -> Eff es Void
+withSession session = do
+    Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
+        forever $ Conc.scoped do
+            buildId <- State.state (\s -> (s, s + 1))
+            runSession buildId session
+
+
+-- | Starts the initial build with GHCi, and waits for source changes.
+runSession
+    :: ( Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , EvalCommentRunner :> es
+       , GhciSession :> es
+       , Log.Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuilderState :> es
+       , Sub ReloadBuilder :> es
+       , TestRunner :> es
+       , Waiters :> es
+       )
+    => BuildId -> Session -> Eff es ()
+runSession buildId session = do
+    Log.info $ "Starting session " <> show buildId.getBuildId
+    Pub.publish Progress.Starting
+    err <- fmap (either id absurd)
+        $ Pub.map (Progress.Building session.testTargets)
+        $ Builder.with buildId buildConfig \_ initialLoad -> do
+            processPostBuild session $ Right initialLoad
+            Log.debug "Waiting for reload"
+            newestReloadEvent <- atomically newEmptyTMVar
+            cancelSem <- newEmptyMVar
+            let requestCancel = tryPutMVar cancelSem ()
+                checkCancel = takeMVar cancelSem
+            Conc.fork_ $ Sub.listen_ @ReloadBuilder \event -> do
+                atomically $ writeTMVar newestReloadEvent event
+                Waiters.without do
+                    Pub.publish Progress.Starting
+                    Log.debug "Cancelling current build"
+                    requestCancel
+            forever do
+                event <- atomically $ takeTMVar newestReloadEvent
+                Conc.restartableFork checkCancel
+                    $ waitForReload session event
+
+    Pub.publish $ Progress.Failed $ show err
+  where
+    buildConfig = sessionToBuildConfig session
+
+
+-- | Handles source changes as they come, determining whether the source change
+-- detected warrants a rebuild.
+waitForReload
+    :: ( Builder :> es
+       , Conc :> es
+       , EvalCommentRunner :> es
+       , Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuilderState :> es
+       , TestRunner :> es
+       )
+    => Session -> ReloadBuilder -> Eff es ()
+waitForReload session (ReloadBuilder fp event) = do
+    Log.debug $ "Considering " <> toText fp
+    consideration <- Builder.consider fp event
+    case consideration of
+        SkipBuilding -> do
+            Log.debug $ "Skipping " <> toText fp
+            pure ()
+        ShouldBuild action -> do
+            Log.debug $ "Should build " <> toText fp
+            processSource session action
+    Log.info "Reload finished"
+
+
+-- | Rebuilds the project on source change.
+processSource
+    :: ( Builder :> es
+       , Conc :> es
+       , EvalCommentRunner :> es
+       , Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuilderState :> es
+       , TestRunner :> es
+       )
+    => Session
+    -> DispatchAction
+    -> Eff es ()
+processSource session action = do
+    res <- Builder.build action
+    Log.debug "Finished build"
+    processPostBuild session res
+
+
+processPostBuild
+    :: ( Conc :> es
+       , EvalCommentRunner :> es
+       , Log :> es
+       , Pub Progress :> es
+       , Reader ProjectRoot :> es
+       , State BuilderState :> es
+       , TestRunner :> es
+       )
+    => Session -> Either BuildFailure NewLoadResult -> Eff es ()
+processPostBuild session = \case
+    Left buildFailure -> do
+        Log.debug "Build failure"
+        Pub.publish $ Progress.Failed $ show buildFailure
+    Right newLoadResult -> do
+        Log.debug "Built"
+        buildResult <- newLoadResultToBuildResult session newLoadResult
+        let initialPostBuild = PostBuild mempty Eval.Looking
+        Pub.publish $ Progress.PostBuilding buildResult initialPostBuild
+        State.evalState initialPostBuild $ Conc.scoped do
+            evalCommentsP <-
+                Conc.fork
+                    $ Pub.consume (updateEvalComments buildResult)
+                    $ runEvalComments session newLoadResult.loadResult
+            testsP <-
+                Conc.fork
+                    $ Pub.consume (updateTestSuites buildResult)
+                    $ runTests session buildResult
+            evalComments <- Conc.await evalCommentsP
+            Log.debug "Eval comments finished"
+            tests <- Conc.await testsP
+            Log.debug "Tests finished"
+            Pub.publish $ Progress.Finished buildResult $ PostBuild tests evalComments
+  where
+    updateEvalComments buildResult evalComments = do
+        newPostBuild <- State.state \postBuild -> dup $ postBuild {evalComments}
+        Pub.publish $ Progress.PostBuilding buildResult newPostBuild
+    updateTestSuites buildResult testSuites = do
+        newPostBuild <- State.state \postBuild -> dup $ postBuild {testSuites}
+        Pub.publish $ Progress.PostBuilding buildResult newPostBuild
+
+
+runEvalComments
+    :: ( EvalCommentRunner :> es
+       , Pub Eval.Phase :> es
+       , State BuilderState :> es
+       )
+    => Session -> LoadResult -> Eff es Eval.Phase
+runEvalComments session loadResult = do
+    builderState <- State.get @BuilderState
+    evalComments <- findEvalCommentsInModules $ resolveKnownTargets builderState.loadedModules loadResult
+
+    case nonEmpty evalComments of
+        Nothing -> pure Eval.NoneFound
+        Just nonEmptyComments -> do
+            let pendingComments =
+                    sconcat $ (\(lm, ecs) -> toPending lm.relPath <$> ecs) <$> nonEmptyComments
+            Pub.publish $ Eval.Found $ Eval.Comments pendingComments
+            evaluatedComments <- EvalCommentRunner.evaluateComments session.command nonEmptyComments
+            pure $ Eval.Found $ Eval.Comments evaluatedComments
+  where
+    toPending file comment =
+        Eval.Evaluation
+            { file
+            , comment
+            , state = Eval.Pending
+            }
+
+
+runTests
+    :: ( Log :> es
+       , Pub Test.Suites :> es
+       , TestRunner :> es
+       )
+    => Session -> BuildResult -> Eff es Test.Suites
+runTests session buildResult
+    | hasTargets session.testTargets && noErrors buildResult.diagnostics =
+        runTestsForTargets session.testTimeout session.testTargets
+    | otherwise = pure mempty
+  where
+    hasTargets testTargets = not $ null testTargets.getTestTargets
+    noErrors = all \d -> d.severity /= SError
+
+
+runTestsForTargets
+    :: ( Log :> es
+       , Pub Test.Suites :> es
+       , TestRunner :> es
+       )
+    => TestTimeout
+    -> TestTargets
+    -> Eff es Test.Suites
+runTestsForTargets testTimeout testTargets = do
+    Pub.publish $ Test.Suites initial
+    Log.info $ "Running " <> show (length tgts) <> " test suite(s)"
+    fmap Test.Suites . State.execState initial $ traverse_ go tgts
+  where
+    initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> tgts
+    tgts = testTargets.getTestTargets
+    go target = do
+        Log.info $ "Running tests: " <> renderTestTarget target
+        finishedSuite <-
+            TestRunner.runTestSuite
+                ( \suite -> do
+                    updated <- State.state $ dup . Map.insert target suite
+                    Pub.publish $ Test.Suites updated
+                )
+                testTimeout
+                target
+        updated <- State.state $ dup . Map.insert target finishedSuite
+        Pub.publish $ Test.Suites updated
+
+
+newLoadResultToBuildResult
+    :: (Reader ProjectRoot :> es, State BuilderState :> es)
+    => Session -> NewLoadResult -> Eff es BuildResult
+newLoadResultToBuildResult session newLoadResult = do
+    root <- Reader.ask
+    State.state \s ->
+        let (newDiagnosticMap, buildResult) =
+                compileBuildResults
+                    root
+                    session.watchDirs
+                    newLoadResult
+                    s.diagnosticMap
+        in  (buildResult, s {diagnosticMap = newDiagnosticMap})
+
+
+sessionToBuildConfig :: Session -> Builder.BuildConfig
+sessionToBuildConfig session =
+    Builder.BuildConfig
+        { command = session.command
+        , targets = session.targets
+        , testTargets = session.testTargets
+        , watchDirs = session.watchDirs
+        }

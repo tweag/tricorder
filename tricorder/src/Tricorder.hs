@@ -19,9 +19,10 @@ import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
 
 import Tricorder.Arguments (Command (..), LogMode (..))
-import Tricorder.BuildState (BuildState (..), DaemonInfo (..))
 import Tricorder.CLI (showLog, showSource, showStatus, showTests)
 import Tricorder.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
+import Tricorder.Daemon.BuildState (BuildState (..))
+import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Effects.Brick (Brick)
 import Tricorder.Effects.BrickChan (BrickChan)
 import Tricorder.Effects.UnixSocket (UnixSocket)

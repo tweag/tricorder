@@ -19,6 +19,7 @@ module Atelier.Effects.Conc
       -- * Scope
     , Scope (..)
     , scoped
+    , restartableFork
     , restartableForkWith
     , restartableForkLoop
 
@@ -87,11 +88,33 @@ newtype Thread a = Thread (Ki.Thread a)
 makeEffect ''Conc
 
 
+-- | Forks an action in a loop. Each time @signal@ returns, the current fork is
+-- cancelled, and forked again.
+restartableFork
+    :: (Conc :> es)
+    => Eff es x
+    -- ^ Signal action
+    -> Eff es a
+    -- ^ Cancellable action
+    -> Eff es Void
+restartableFork signal action = forever $ scoped do
+    _ <- fork action
+    signal
+
+
 -- | Forks an action in a loop, with a setup step that runs in the scope before
 -- each fork. Each time @signal@ returns, the current fork is cancelled, and
 -- setup and fork are run again. The setup result is passed to the forked
 -- action, structurally guaranteeing it completes before the fork starts.
-restartableForkWith :: (Conc :> es) => Eff es () -> Eff es r -> (r -> Eff es a) -> Eff es Void
+restartableForkWith
+    :: (Conc :> es)
+    => Eff es x
+    -- ^ Signalling action to block on.
+    -> Eff es r
+    -- ^ Setup action that is run for each iteration
+    -> (r -> Eff es a)
+    -- ^ Action to run with the result of the setup
+    -> Eff es Void
 restartableForkWith signal setup action = forever $ scoped do
     r <- setup
     _ <- fork (action r)

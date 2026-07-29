@@ -9,7 +9,7 @@ import Control.Monad.State (modify)
 
 import Graphics.Vty qualified as Vty
 
-import Tricorder.BuildState (BuildState (..))
+import Tricorder.Daemon.BuildState (BuildState (..))
 import Tricorder.Socket.Client (Restarting (..))
 import Tricorder.UI.Keys (KeyEvent)
 import Tricorder.UI.State (Processed (..), State (..), Viewports (..))

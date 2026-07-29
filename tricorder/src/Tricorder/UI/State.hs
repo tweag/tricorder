@@ -15,7 +15,7 @@ import Prelude hiding (init)
 
 import Atelier.Effects.Clock qualified as Clock
 
-import Tricorder.BuildState (BuildState (..))
+import Tricorder.Daemon.BuildState (BuildState (..))
 import Tricorder.UI.Route (Route)
 
 import Tricorder.UI.Route qualified as Route
