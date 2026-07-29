@@ -17,11 +17,11 @@ import Prelude hiding (filter)
 
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Publishing (Sub)
+import Atelier.Effects.Publishing.Sub (Sub)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 
 
 -- | A pull-based iterator of (potentially infinite) values.

@@ -16,7 +16,8 @@ import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpretWith_)
@@ -26,7 +27,8 @@ import Relude.Extra.Tuple (dup)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Iterator qualified as Iter
-import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Publishing.Pub qualified as Pub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Runtime (ProjectRoot)
@@ -112,7 +114,7 @@ runSessionStore act = do
         Get -> State.get
         RawReload -> do
             session <- State.stateM (\_ -> dup <$> loadSession)
-            publish $ SessionStoreReloaded session
+            Pub.publish $ SessionStoreReloaded session
 
 
 runSessionStoreConst :: Session -> Eff (SessionStore : es) a -> Eff es a

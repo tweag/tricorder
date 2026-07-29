@@ -28,9 +28,12 @@ import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, fork, fork_, runConc, scoped)
 import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
-import Atelier.Effects.Publishing (Pub, Sub, publish, runPubSub)
+import Atelier.Effects.Publishing (runPubSub)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
 
 import Atelier.Effects.Iterator qualified as Iter
+import Atelier.Effects.Publishing.Pub qualified as Pub
 
 
 spec_ConcTeardownStress :: Spec
@@ -78,7 +81,7 @@ spec_ConcTeardownStress = do
                     $ Iter.fromEvents @Int \iter -> do
                         _ <- fork do
                             liftIO (threadDelay publishDelayUs)
-                            traverse_ publish [1, 2, 3 :: Int]
+                            traverse_ Pub.publish [1, 2, 3 :: Int]
                         _ <- replicateM 3 (Iter.next iter)
                         pure ()
             completed `shouldBe` Just ()

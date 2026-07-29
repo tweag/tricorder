@@ -1,53 +1,36 @@
-module Unit.Atelier.Effects.PublishingSpec (spec_Pub) where
+module Unit.Atelier.Effects.PublishingSpec (spec_Publishing) where
 
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Data.Time (UTCTime, getCurrentTime)
-import Effectful (IOE, runEff, runPureEff)
+import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Effectful.Writer.Static.Shared (runWriter)
-import Test.Hspec (Spec, context, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe)
 
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock, runClockConst)
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
-import Atelier.Effects.Publishing (Pub, Sub, forkListener, forkListener_, publish, runPubSub, runPubWriter)
+import Atelier.Effects.Publishing (runPubSub)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
+
+import Atelier.Effects.Publishing.Pub qualified as Pub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 
 
 data TestEvent = TestEvent Text
     deriving stock (Eq, Show)
 
 
-spec_Pub :: Spec
-spec_Pub = do
-    describe "Writer implementation" $ do
-        context "no events published" do
-            it "doesn't record events" $ do
-                let ((), events) = runPureEff . runWriter . runPubWriter @TestEvent $ do
-                        pure ()
-
-                length events `shouldBe` 0
-
-        context "events published" do
-            it "records events" $ do
-                let ((), events) = runPureEff . runWriter . runPubWriter @TestEvent $ do
-                        publish $ TestEvent "payload"
-                        pure ()
-
-                length events `shouldBe` 1
-                case events of
-                    [TestEvent payload] ->
-                        payload `shouldBe` "payload"
-                    xs ->
-                        expectationFailure $ "Expected 1 TestEvent event, got: " <> show (length xs)
-
-    describe "PubSub implementation" do
+spec_Publishing :: Spec
+spec_Publishing = do
+    describe "runPubSub" do
         it "listener receives a published event" do
             result <- runPubSubTest $ do
                 received <- liftIO newEmptyMVar
-                forkListener_ @TestEvent \event ->
+                Sub.forkListener_ @TestEvent \event ->
                     liftIO $ putMVar received event
-                publish (TestEvent "hello")
+                Pub.publish (TestEvent "hello")
                 liftIO $ takeMVar received
             result `shouldBe` TestEvent "hello"
 
@@ -55,9 +38,9 @@ spec_Pub = do
             t0 <- getCurrentTime
             result <- runPubSubTestWithClock t0 $ do
                 received <- liftIO newEmptyMVar
-                forkListener @TestEvent \ts _event ->
+                Sub.forkListener @TestEvent \ts _event ->
                     liftIO $ putMVar received ts
-                publish (TestEvent "hello")
+                Pub.publish (TestEvent "hello")
                 liftIO $ takeMVar received
             result `shouldBe` t0
 
@@ -65,9 +48,9 @@ spec_Pub = do
             result <- runPubSubTest $ do
                 recv1 <- liftIO newEmptyMVar
                 recv2 <- liftIO newEmptyMVar
-                forkListener_ @TestEvent \event -> liftIO $ putMVar recv1 event
-                forkListener_ @TestEvent \event -> liftIO $ putMVar recv2 event
-                publish (TestEvent "hello")
+                Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv1 event
+                Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv2 event
+                Pub.publish (TestEvent "hello")
                 e1 <- liftIO $ takeMVar recv1
                 e2 <- liftIO $ takeMVar recv2
                 pure (e1, e2)

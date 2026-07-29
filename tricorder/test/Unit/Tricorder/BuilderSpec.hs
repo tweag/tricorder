@@ -9,7 +9,7 @@ import Atelier.Effects.FileWatcher (FileEvent (..))
 import Atelier.Effects.Input (runInputConst)
 import Atelier.Effects.Log (runLogNoOp)
 import Atelier.Effects.Monitoring.Tracing (runTracingNoOp)
-import Atelier.Effects.Publishing (listen_, publish, runPubSub)
+import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Time (Millisecond)
 import Control.Concurrent.STM (modifyTVar', newTVarIO, readTVar, retry, writeTVar)
 import Control.Exception (ErrorCall (..))
@@ -28,6 +28,8 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList, shouldSatisfy)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
+import Atelier.Effects.Publishing.Pub qualified as Pub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 import Control.Concurrent.STM qualified as STM
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -143,7 +145,7 @@ testRestartOnCabalChange = do
                                 forever (Delay.wait (10 :: Millisecond))
                             )
                 Delay.wait (20 :: Millisecond) -- let the first iteration land
-                publish (CabalChangeDetected "foo.cabal" Modified)
+                Pub.publish (CabalChangeDetected "foo.cabal" Modified)
                 Delay.wait (50 :: Millisecond) -- let the restart land
         finalCount <- STM.atomically (readTVar countVar)
         finalCount `shouldBe` 2
@@ -180,7 +182,7 @@ testBuildWithGhciRecovery = do
                     Conc.scoped do
                         Conc.fork_ (Builder.buildWithGhciOnChange (def @BuildConfig))
                         Delay.wait (40 :: Millisecond) -- let the first launch fail + subscribe
-                        publish (SourceChangeDetected "/abs/path/Foo.hs" Modified)
+                        Pub.publish (SourceChangeDetected "/abs/path/Foo.hs" Modified)
                         Delay.wait (60 :: Millisecond) -- let the retry land
                         -- The failed launch reports BuildFailed exactly once.
         length [() | EnteringNewPhase _ (BuildFailed _) <- phases] `shouldBe` 1
@@ -1054,7 +1056,7 @@ testEventCoalescing = do
                         -- Listener: debounce + write the latest event into
                         -- the single-slot register.
                         Conc.fork_
-                            $ listen_ \(ev :: SourceChangeDetected) ->
+                            $ Sub.listen_ \(ev :: SourceChangeDetected) ->
                                 debounced
                                     (200 :: Millisecond)
                                     ("source_change_reloader" :: Text)
@@ -1077,13 +1079,13 @@ testEventCoalescing = do
                         -- debounce window does NOT collapse them by itself.
                         -- The first becomes the in-flight cycle; the rest
                         -- must collapse into ONE trailing invocation.
-                        publish (SourceChangeDetected "/x" Modified)
+                        Pub.publish (SourceChangeDetected "/x" Modified)
                         Delay.wait (250 :: Millisecond)
-                        publish (SourceChangeDetected "/y" Modified)
+                        Pub.publish (SourceChangeDetected "/y" Modified)
                         Delay.wait (250 :: Millisecond)
-                        publish (SourceChangeDetected "/z" Modified)
+                        Pub.publish (SourceChangeDetected "/z" Modified)
                         Delay.wait (250 :: Millisecond)
-                        publish (SourceChangeDetected "/w" Modified)
+                        Pub.publish (SourceChangeDetected "/w" Modified)
                         -- Let the last debounce window expire so the latest
                         -- event lands in the slot.
                         Delay.wait (300 :: Millisecond)
@@ -1153,13 +1155,13 @@ testEventCoalescing = do
                     -- Four events spaced wider than the 200ms debounce window,
                     -- so debounce fires each callback separately. The first is
                     -- the in-flight cycle; the rest must coalesce into one.
-                    publish (SourceChangeDetected "/x" Modified)
+                    Pub.publish (SourceChangeDetected "/x" Modified)
                     Delay.wait (250 :: Millisecond)
-                    publish (SourceChangeDetected "/y" Modified)
+                    Pub.publish (SourceChangeDetected "/y" Modified)
                     Delay.wait (250 :: Millisecond)
-                    publish (SourceChangeDetected "/z" Modified)
+                    Pub.publish (SourceChangeDetected "/z" Modified)
                     Delay.wait (250 :: Millisecond)
-                    publish (SourceChangeDetected "/w" Modified)
+                    Pub.publish (SourceChangeDetected "/w" Modified)
                     Delay.wait (300 :: Millisecond)
                     -- Release the in-flight cycle; the trailing cycle drains.
                     atomically (STM.putTMVar releaseFirst ())
@@ -1230,11 +1232,11 @@ testEventCoalescing = do
                 $ Conc.scoped do
                     Conc.fork_ (watchSourceChanges recordingHooks (def @BuildConfig) noopCtrls)
                     Delay.wait (50 :: Millisecond)
-                    publish (SourceChangeDetected "/x" Modified)
+                    Pub.publish (SourceChangeDetected "/x" Modified)
                     Delay.wait (250 :: Millisecond)
-                    publish (SourceChangeDetected "/y" Modified)
+                    Pub.publish (SourceChangeDetected "/y" Modified)
                     Delay.wait (250 :: Millisecond)
-                    publish (SourceChangeDetected "/z" Modified)
+                    Pub.publish (SourceChangeDetected "/z" Modified)
                     -- Let every cycle finish before stopping.
                     Delay.wait (900 :: Millisecond)
                     throwError StopSignal

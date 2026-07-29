@@ -21,14 +21,16 @@ import Atelier.Effects.FileWatcher
     , excluding
     , watchFilePathsDebounced
     )
-import Atelier.Effects.Publishing (Pub, Sub, publish)
+import Atelier.Effects.Publishing.Pub (Pub)
+import Atelier.Effects.Publishing.Sub (Sub)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask)
 import System.FilePath (takeExtension, takeFileName)
 import Text.Regex.TDFA (ExecOption (..), blankCompOpt, blankExecOpt, match)
 import Text.Regex.TDFA.TDFA (patternToRegex)
 
-import Atelier.Effects.Publishing qualified as Sub
+import Atelier.Effects.Publishing.Pub qualified as Pub
+import Atelier.Effects.Publishing.Sub qualified as Sub
 
 import Tricorder.BuildState
     ( CabalChangeDetected (..)
@@ -81,8 +83,8 @@ markWatchedFiles
 markWatchedFiles f = do
     BuildStore.markDirty change
     case change of
-        CabalChange -> publish (CabalChangeDetected f.path f.event)
-        SourceChange -> publish (SourceChangeDetected f.path f.event)
+        CabalChange -> Pub.publish (CabalChangeDetected f.path f.event)
+        SourceChange -> Pub.publish (SourceChangeDetected f.path f.event)
   where
     change = changeKindFor f.path
 
@@ -135,7 +137,7 @@ watchFiles = do
     withWatcherSession initialSession $ \_ session -> do
         projectRoot <- ask
         let watches = makeWatches projectRoot session
-        watchFilePathsDebounced watches \filePath fileEvent -> publish (WatchedFile filePath fileEvent)
+        watchFilePathsDebounced watches \filePath fileEvent -> Pub.publish (WatchedFile filePath fileEvent)
 
 
 makeWatches :: ProjectRoot -> WatcherSession -> [Watch]
