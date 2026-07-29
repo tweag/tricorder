@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: monday
+      time: "02:00"
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      time: "02:00"
+      day: monday
+    groups:
+      nix-flake-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+  - package-ecosystem: "nix"
+    directory: "/templates/canvas"
+    schedule:
+      interval: "weekly"
+      time: "02:00"
+      day: monday
+    groups:
+      canvas-nix-flake-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
