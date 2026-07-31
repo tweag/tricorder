@@ -30,3 +30,24 @@ spec_Pub = do
                             pure ()
 
                 events `shouldMatchList` [TestEvent "payload"]
+
+    describe "map" do
+        it "maps over one event" do
+            let events =
+                    runPureEff
+                        . execWriter
+                        . Pub.toWriter @Text
+                        . Pub.map show
+                        $ Pub.publish @Int 1
+
+            events `shouldMatchList` ["1"]
+
+        it "maps over many events" do
+            let events =
+                    runPureEff
+                        . execWriter
+                        . Pub.toWriter @Text
+                        . Pub.map show
+                        $ traverse Pub.publish [1 .. 10 :: Int]
+
+            events `shouldMatchList` ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
