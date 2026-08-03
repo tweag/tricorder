@@ -14,7 +14,7 @@ import Tricorder.Daemon.TestRunner
     )
 import Tricorder.Session (Target (..), TestTarget (..), TestTimeout (..))
 
-import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 
 

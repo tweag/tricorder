@@ -32,8 +32,8 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Effects.Cabal (Cabal, FetchResult (..), fetchSource)
-import Tricorder.GhcPkg.Types (ModuleName (..), PackageId (..))
+import Tricorder.Module (ModuleName (..), PackageId (..))
+import Tricorder.SourceLookup.Cabal (Cabal, FetchResult (..), fetchSource)
 
 
 -- | The default repository subdirectory under the cabal package cache.

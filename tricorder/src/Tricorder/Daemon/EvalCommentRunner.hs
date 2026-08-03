@@ -28,12 +28,12 @@ import Atelier.Effects.Log qualified as Log
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.Effects.GhciSession.GhciParser (LoadedModule (..))
-import Tricorder.Effects.GhciSession.GhciProcess (execGhci, withGhciProcess)
+import Tricorder.Daemon.GhciSession.GhciParser (LoadedModule (..))
+import Tricorder.Daemon.GhciSession.GhciProcess (execGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Command)
 
-import Tricorder.BuildState.EvalComments qualified as Eval
+import Tricorder.Build.EvalComment qualified as Eval
 
 
 data EvalCommentRunner :: Effect where

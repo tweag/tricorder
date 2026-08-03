@@ -8,7 +8,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 
 import Atelier.Effects.Publishing.Pub qualified as Pub
 
-import Tricorder.BuildState
+import Tricorder.Build.Changes
     ( CabalChangeDetected (..)
     , SourceChangeDetected (..)
     )

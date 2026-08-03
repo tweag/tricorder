@@ -21,11 +21,15 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.Effects.Cabal (Cabal, FetchResult (..), runCabalFetchWith)
-import Tricorder.Effects.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
-import Tricorder.GhcPkg.Types (ModuleName, PackageId, SourceQuery (..))
+import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.SourceLookup (ModuleSourceResult (..), lookupModuleSource)
+import Tricorder.SourceLookup
+    ( ModuleSourceResult (..)
+    , SourceQuery (..)
+    , lookupModuleSource
+    )
+import Tricorder.SourceLookup.Cabal (Cabal, FetchResult (..), runCabalFetchWith)
+import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 
 
 spec_SourceLookup :: Spec

@@ -7,7 +7,15 @@ module Tricorder.Daemon.Watch
     ) where
 
 import Atelier.Effects.Debounce (Debounce)
-import Atelier.Effects.FileWatcher (FileEvent, FileWatcher, Watch, containing, dirExt, dirWhere, excluding)
+import Atelier.Effects.FileWatcher
+    ( FileEvent
+    , FileWatcher
+    , Watch
+    , containing
+    , dirExt
+    , dirWhere
+    , excluding
+    )
 import Atelier.Effects.Publishing.Pub (Pub)
 import System.FilePath (takeExtension, takeFileName)
 import Text.Regex.TDFA (ExecOption (..), blankCompOpt, blankExecOpt, match)
@@ -16,9 +24,18 @@ import Text.Regex.TDFA.TDFA (patternToRegex)
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Publishing.Pub qualified as Pub
 
-import Tricorder.BuildState (CabalChangeDetected (..), ChangeKind (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes
+    ( CabalChangeDetected (..)
+    , ChangeKind (..)
+    , SourceChangeDetected (..)
+    )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Pattern, Session (..), WatchDirs (..), WatchExclusionPatterns (..))
+import Tricorder.Session
+    ( Pattern
+    , Session (..)
+    , WatchDirs (..)
+    , WatchExclusionPatterns (..)
+    )
 
 
 data WatchedFile = WatchedFile

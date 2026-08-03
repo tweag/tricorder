@@ -1,14 +1,3 @@
--- | A typed publish/subscribe effect pair.
---
--- 'Pub' publishes events of a given type; 'Sub' subscribes and delivers each
--- published event to a listener. 'runPubSub' wires the two together over an
--- internal broadcast channel, propagating tracing context from publisher to
--- listener; 'runPubWriter' instead records published events to a 'Writer', for
--- tests.
---
--- Subscriptions are established asynchronously, so a listener you intend to
--- publish to should be started with 'forkListener' or 'forkListener_', which
--- block until the subscription is live and therefore cannot miss early events.
 module Atelier.Effects.Publishing
     ( runPubSub
     , runPubSub_
@@ -37,8 +26,9 @@ data TracedEvent event = TracedEvent
     }
 
 
--- | Runs Pub and Sub effects with an internal channel for a specific event type.
--- Automatically captures span context from the publisher and creates linked spans in listeners.
+-- | Runs 'Pub' and 'Sub' effects with an internal channel for a specific event
+-- type. Automatically captures span context from the publisher and creates
+-- linked spans in listeners.
 runPubSub
     :: forall event es a
      . ( Chan :> es
@@ -67,6 +57,8 @@ runPubSub action = do
     handleSub . handlePub $ action
 
 
+-- | Runs 'Pub' and 'Sub' effects with an internal channel for a specific event
+-- type.
 runPubSub_
     :: forall event es a
      . (Chan :> es, Clock :> es)

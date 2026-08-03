@@ -4,18 +4,18 @@ import Data.Aeson (eitherDecode, encode)
 import Data.Time (UTCTime (..), fromGregorian)
 import Test.Hspec
 
-import Tricorder.BuildState
+import Tricorder.Build
     ( BuildId (..)
     , BuildResult (..)
+    , BuildState (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
     )
-import Tricorder.Daemon.BuildState (BuildState (..))
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 
-import Tricorder.BuildState.EvalComments qualified as Eval
-import Tricorder.Daemon.Progress qualified as Progress
+import Tricorder.Build qualified as Build
+import Tricorder.Build.EvalComment qualified as Eval
 
 
 spec_BuildState :: Spec
@@ -74,8 +74,8 @@ spec_BuildState = do
                     mkBuildState [] :: BuildState
                 failed =
                     bs
-                        { progress =
-                            Progress.Failed
+                        { phase =
+                            Build.Failed
                                 "cabal: Could not resolve dependencies:\n[__0] trying: \8216base\8217\nrejecting: ..."
                         }
             eitherDecode (encode failed) `shouldBe` Right failed
@@ -85,8 +85,8 @@ mkBuildState :: [Diagnostic] -> BuildState
 mkBuildState msgs =
     BuildState
         { buildId = BuildId 1
-        , progress =
-            Progress.Finished
+        , phase =
+            Build.Finished
                 ( BuildResult
                     { completedAt = epoch
                     , duration = 0

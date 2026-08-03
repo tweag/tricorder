@@ -27,20 +27,18 @@ import Atelier.Effects.File qualified as File
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
 
-import Tricorder.Arguments (Force (..))
-import Tricorder.BuildState (Diagnostic)
-import Tricorder.Daemon.BuildState (BuildState (..))
-import Tricorder.Effects.UnixSocket (UnixSocket, withConnection)
-import Tricorder.GhcPkg.Types (SourceQuery)
+import Tricorder.Build (BuildState, Diagnostic)
 import Tricorder.Runtime (PidFile)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)
+    , Force (..)
     , Query (..)
     , StatusQuery (..)
     , Waiters (..)
     )
-import Tricorder.SourceLookup (ModuleSourceResult)
+import Tricorder.Socket.UnixSocket (UnixSocket, withConnection)
+import Tricorder.SourceLookup (ModuleSourceResult, SourceQuery)
 
 import Tricorder.Version qualified as Version
 

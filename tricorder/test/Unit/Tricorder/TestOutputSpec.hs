@@ -4,7 +4,7 @@ import Test.Hspec
 
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput, stripGhciNoise)
 
-import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Build.Test qualified as Test
 
 
 spec_TestOutput :: Spec
