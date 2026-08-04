@@ -12,11 +12,8 @@ import Atelier.Time (Millisecond, toMicroseconds)
 
 import Atelier.Effects.Console qualified as Console
 
-import Tricorder.BuildState
-    ( Diagnostic (..)
-    , Severity (..)
-    )
-import Tricorder.GhcPkg.Types (ModuleName (..), PackageId (..))
+import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Module (ModuleName (..), PackageId (..))
 import Tricorder.SourceLookup (ModuleSourceResult (..), SourceQuery (..))
 
 

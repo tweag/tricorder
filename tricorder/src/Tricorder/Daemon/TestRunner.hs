@@ -35,9 +35,8 @@ import Atelier.Effects.Log qualified as Log
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.BuildState.BuildProgress (BuildProgress (..))
-import Tricorder.Effects.GhciSession.GhciParser (GhciLoading (..))
-import Tricorder.Effects.GhciSession.GhciProcess
+import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..))
+import Tricorder.Daemon.GhciSession.GhciProcess
     ( execGhci
     , withGhciProcess
     )
@@ -50,7 +49,7 @@ import Tricorder.Session
     )
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
-import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Build.Test qualified as Test
 
 
 data TestRunner :: Effect where
@@ -158,7 +157,7 @@ loadingToProgress :: GhciLoading -> Test.Suite
 loadingToProgress loading =
     Test.SuiteRunning
         $ Just
-        $ BuildProgress {compiled = loading.index, total = loading.total}
+        $ Test.Progress {compiled = loading.index, total = loading.total}
 
 
 data GhciOutcome

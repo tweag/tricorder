@@ -15,15 +15,15 @@ import Atelier.Effects.Timeout (runTimeout)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 
-import Tricorder.Arguments (runArguments)
+import Tricorder.CLI.Arguments (runArguments)
+import Tricorder.CLI.UI.Brick (runBrick)
+import Tricorder.CLI.UI.BrickChan (runBrickChan)
 import Tricorder.Config (runLoadedConfig)
-import Tricorder.Effects.Brick (runBrick)
-import Tricorder.Effects.BrickChan (runBrickChan)
-import Tricorder.Effects.UnixSocket (runUnixSocketIO)
 import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
+import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 
-import Tricorder qualified
-import Tricorder.UI.Keys qualified as Keys
+import Tricorder.CLI.App qualified as App
+import Tricorder.CLI.UI.Keys qualified as Keys
 
 
 main :: IO ()
@@ -52,4 +52,4 @@ main =
         . runArgumentsIO
         . runArguments
         . runUnixSocketIO
-        $ Tricorder.run
+        $ App.run

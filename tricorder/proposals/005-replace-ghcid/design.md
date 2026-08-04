@@ -124,9 +124,9 @@ until the session is `Idle`.
 
 ### Module layout
 
-Parser and process-management live under `Tricorder.Effects.GhciSession.*`
+Parser and process-management live under `Tricorder.Daemon.GhciSession.*`
 (`GhciParser` and `GhciProcess`). The sole production interpreter is `runGhciSession`
-in `Tricorder.Effects.GhciSession`. The `ghcid` library and its companion
+in `Tricorder.Daemon.GhciSession`. The `ghcid` library and its companion
 `GhcidBackend` module have been removed.
 
 ---

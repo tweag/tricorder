@@ -27,7 +27,7 @@ references to it in one module so the removal is straightforward when ready.
 | `Tricorder.Internal.GhciParser` | Pure parser: `GhciLoad`, `GhciSeverity`, `LoadResult`, `parseReload`, `parseShowModules`, `stripAnsi`, `extractTitle`, `toRelative` |
 | `Tricorder.Internal.GhciProcess` | Process manager: `Config`, `GhciProcess`, `GhciProcessError`, `withGhciProcess`, `execGhci`, `collectResultCustom` |
 | `Tricorder.Internal.GhcidBackend` | Old-backend wrapper: `collectResult`, `stopGhciSilently`, `toDiagnostics`, `parseProgress` |
-| `Tricorder.Effects.GhciSession` | Effect + all interpreters: `runGhciSessionIO`, `runGhciSessionCustom`, `runGhciSessionFromEnv`, `runGhciSessionScripted` |
+| `Tricorder.Daemon.GhciSession` | Effect + all interpreters: `runGhciSessionIO`, `runGhciSessionCustom`, `runGhciSessionFromEnv`, `runGhciSessionScripted` |
 
 ---
 

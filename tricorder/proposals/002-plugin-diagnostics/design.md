@@ -145,7 +145,7 @@ modifying the session.
 | Component | Change |
 |---|---|
 | `ghcid` dependency | **Retained** as fallback |
-| `Tricorder.Effects.GhciSession` (interpreter) | **Extended** — detects plugin connection; falls back to ghcid |
+| `Tricorder.Daemon.GhciSession` (interpreter) | **Extended** — detects plugin connection; falls back to ghcid |
 | `Tricorder.BuildState.Message` | **Extended** — add `errorCode`, `hints`, `relatedSpans` (empty in fallback mode) |
 | `Tricorder.GhciSession` (component) | **Minor** — unchanged overall structure |
 | File watcher, debounce, BuildStore, socket server, config | **Unchanged** |

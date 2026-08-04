@@ -18,8 +18,8 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.BuildState (Diagnostic (..), Severity (..))
-import Tricorder.Effects.GhciSession.GhciParser
+import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult (..)
     , LoadedModule (..)
     , isLocationLess

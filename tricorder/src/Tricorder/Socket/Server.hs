@@ -20,28 +20,9 @@ import Atelier.Effects.Publishing.Sub qualified as Sub
 import Data.ByteString.Lazy qualified as BSL
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.BuildState
-    ( BuildId
-    , BuildResult (..)
-    , Diagnostic
-    , PostBuild (..)
-    )
-import Tricorder.Daemon.BuildState (BuildState (..))
+import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Daemon.Progress (Progress)
-import Tricorder.Effects.Cabal (Cabal)
-import Tricorder.Effects.GhcPkg (GhcPkg)
-import Tricorder.Effects.UnixSocket
-    ( UnixSocket
-    , acceptHandle
-    , bindSocket
-    , closeHandle
-    , readLine
-    , removeSocketFile
-    , sendLine
-    )
-import Tricorder.Effects.Waiters (Waiters)
-import Tricorder.GhcPkg.Types (SourceQuery (..))
+import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
@@ -50,14 +31,26 @@ import Tricorder.Socket.Protocol
     , Query (..)
     , StatusQuery (..)
     )
-import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
+import Tricorder.Socket.UnixSocket
+    ( UnixSocket
+    , acceptHandle
+    , bindSocket
+    , closeHandle
+    , readLine
+    , removeSocketFile
+    , sendLine
+    )
+import Tricorder.SourceLookup (ModuleSourceResult, SourceQuery (..), lookupModuleSource)
+import Tricorder.SourceLookup.Cabal (Cabal)
+import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
+import Tricorder.Waiters (Waiters)
 
-import Tricorder.BuildState.EvalComments qualified as Eval
-import Tricorder.BuildState.Test qualified as Test
-import Tricorder.Daemon.Progress qualified as Progress
-import Tricorder.Effects.Waiters qualified as Waiters
+import Tricorder.Build qualified as Build
+import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Test qualified as Test
 import Tricorder.Socket.Protocol qualified as Protocol
+import Tricorder.Waiters qualified as Waiters
 
 
 data SocketRemoved = SocketRemoved
@@ -77,13 +70,13 @@ main
        , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
-       , Sub Progress :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
     => Eff es Void
-main = State.evalState Progress.Starting do
-    Conc.fork_ $ Sub.listen_ @Progress State.put
+main = State.evalState Build.Starting do
+    Conc.fork_ $ Sub.listen_ @BuildPhase State.put
 
     SocketPath sockPath <- ask
     removeSocketFile sockPath
@@ -103,8 +96,8 @@ acceptTrigger
        , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
-       , State Progress :> es
-       , Sub Progress :> es
+       , State BuildPhase :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
@@ -130,8 +123,8 @@ handleConnection
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
-       , State Progress :> es
-       , Sub Progress :> es
+       , State BuildPhase :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
@@ -162,8 +155,8 @@ dispatch
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
-       , State Progress :> es
-       , Sub Progress :> es
+       , State BuildPhase :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
@@ -199,7 +192,7 @@ quit h = \case
 respondOnce
     :: ( Input BuildId :> es
        , Input DaemonInfo :> es
-       , State Progress :> es
+       , State BuildPhase :> es
        , UnixSocket :> es
        )
     => Handle -> Eff es ()
@@ -212,8 +205,8 @@ respondWhenDone
     :: ( Conc :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
-       , State Progress :> es
-       , Sub Progress :> es
+       , State BuildPhase :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        )
     => Handle -> Eff es ()
@@ -221,15 +214,15 @@ respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
   where
     awaitResult = Conc.scoped do
         progressP <- Conc.fork $ Sub.listenUntil_ \case
-            failed@(Progress.Failed _) -> Just failed
-            finished@(Progress.Finished _ _) -> Just finished
+            failed@(Build.Failed _) -> Just failed
+            finished@(Build.Finished _ _) -> Just finished
             _ -> Nothing
         s <- State.get
         waitOrStart progressP s
 
     waitOrStart p = \case
-        finished@(Progress.Finished _ _) -> pure finished
-        failed@(Progress.Failed _) -> pure failed
+        finished@(Build.Finished _ _) -> pure finished
+        failed@(Build.Failed _) -> pure failed
         _ -> Conc.await p
 
 
@@ -237,8 +230,8 @@ respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
 watchStream
     :: ( Input BuildId :> es
        , Input DaemonInfo :> es
-       , State Progress :> es
-       , Sub Progress :> es
+       , State BuildPhase :> es
+       , Sub BuildPhase :> es
        , UnixSocket :> es
        )
     => Handle -> Eff es ()
@@ -249,11 +242,11 @@ watchStream h = do
         mkBuildState progress >>= sendJson h
 
 
-respondDiagnostic :: (State Progress :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
+respondDiagnostic :: (State BuildPhase :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
     progress <- State.get
     case progress of
-        Progress.Finished result postBuild
+        Build.Finished result postBuild
             | not $ Test.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
                 case result.diagnostics !!? (idx - 1) of
                     Nothing ->
@@ -266,7 +259,7 @@ respondDiagnostic idx h = do
                                 <> ")"
                     Just d -> sendJson h (d :: Diagnostic)
             | otherwise -> sendJson h $ ErrorResponse "Build in progress"
-        Progress.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
+        Build.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         _ -> sendJson h $ ErrorResponse "Build in progress"
 
 
@@ -293,8 +286,8 @@ sendJson :: (ToJSON a, UnixSocket :> es) => Handle -> a -> Eff es ()
 sendJson h val = sendLine h (decodeUtf8 (BSL.toStrict (encode val)))
 
 
-mkBuildState :: (Input BuildId :> es, Input DaemonInfo :> es) => Progress -> Eff es BuildState
-mkBuildState progress = do
+mkBuildState :: (Input BuildId :> es, Input DaemonInfo :> es) => BuildPhase -> Eff es BuildState
+mkBuildState phase = do
     daemonInfo <- input
     buildId <- input
-    pure $ BuildState {daemonInfo, buildId, progress}
+    pure $ BuildState {daemonInfo, buildId, phase}

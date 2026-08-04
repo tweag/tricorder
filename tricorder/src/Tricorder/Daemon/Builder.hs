@@ -10,7 +10,6 @@ module Tricorder.Daemon.Builder
 
       -- * Internals exposed for testing
     , NewLoadResult (..)
-    , EnteringNewPhase (..)
     , compileLoadResultsIntoBuildResults
     ) where
 
@@ -36,13 +35,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.BuildState
-    ( BuildId (..)
-    , BuildPhase (..)
-    , BuildResult (..)
-    , Diagnostic (..)
-    )
-import Tricorder.BuildState.BuildProgress (BuildProgress)
+import Tricorder.Build (BuildId (..), BuildProgress, BuildResult (..), Diagnostic (..))
 import Tricorder.Daemon.Dispatch
     ( BuilderState (..)
     , DiagnosticMap
@@ -54,8 +47,8 @@ import Tricorder.Daemon.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Effects.GhciSession (GhciSession, LoadResult (..))
-import Tricorder.Effects.GhciSession.GhciParser (resolveKnownTargets)
+import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
+import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session
     ( Command (..)
@@ -65,7 +58,7 @@ import Tricorder.Session
     , WatchDirs
     )
 
-import Tricorder.Effects.GhciSession qualified as GhciSession
+import Tricorder.Daemon.GhciSession qualified as GhciSession
 
 
 data Builder :: Effect where
@@ -258,12 +251,3 @@ compileLoadResultsIntoBuildResults session newLoadResult = do
   where
     BuildConfig {watchDirs} = session
     NewLoadResult {startTime, endTime, loadResult} = newLoadResult
-
-
---------------------------------------------------------------------------------
--- Supporting types
---------------------------------------------------------------------------------
-
--- | A pending phase transition. Carried by 'setNewPhase' into the 'BuildStore'.
-data EnteringNewPhase = EnteringNewPhase BuildId BuildPhase
-    deriving stock (Eq, Show)

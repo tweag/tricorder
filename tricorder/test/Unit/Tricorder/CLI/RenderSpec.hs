@@ -2,10 +2,7 @@ module Unit.Tricorder.CLI.RenderSpec (spec_Render) where
 
 import Test.Hspec
 
-import Tricorder.BuildState
-    ( Diagnostic (..)
-    , Severity (..)
-    )
+import Tricorder.Build (Diagnostic (..), Severity (..))
 import Tricorder.CLI.Render (diagnosticBlock)
 
 

@@ -25,26 +25,26 @@ import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 
-import Tricorder.BuildState (BuildId (..))
+import Tricorder.Build (BuildId (..), BuildPhase)
 import Tricorder.Config (inputLoadedConfig)
-import Tricorder.Daemon.Progress (Progress)
-import Tricorder.Effects.Cabal (runCabalIO)
-import Tricorder.Effects.GhcPkg (runGhcPkgIO)
-import Tricorder.Effects.GhciSession (runGhciSession)
-import Tricorder.Effects.Logging (runLogging)
-import Tricorder.Effects.UnixSocket (runUnixSocketIO)
+import Tricorder.Daemon.GhciSession (runGhciSession)
+import Tricorder.Logging (runLogging)
+import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session (inputCabalFiles, inputSession)
+import Tricorder.Socket.UnixSocket (runUnixSocketIO)
+import Tricorder.SourceLookup (SourceQuery)
+import Tricorder.SourceLookup.Cabal (runCabalIO)
+import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.TestRunner qualified as TestRunner
-import Tricorder.Effects.Waiters qualified as Waiters
-import Tricorder.GhcPkg.Types qualified as GhcPkg
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.Version qualified as Version
+import Tricorder.Waiters qualified as Waiters
 
 
 -- | Run the daemon for the given project root.
@@ -73,8 +73,8 @@ main =
         . inputSession
         . runReader @CacheConfig.Config def
         . DaemonInfo.runInput
-        . runCacheTtl @GhcPkg.ModuleName @GhcPkg.PackageId
-        . runCacheTtl @(GhcPkg.PackageId, GhcPkg.SourceQuery) @SourceLookup.ModuleSourceResult
+        . runCacheTtl @ModuleName @PackageId
+        . runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult
         . runProcessIO
         . runCabalIO
         . runEnv
@@ -83,7 +83,7 @@ main =
         . runGhciSession
         . evalState (BuildId 1)
         . Input.fromState @BuildId
-        . runPubSub_ @Progress
+        . runPubSub_ @BuildPhase
         . EvalCommentRunner.run
         . TestRunner.run
         . Waiters.run

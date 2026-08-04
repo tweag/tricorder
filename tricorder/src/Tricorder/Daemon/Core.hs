@@ -28,15 +28,8 @@ import Data.Map.Strict qualified as Map
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.BuildState
-    ( BuildId (..)
-    , BuildResult (..)
-    , CabalChangeDetected (..)
-    , Diagnostic (..)
-    , PostBuild (..)
-    , Severity (..)
-    , SourceChangeDetected (..)
-    )
+import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..), Severity (..))
+import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
     , BuildFailure
@@ -53,16 +46,14 @@ import Tricorder.Daemon.EvalCommentRunner
     ( EvalCommentRunner
     , findEvalCommentsInModules
     )
-import Tricorder.Daemon.Progress (Progress)
-import Tricorder.Daemon.TestRunner (TestRunner)
-import Tricorder.Daemon.Watch (WatchedFile)
-import Tricorder.Effects.GhciSession (GhciSession)
-import Tricorder.Effects.GhciSession.GhciParser
+import Tricorder.Daemon.GhciSession (GhciSession)
+import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult
     , LoadedModule (..)
     , resolveKnownTargets
     )
-import Tricorder.Effects.Waiters (Waiters)
+import Tricorder.Daemon.TestRunner (TestRunner)
+import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session
     ( CabalFile
@@ -72,16 +63,17 @@ import Tricorder.Session
     , loadSession
     , renderTestTarget
     )
+import Tricorder.Waiters (Waiters)
 
-import Tricorder.BuildState.EvalComments qualified as Eval
-import Tricorder.BuildState.Test qualified as Test
+import Tricorder.Build qualified as Build
+import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Test qualified as Test
 import Tricorder.Config qualified as Config
 import Tricorder.Daemon.Builder qualified as Builder
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
-import Tricorder.Daemon.Progress qualified as Progress
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
-import Tricorder.Effects.Waiters qualified as Waiters
+import Tricorder.Waiters qualified as Waiters
 
 
 data ReloadSession = ReloadSession
@@ -104,7 +96,7 @@ main
        , Input LoadedConfig :> es
        , Input [CabalFile] :> es
        , Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
        , TestRunner :> es
@@ -173,7 +165,7 @@ withSession
        , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
        , State BuilderState :> es
@@ -198,7 +190,7 @@ runSession
        , EvalCommentRunner :> es
        , GhciSession :> es
        , Log.Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , Sub ReloadBuilder :> es
@@ -208,9 +200,9 @@ runSession
     => BuildId -> Session -> Eff es ()
 runSession buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
-    Pub.publish Progress.Starting
+    Pub.publish Build.Starting
     err <- fmap (either id absurd)
-        $ Pub.map (Progress.Building session.testTargets)
+        $ Pub.map (Build.Building session.testTargets)
         $ Builder.with buildId buildConfig \_ initialLoad -> do
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
@@ -221,7 +213,7 @@ runSession buildId session = do
             Conc.fork_ $ Sub.listen_ @ReloadBuilder \event -> do
                 atomically $ writeTMVar newestReloadEvent event
                 Waiters.without do
-                    Pub.publish Progress.Starting
+                    Pub.publish Build.Starting
                     Log.debug "Cancelling current build"
                     requestCancel
             forever do
@@ -229,7 +221,7 @@ runSession buildId session = do
                 Conc.restartableFork checkCancel
                     $ waitForReload session event
 
-    Pub.publish $ Progress.Failed $ show err
+    Pub.publish $ Build.Failed $ show err
   where
     buildConfig = sessionToBuildConfig session
 
@@ -241,7 +233,7 @@ waitForReload
        , Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -266,7 +258,7 @@ processSource
        , Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -284,7 +276,7 @@ processPostBuild
     :: ( Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
-       , Pub Progress :> es
+       , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -293,12 +285,12 @@ processPostBuild
 processPostBuild session = \case
     Left buildFailure -> do
         Log.debug "Build failure"
-        Pub.publish $ Progress.Failed $ show buildFailure
+        Pub.publish $ Build.Failed $ show buildFailure
     Right newLoadResult -> do
         Log.debug "Built"
         buildResult <- newLoadResultToBuildResult session newLoadResult
         let initialPostBuild = PostBuild mempty Eval.Looking
-        Pub.publish $ Progress.PostBuilding buildResult initialPostBuild
+        Pub.publish $ Build.PostBuilding buildResult initialPostBuild
         State.evalState initialPostBuild $ Conc.scoped do
             evalCommentsP <-
                 Conc.fork
@@ -312,14 +304,14 @@ processPostBuild session = \case
             Log.debug "Eval comments finished"
             tests <- Conc.await testsP
             Log.debug "Tests finished"
-            Pub.publish $ Progress.Finished buildResult $ PostBuild tests evalComments
+            Pub.publish $ Build.Finished buildResult $ PostBuild tests evalComments
   where
     updateEvalComments buildResult evalComments = do
         newPostBuild <- State.state \postBuild -> dup $ postBuild {evalComments}
-        Pub.publish $ Progress.PostBuilding buildResult newPostBuild
+        Pub.publish $ Build.PostBuilding buildResult newPostBuild
     updateTestSuites buildResult testSuites = do
         newPostBuild <- State.state \postBuild -> dup $ postBuild {testSuites}
-        Pub.publish $ Progress.PostBuilding buildResult newPostBuild
+        Pub.publish $ Build.PostBuilding buildResult newPostBuild
 
 
 runEvalComments

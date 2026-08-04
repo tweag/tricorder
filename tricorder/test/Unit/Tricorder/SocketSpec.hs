@@ -3,9 +3,10 @@ module Unit.Tricorder.SocketSpec (spec_Socket) where
 import Atelier.Effects.File (File, runFile)
 import Effectful (IOE, runEff)
 import System.IO (hClose, hGetLine, openFile, writeFile)
-import Test.Hspec
+import Test.Hspec (Spec, describe, it, shouldBe)
 
-import Tricorder.Effects.UnixSocket
+import Tricorder.Socket.Client (isDaemonReady)
+import Tricorder.Socket.UnixSocket
     ( SocketScript (..)
     , UnixSocket
     , acceptHandle
@@ -15,7 +16,6 @@ import Tricorder.Effects.UnixSocket
     , runUnixSocketScripted
     , socketFileExists
     )
-import Tricorder.Socket.Client (isDaemonReady)
 
 
 spec_Socket :: Spec

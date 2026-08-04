@@ -10,11 +10,7 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.BuildState
-    ( BuildResult (..)
-    , Diagnostic (..)
-    , Severity (..)
-    )
+import Tricorder.Build (BuildResult (..), Diagnostic (..), Severity (..))
 import Tricorder.Daemon.Builder
     ( NewLoadResult (..)
     , compileLoadResultsIntoBuildResults
@@ -28,7 +24,7 @@ import Tricorder.Daemon.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Effects.GhciSession.GhciParser
+import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult (..)
     , LoadedModule (..)
     , collectResult

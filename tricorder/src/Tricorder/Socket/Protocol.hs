@@ -1,5 +1,6 @@
 module Tricorder.Socket.Protocol
-    ( Query (..)
+    ( Force (..)
+    , Query (..)
     , StatusQuery (..)
     , DiagnosticQuery (..)
     , ErrorResponse (..)
@@ -9,7 +10,10 @@ module Tricorder.Socket.Protocol
 
 import Data.Aeson (FromJSON, ToJSON)
 
-import Tricorder.GhcPkg.Types (SourceQuery)
+import Tricorder.SourceLookup (SourceQuery)
+
+
+data Force = Force | NoForce
 
 
 data StatusQuery = StatusQuery {awaitDone :: Bool}
