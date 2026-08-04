@@ -17,8 +17,9 @@ module Tricorder.Session
     , TestTimeout (..)
     , Pattern
     , loadSession
+    , inputSession
     , CabalFile (..)
-    , runCabalFiles
+    , inputCabalFiles
     , resolveCommand
     , resolveTargets
     , discoverCabalFiles
@@ -32,6 +33,7 @@ module Tricorder.Session
 
 import Atelier.Config (LoadedConfig, extractConfig)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, readFileBs)
+import Atelier.Effects.Input (Input, input, runInputEff)
 import Atelier.Effects.Log (Log)
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Atelier.Types.WithDefaults (WithDefaults (..))
@@ -59,7 +61,7 @@ import Distribution.Types.PackageId (pkgName)
 import Distribution.Types.PackageName (unPackageName)
 import Distribution.Types.UnqualComponentName (mkUnqualComponentName, unUnqualComponentName)
 import Distribution.Utils.Path (getSymbolicPath)
-import Effectful.Reader.Static (Reader, ask, runReader)
+import Effectful.Reader.Static (Reader, ask)
 import System.FilePath (normalise, takeDirectory, takeExtension, (</>))
 import Text.Regex.TDFA.ReadRegex (parseRegex)
 
@@ -81,6 +83,7 @@ data Session = Session
     , replBuildDir :: ReplBuildDir
     , testTimeout :: TestTimeout
     }
+    deriving stock (Eq)
 
 
 type Pattern = (Regex.Pattern, (Regex.GroupIndex, Regex.DoPa))
@@ -485,13 +488,13 @@ discoverCabalFiles (ProjectRoot projectRoot) = do
             | null cabalFiles = "none"
             | otherwise = T.intercalate ", " (map toText cabalFiles)
     if hasProject then
-        Log.info
+        Log.debug
             $ "Found cabal.project; discovered "
                 <> show (length cabalFiles)
                 <> " package cabal file(s): "
                 <> listed
     else
-        Log.info $ "No cabal.project; using cabal file(s) in project root: " <> listed
+        Log.debug $ "No cabal.project; using cabal file(s) in project root: " <> listed
     pure cabalFiles
   where
     projectFile = projectRoot </> "cabal.project"
@@ -567,13 +570,13 @@ data CabalFile = CabalFile
     deriving stock (Show)
 
 
-runCabalFiles
+inputCabalFiles
     :: ( FileSystem :> es
        , Log :> es
        , Reader ProjectRoot :> es
        )
-    => Eff (Reader [CabalFile] : es) a -> Eff es a
-runCabalFiles act = do
+    => Eff (Input [CabalFile] : es) a -> Eff es a
+inputCabalFiles = runInputEff do
     projectRoot <- ask
     projectFilePaths <- discoverCabalFiles projectRoot
     (faileds, packageDescriptions) <-
@@ -586,21 +589,21 @@ runCabalFiles act = do
         Log.warn
             $ "Failed to parse .cabal files for the following packages: "
                 <> T.intercalate ", " (toText <$> faileds)
-    runReader packageDescriptions act
+    pure $ packageDescriptions
 
 
 loadSession
     :: ( FileSystem :> es
+       , Input LoadedConfig :> es
+       , Input [CabalFile] :> es
        , Log :> es
-       , Reader LoadedConfig :> es
        , Reader ProjectRoot :> es
-       , Reader [CabalFile] :> es
        )
     => Eff es Session
 loadSession = do
     projectRoot <- ask @ProjectRoot
-    loadedCfg <- ask
-    projectFiles <- ask
+    loadedCfg <- input
+    projectFiles <- input
 
     let cfgFile = extractConfig @"session" @Config loadedCfg
         effectiveTargets = resolveTargets projectFiles cfgFile.targets
@@ -640,3 +643,14 @@ loadSession = do
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
             }
+
+
+inputSession
+    :: ( FileSystem :> es
+       , Input LoadedConfig :> es
+       , Input [CabalFile] :> es
+       , Log :> es
+       , Reader ProjectRoot :> es
+       )
+    => Eff (Input Session : es) a -> Eff es a
+inputSession = runInputEff loadSession

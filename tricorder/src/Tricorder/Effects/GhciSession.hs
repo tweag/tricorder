@@ -2,6 +2,8 @@ module Tricorder.Effects.GhciSession
     ( -- * Effect
       GhciSession
     , Controls (..)
+    , transformControls
+    , withGhciWith
     , withGhci
 
       -- * Types
@@ -17,6 +19,7 @@ import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
+import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Timeout (Timeout)
 import Data.Default (def)
 import Effectful
@@ -38,9 +41,9 @@ import Effectful.Exception (throwIO)
 import Effectful.State.Static.Shared (State, evalState, state)
 import Effectful.TH (makeEffect)
 
-import Tricorder.BuildState (BuildPhase (..))
+import Atelier.Effects.Publishing.Pub qualified as Pub
+
 import Tricorder.BuildState.BuildProgress (BuildProgress (..))
-import Tricorder.Effects.BuildStore (BuildStore, modifyPhase)
 import Tricorder.Effects.GhciSession.GhciParser
     ( GhciLoading (..)
     , LoadResult (..)
@@ -56,7 +59,13 @@ data GhciSession :: Effect where
     -- The handler is also provided an action to reload the GHCi session,
     -- returning new messages with module counts. The GHCi session is closed
     -- when the handler returns.
-    WithGhci :: Command -> ProjectRoot -> (LoadResult -> Controls m -> m a) -> GhciSession m a
+    WithGhciWith
+        :: (BuildProgress -> m ())
+        -- ^ Action to run when reporting progress
+        -> Command
+        -> ProjectRoot
+        -> (LoadResult -> Controls m -> m a)
+        -> GhciSession m a
 
 
 data Controls m = Controls
@@ -68,6 +77,26 @@ data Controls m = Controls
 
 
 makeEffect ''GhciSession
+
+
+transformControls :: (forall a. m a -> n a) -> Controls m -> Controls n
+transformControls f ctrls =
+    Controls
+        { reload = f ctrls.reload
+        , interrupt = f ctrls.interrupt
+        , add = f . ctrls.add
+        , unadd = f . ctrls.unadd
+        }
+
+
+withGhci
+    :: (GhciSession :> es, Pub BuildProgress :> es)
+    => Command
+    -> ProjectRoot
+    -> (LoadResult -> Controls (Eff es) -> Eff es a)
+    -> Eff es a
+withGhci cmd root handler = do
+    withGhciWith Pub.publish cmd root handler
 
 
 -- | Scripted interpreter for testing.
@@ -86,7 +115,7 @@ runGhciSessionScripted results = reinterpret (evalState results) $ \env ->
                 Left ex -> throwIO ex
                 Right r -> pure r
     in  \case
-            WithGhci _ _ handler -> do
+            WithGhciWith _ _ _ handler -> do
                 initial <- popResult
                 localSeqLift env \liftEff ->
                     localSeqUnlift env \unlift ->
@@ -104,8 +133,7 @@ runGhciSessionScripted results = reinterpret (evalState results) $ \env ->
 -- | GHCi session manager backed by 'Tricorder.Effects.GhciSession.GhciProcess'
 -- and 'Tricorder.Effects.GhciSession.GhciParser'.
 runGhciSession
-    :: ( BuildStore :> es
-       , Conc :> es
+    :: ( Conc :> es
        , Concurrent :> es
        , File :> es
        , Log :> es
@@ -114,23 +142,24 @@ runGhciSession
        )
     => Eff (GhciSession : es) a -> Eff es a
 runGhciSession = interpret $ \env -> \case
-    WithGhci cmd (ProjectRoot dir) handler -> do
-        let onProgress loading =
-                modifyPhase \_ ->
-                    Building
-                        $ Just
-                        $ BuildProgress {compiled = loading.index, total = loading.total}
-        withGhciProcess def cmd dir onProgress (\_ -> pure ()) \process startupLines ->
-            localLift env (ConcUnlift Persistent Unlimited) \liftEff ->
-                localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
-                    let doReload = liftEff $ reloadGhci process dir onProgress
-                    initialResult <- unlift $ liftEff $ collectGhciResult process startupLines dir
-                    unlift
-                        $ handler
-                            initialResult
-                            Controls
-                                { reload = doReload
-                                , interrupt = liftEff (interruptGhci process)
-                                , add = \fp -> liftEff $ addGhci process fp dir onProgress
-                                , unadd = \mn -> liftEff $ unaddGhci process mn dir onProgress
+    WithGhciWith onProgress cmd (ProjectRoot dir) handler -> do
+        localLift env (ConcUnlift Persistent Unlimited) \liftEff ->
+            localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
+                let reportProgress loading =
+                        unlift
+                            $ onProgress
+                            $ BuildProgress
+                                { compiled = loading.index
+                                , total = loading.total
                                 }
+                withGhciProcess def cmd dir reportProgress (\_ -> pure ()) \process startupLines -> do
+                    initialResult <- collectGhciResult process startupLines dir
+                    unlift
+                        $ handler initialResult
+                        $ transformControls liftEff
+                        $ Controls
+                            { reload = reloadGhci process dir reportProgress
+                            , interrupt = interruptGhci process
+                            , add = \fp -> addGhci process fp dir reportProgress
+                            , unadd = \mn -> unaddGhci process mn dir reportProgress
+                            }

@@ -1,31 +1,34 @@
-module Tricorder.Socket.Server (component, SocketRemoved (..)) where
+module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
-import Atelier.Component (Component (..), Trigger, defaultComponent)
 import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Delay (Delay, wait)
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit, exitSuccess)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
-import Atelier.Time (Millisecond)
+import Atelier.Effects.Publishing.Sub (Sub)
 import Data.Aeson (ToJSON, decode, encode)
 import Effectful.Exception (IOException, finally)
 import Effectful.Reader.Static (Reader, ask)
+import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Publishing.Sub qualified as Sub
 import Data.ByteString.Lazy qualified as BSL
+import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.BuildState
-    ( BuildPhase (..)
+    ( BuildId
     , BuildResult (..)
-    , BuildState (..)
     , Diagnostic
     , PostBuild (..)
     )
-import Tricorder.Effects.BuildStore (BuildStore, getState, waitForAnyChange, waitUntilDone)
+import Tricorder.Daemon.BuildState (BuildState (..))
+import Tricorder.Daemon.DaemonInfo (DaemonInfo)
+import Tricorder.Daemon.Progress (Progress)
 import Tricorder.Effects.Cabal (Cabal)
 import Tricorder.Effects.GhcPkg (GhcPkg)
 import Tricorder.Effects.UnixSocket
@@ -37,6 +40,7 @@ import Tricorder.Effects.UnixSocket
     , removeSocketFile
     , sendLine
     )
+import Tricorder.Effects.Waiters (Waiters)
 import Tricorder.GhcPkg.Types (SourceQuery (..))
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Socket.Protocol
@@ -45,65 +49,66 @@ import Tricorder.Socket.Protocol
     , ErrorResponse (..)
     , Query (..)
     , StatusQuery (..)
-    , Waiters (..)
     )
 import Tricorder.SourceLookup (ModuleName, ModuleSourceResult, PackageId, lookupModuleSource)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 
 import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
-import Tricorder.Effects.BuildStore qualified as BuildStore
+import Tricorder.Daemon.Progress qualified as Progress
+import Tricorder.Effects.Waiters qualified as Waiters
+import Tricorder.Socket.Protocol qualified as Protocol
 
 
 data SocketRemoved = SocketRemoved
     deriving stock (Eq, Show)
-    deriving anyclass (Exception)
 
 
--- | SocketServer component.
--- Listens on a Unix socket and responds to status/watch/source queries.
-component
-    :: ( BuildStore :> es
-       , Cabal :> es
+main
+    :: ( Cabal :> es
        , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Delay :> es
        , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input BuildId :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
+       , Sub Progress :> es
        , UnixSocket :> es
+       , Waiters :> es
        )
-    => Component es
-component =
-    defaultComponent
-        { name = "SocketServer"
-        , setup = do
-            SocketPath sockPath <- ask
-            removeSocketFile sockPath
-        , triggers = pure [acceptTrigger]
-        }
+    => Eff es Void
+main = State.evalState Progress.Starting do
+    Conc.fork_ $ Sub.listen_ @Progress State.put
+
+    SocketPath sockPath <- ask
+    removeSocketFile sockPath
+    acceptTrigger
 
 
 acceptTrigger
-    :: ( BuildStore :> es
-       , Cabal :> es
+    :: ( Cabal :> es
        , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Delay :> es
        , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input BuildId :> es
+       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
+       , State Progress :> es
+       , Sub Progress :> es
        , UnixSocket :> es
+       , Waiters :> es
        )
-    => Trigger es
+    => Eff es Void
 acceptTrigger = do
     SocketPath sockPath <- ask
     sock <- bindSocket sockPath
@@ -114,17 +119,21 @@ acceptTrigger = do
 
 
 handleConnection
-    :: ( BuildStore :> es
-       , Cabal :> es
+    :: ( Cabal :> es
        , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
-       , Delay :> es
+       , Conc :> es
        , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input BuildId :> es
+       , Input DaemonInfo :> es
        , Log :> es
+       , State Progress :> es
+       , Sub Progress :> es
        , UnixSocket :> es
+       , Waiters :> es
        )
     => Handle
     -> Eff es ()
@@ -142,17 +151,21 @@ handleConnection h = do
 
 
 dispatch
-    :: ( BuildStore :> es
-       , Cabal :> es
+    :: ( Cabal :> es
        , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
-       , Delay :> es
+       , Conc :> es
        , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Input BuildId :> es
+       , Input DaemonInfo :> es
        , Log :> es
+       , State Progress :> es
+       , Sub Progress :> es
        , UnixSocket :> es
+       , Waiters :> es
        )
     => Query
     -> Handle
@@ -167,84 +180,80 @@ dispatch query h = case query of
 
 
 quit
-    :: ( BuildStore :> es
-       , Delay :> es
-       , Exit :> es
+    :: ( Exit :> es
        , Log :> es
        , UnixSocket :> es
+       , Waiters :> es
        )
-    => Handle -> Waiters -> Eff es ()
+    => Handle -> Protocol.Waiters -> Eff es ()
 quit h = \case
-    WaitForWaiters -> waitBeforeQuit
-    IgnoreWaiters -> doQuit
+    Protocol.WaitForWaiters -> Waiters.wait doQuit
+    Protocol.IgnoreWaiters -> doQuit
   where
     doQuit = do
         sendJson h True
         Log.info "Shutting down."
         exitSuccess
 
-    waitBeforeQuit = do
-        hasWaiters <- BuildStore.hasWaiters
-        if hasWaiters then do
-            wait (500 :: Millisecond)
-            waitBeforeQuit
-        else
-            doQuit
+
+respondOnce
+    :: ( Input BuildId :> es
+       , Input DaemonInfo :> es
+       , State Progress :> es
+       , UnixSocket :> es
+       )
+    => Handle -> Eff es ()
+respondOnce h = do
+    progress <- State.get
+    mkBuildState progress >>= sendJson h
 
 
-respondOnce :: (BuildStore :> es, UnixSocket :> es) => Handle -> Eff es ()
-respondOnce h = getState >>= sendJson h
-
-
--- | Wait for a completed build, then respond.
---
--- If the build is already done when this is called, we may be racing the file
--- watcher's debounce: a file was just changed but the reload hasn't been
--- dispatched yet (default debounce is 100ms). Poll for up to 250ms to let
--- any in-flight debounce fire before falling back to the current result.
-respondWhenDone :: (BuildStore :> es, Delay :> es, UnixSocket :> es) => Handle -> Eff es ()
-respondWhenDone h = awaitResult >>= sendJson h
+respondWhenDone
+    :: ( Conc :> es
+       , Input BuildId :> es
+       , Input DaemonInfo :> es
+       , State Progress :> es
+       , Sub Progress :> es
+       , UnixSocket :> es
+       )
+    => Handle -> Eff es ()
+respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
   where
-    awaitResult = do
-        s <- getState
-        waitOrStart s (awaitBuildStart (5 :: Int) s) s.phase
+    awaitResult = Conc.scoped do
+        progressP <- Conc.fork $ Sub.listenUntil_ \case
+            failed@(Progress.Failed _) -> Just failed
+            finished@(Progress.Finished _ _) -> Just finished
+            _ -> Nothing
+        s <- State.get
+        waitOrStart progressP s
 
-    -- Poll up to n × 50ms for a build to start, then wait for it to finish.
-    awaitBuildStart 0 s = pure s
-    awaitBuildStart n _ = do
-        wait (50 :: Millisecond)
-        s' <- getState
-        waitOrStart s' (awaitBuildStart (n - 1) s') s'.phase
-
-    waitOrStart s start = \case
-        Building _ -> waitUntilDone
-        Restarting -> waitUntilDone
-        BuildComplete _ postBuild
-            | Test.anyRunningTests postBuild.testSuites
-                || Eval.anyRunningComments postBuild.evalComments ->
-                waitUntilDone
-            | otherwise -> start
-        BuildFailed _ -> pure s
+    waitOrStart p = \case
+        finished@(Progress.Finished _ _) -> pure finished
+        failed@(Progress.Failed _) -> pure failed
+        _ -> Conc.await p
 
 
--- | Stream a JSON object after each state change (loops until handle closes or error).
-watchStream :: (BuildStore :> es, UnixSocket :> es) => Handle -> Eff es ()
+-- | Stream a JSON object after each state change event.
+watchStream
+    :: ( Input BuildId :> es
+       , Input DaemonInfo :> es
+       , State Progress :> es
+       , Sub Progress :> es
+       , UnixSocket :> es
+       )
+    => Handle -> Eff es ()
 watchStream h = do
-    state0 <- getState
-    sendJson h state0
-    loop state0
-  where
-    loop prev = do
-        newState <- waitForAnyChange prev
-        sendJson h newState
-        loop newState
+    progress0 <- State.get
+    mkBuildState progress0 >>= sendJson h
+    vacuous $ Sub.listen_ \progress ->
+        mkBuildState progress >>= sendJson h
 
 
-respondDiagnostic :: (BuildStore :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
+respondDiagnostic :: (State Progress :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
-    state <- getState
-    case state.phase of
-        BuildComplete result postBuild
+    progress <- State.get
+    case progress of
+        Progress.Finished result postBuild
             | not $ Test.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
                 case result.diagnostics !!? (idx - 1) of
                     Nothing ->
@@ -257,9 +266,8 @@ respondDiagnostic idx h = do
                                 <> ")"
                     Just d -> sendJson h (d :: Diagnostic)
             | otherwise -> sendJson h $ ErrorResponse "Build in progress"
-        BuildFailed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
-        Building _ -> sendJson h $ ErrorResponse "Build in progress"
-        Restarting -> sendJson h $ ErrorResponse "Build in progress"
+        Progress.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
+        _ -> sendJson h $ ErrorResponse "Build in progress"
 
 
 -- | Look up source for each requested module and send the results as a JSON array.
@@ -283,3 +291,10 @@ respondSource queries h = do
 
 sendJson :: (ToJSON a, UnixSocket :> es) => Handle -> a -> Eff es ()
 sendJson h val = sendLine h (decodeUtf8 (BSL.toStrict (encode val)))
+
+
+mkBuildState :: (Input BuildId :> es, Input DaemonInfo :> es) => Progress -> Eff es BuildState
+mkBuildState progress = do
+    daemonInfo <- input
+    buildId <- input
+    pure $ BuildState {daemonInfo, buildId, progress}

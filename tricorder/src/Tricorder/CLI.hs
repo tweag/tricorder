@@ -30,9 +30,7 @@ import Tricorder.Arguments
     , WaitMode (..)
     )
 import Tricorder.BuildState
-    ( BuildPhase (..)
-    , BuildResult (..)
-    , BuildState (..)
+    ( BuildResult (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
@@ -43,6 +41,7 @@ import Tricorder.CLI.Render
     , formatDuration
     , renderSourceResults
     )
+import Tricorder.Daemon.BuildState (BuildState (..))
 import Tricorder.Effects.UnixSocket (UnixSocket)
 import Tricorder.GhcPkg.Types (SourceQuery)
 import Tricorder.Runtime (SocketPath (..))
@@ -53,6 +52,7 @@ import Tricorder.TestOutput (stripGhciNoise)
 import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
 import Tricorder.BuildState.Test qualified as Tests
+import Tricorder.Daemon.Progress qualified as Progress
 
 
 -- | Print a build-command failure message and exit non-zero.
@@ -77,15 +77,16 @@ showStatus opts = do
     when (opts.wait == WaitForBuild && opts.format == TextOutput) $ do
         current <- queryStatus sockPath
         case current of
-            Right BuildState {phase = Building _} -> Console.putStrLn "Building..."
-            Right BuildState {phase = Restarting} -> Console.putStrLn "Restarting..."
-            Right BuildState {phase = BuildComplete _ postBuild}
+            Right BuildState {progress = Progress.Starting} -> Console.putStrLn "Starting..."
+            Right BuildState {progress = Progress.Building _ _} -> Console.putStrLn "Building..."
+            Right BuildState {progress = Progress.PostBuilding _ postBuild}
                 | Tests.anyRunningTests postBuild.testSuites && Eval.anyRunningComments postBuild.evalComments ->
                     Console.putStrLn "Testing and evaluating comments..."
                 | Tests.anyRunningTests postBuild.testSuites -> Console.putStrLn "Testing..."
                 | Eval.anyRunningComments postBuild.evalComments -> Console.putStrLn "Evaluating comments..."
                 | otherwise -> pure ()
-            Right BuildState {phase = BuildFailed _} -> pure ()
+            Right BuildState {progress = Progress.Finished _ _} -> pure ()
+            Right BuildState {progress = Progress.Failed _} -> pure ()
             Left _ -> pure ()
     result <-
         case opts.wait of
@@ -101,11 +102,11 @@ showStatus opts = do
                 TextOutput ->
                     renderText opts.verbosity opts.expand state
   where
-    renderText verbosity expand state = case state.phase of
-        Building _ -> Console.putStrLn "Building..."
-        Restarting -> Console.putStrLn "Restarting..."
-        BuildFailed msg -> reportBuildFailed msg
-        BuildComplete result postBuild ->
+    renderText verbosity expand state = case state.progress of
+        Progress.Starting -> Console.putStrLn "Building..."
+        Progress.Building _ _ -> Console.putStrLn "Building..."
+        Progress.Failed msg -> reportBuildFailed msg
+        Progress.PostBuilding _ postBuild ->
             let
                 testsRunning = Tests.anyRunningTests postBuild.testSuites
                 commentsEvaluating = Eval.anyRunningComments postBuild.evalComments
@@ -117,32 +118,34 @@ showStatus opts = do
                         Console.putStrLn "Testing..."
                     | commentsEvaluating ->
                         Console.putStrLn "Evaluating comments..."
-                    | otherwise -> do
-                        tz <- currentTimeZone
-                        case expand of
-                            Just n ->
-                                case result.diagnostics !!? (n - 1) of
-                                    Nothing ->
-                                        Console.putTextLn
-                                            $ "No diagnostic #"
-                                                <> show n
-                                                <> " (current build has "
-                                                <> show (length result.diagnostics)
-                                                <> ")"
-                                    Just d -> do
-                                        Console.putTextLn $ diagnosticLineIndexed n d
-                                        Console.putText d.text
-                            Nothing -> do
-                                let printDiag (i, d) = case verbosity of
-                                        Verbose -> do
-                                            Console.putTextLn $ diagnosticLineIndexed i d
-                                            Console.putText d.text
-                                        Concise ->
-                                            Console.putTextLn $ diagnosticLineIndexed i d
-                                mapM_ printDiag (zip [1 ..] result.diagnostics)
-                                Console.putTextLn $ buildSummary tz result
-                                mapM_ (uncurry (printTestRun verbosity)) $ Map.toList postBuild.testSuites.getSuites
-                                when (buildHasErrors result || Tests.hasFailedTests postBuild.testSuites) exitFailure
+                    | otherwise ->
+                        Console.putStrLn "Post-procesing..."
+        Progress.Finished result postBuild -> do
+            tz <- currentTimeZone
+            case expand of
+                Just n ->
+                    case result.diagnostics !!? (n - 1) of
+                        Nothing ->
+                            Console.putTextLn
+                                $ "No diagnostic #"
+                                    <> show n
+                                    <> " (current build has "
+                                    <> show (length result.diagnostics)
+                                    <> ")"
+                        Just d -> do
+                            Console.putTextLn $ diagnosticLineIndexed n d
+                            Console.putText d.text
+                Nothing -> do
+                    let printDiag (i, d) = case verbosity of
+                            Verbose -> do
+                                Console.putTextLn $ diagnosticLineIndexed i d
+                                Console.putText d.text
+                            Concise ->
+                                Console.putTextLn $ diagnosticLineIndexed i d
+                    mapM_ printDiag (zip [1 ..] result.diagnostics)
+                    Console.putTextLn $ buildSummary tz result
+                    mapM_ (uncurry (printTestRun verbosity)) $ Map.toList postBuild.testSuites.getSuites
+                    when (buildHasErrors result || Tests.hasFailedTests postBuild.testSuites) exitFailure
 
     printTestRun verbosity tgt tr = do
         Console.putTextLn $ case tr of
@@ -217,11 +220,12 @@ showTests opts = do
     case result of
         Left err -> Console.putTextLn $ "Error: " <> err
         Right state ->
-            case state.phase of
-                Building _ -> Console.putStrLn "Build in progress, no test results yet."
-                Restarting -> Console.putStrLn "Daemon restarting, no test results yet."
-                BuildComplete _ postBuild -> renderTestRuns postBuild.testSuites.getSuites
-                BuildFailed msg -> reportBuildFailed msg
+            case state.progress of
+                Progress.Starting -> Console.putStrLn "Daemon starting, no test results yet."
+                Progress.Building _ _ -> Console.putStrLn "Build in progress, no test results yet."
+                Progress.PostBuilding _ postBuild -> renderTestRuns postBuild.testSuites.getSuites
+                Progress.Finished _ postBuild -> renderTestRuns postBuild.testSuites.getSuites
+                Progress.Failed msg -> reportBuildFailed msg
   where
     renderTestRuns suites
         | Map.null suites = Console.putStrLn "No test results."

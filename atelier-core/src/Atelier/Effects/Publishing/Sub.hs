@@ -6,12 +6,16 @@ module Atelier.Effects.Publishing.Sub
     , listenWith_
     , listenOnce
     , listenOnce_
+    , listenUntil
+    , listenUntil_
+    , listenUntilM
+    , listenUntilM_
     , forkListener
     , forkListener_
     ) where
 
 import Data.Time (UTCTime)
-import Effectful (Effect)
+import Effectful (Effect, inject)
 import Effectful.Concurrent.STM
     ( Concurrent
     , atomically
@@ -36,7 +40,12 @@ data Sub (event :: Type) :: Effect where
     -- so a concurrently-started publisher cannot race ahead of the subscription
     -- and have its events missed. Most callers want 'listen' (no hook); a caller
     -- that forks the listener and then publishes must wait on this hook first.
-    ListenWith :: m () -> (UTCTime -> event -> m ()) -> Sub event m Void
+    ListenWith
+        :: m ()
+        -- ^ @onSubscribed@ hook to better synchronize on "subscribed".
+        -> (UTCTime -> event -> m ())
+        -- ^ Listener function to react to events.
+        -> Sub event m Void
 
 
 makeEffect ''Sub
@@ -57,6 +66,42 @@ listen_ listener = listen $ \_timestamp event -> listener event
 -- established and before any event is delivered. See 'ListenWith'.
 listenWith_ :: (Sub event :> es) => Eff es () -> (event -> Eff es ()) -> Eff es Void
 listenWith_ onSubscribed listener = listenWith onSubscribed $ \_timestamp event -> listener event
+
+
+-- | Listens until the passed function returns @Just a@, returning said @a@
+-- with a timestamp.
+listenUntil :: (Sub event :> es) => (UTCTime -> event -> Maybe a) -> Eff es (UTCTime, a)
+listenUntil f = do
+    res <- runErrorNoCallStack
+        $ listen
+        $ \timestamp event -> whenJust (f timestamp event) \a -> do
+            throwError $ OnceEx (timestamp, a)
+    case res of
+        Left (OnceEx x) -> pure x
+        Right v -> absurd v
+
+
+listenUntil_ :: (Sub event :> es) => (event -> Maybe a) -> Eff es a
+listenUntil_ f = snd <$> listenUntil (\_ -> f)
+
+
+-- | Listens until the passed event handler returns @Just a@, returning said
+-- @a@ with a timestamp.
+listenUntilM :: (Sub event :> es) => (UTCTime -> event -> Eff es (Maybe a)) -> Eff es (UTCTime, a)
+listenUntilM f = do
+    res <- runErrorNoCallStack
+        $ listen
+        $ \timestamp event -> whenJustM (inject $ f timestamp event) \a -> do
+            throwError $ OnceEx (timestamp, a)
+    case res of
+        Left (OnceEx x) -> pure x
+        Right v -> absurd v
+
+
+-- | Listens until the passed event handler returns @Just a@, returning said
+-- @a@.
+listenUntilM_ :: (Sub event :> es) => (event -> Eff es (Maybe a)) -> Eff es a
+listenUntilM_ f = snd <$> listenUntilM (\_ -> f)
 
 
 -- | Fork a background listener and block until it has actually subscribed,

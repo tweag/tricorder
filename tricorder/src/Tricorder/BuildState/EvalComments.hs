@@ -1,5 +1,6 @@
 module Tricorder.BuildState.EvalComments
-    ( Comments (..)
+    ( Phase (..)
+    , Comments (..)
     , anyRunningComments
     , Evaluation (..)
     , Comment (..)
@@ -31,14 +32,24 @@ import Data.Aeson.KeyMap qualified as KM
 import Data.Text qualified as T
 
 
-newtype Comments = Comments {getComments :: [Evaluation]}
+data Phase
+    = Looking
+    | Found Comments
+    | NoneFound
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON, ToJSON) via Generically Phase
+
+
+data Comments = Comments {getComments :: NonEmpty Evaluation}
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically Comments
-    deriving (Monoid, Semigroup) via [Evaluation]
 
 
-anyRunningComments :: Comments -> Bool
-anyRunningComments = any ((== Pending) . (.state)) . (.getComments)
+anyRunningComments :: Phase -> Bool
+anyRunningComments = \case
+    Looking -> True
+    Found comments -> any ((== Pending) . (.state)) $ comments.getComments
+    NoneFound -> False
 
 
 data Evaluation = Evaluation

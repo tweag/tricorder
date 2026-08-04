@@ -1,15 +1,11 @@
-module Tricorder.Effects.EvalCommentRunner
+module Tricorder.Daemon.EvalCommentRunner
     ( -- * Effect
       EvalCommentRunner (..)
     , evaluateComments
     , findEvalCommentsInModules
-    , interruptCurrent
-    , resetAbort
-    , isAborted
 
       -- * Interpreters
-    , runEvalCommentRunnerIO
-    , runEvalCommentRunnerNoOp
+    , run
     ) where
 
 import Atelier.Effects.Conc (Conc)
@@ -18,15 +14,13 @@ import Atelier.Effects.FileSystem (FileSystem, readFileBs)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
-import Control.Concurrent.STM (TVar, readTVar, writeTVar)
 import Data.Default (def)
 import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Traversable (for)
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
-import Effectful.Concurrent.STM (atomically, newTVarIO)
-import Effectful.Dispatch.Dynamic (interpretWith_, interpret_)
-import Effectful.Exception (bracket_, trySync)
+import Effectful.Dispatch.Dynamic (interpretWith_)
+import Effectful.Exception (trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 
@@ -35,37 +29,25 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Effects.GhciSession.GhciParser (LoadedModule (..))
-import Tricorder.Effects.GhciSession.GhciProcess
-    ( GhciProcess
-    , execGhci
-    , terminateGhciProcess
-    , withGhciProcess
-    )
-import Tricorder.Effects.SessionStore (SessionStore)
+import Tricorder.Effects.GhciSession.GhciProcess (execGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command, Session (..))
+import Tricorder.Session (Command)
 
 import Tricorder.BuildState.EvalComments qualified as Eval
-import Tricorder.Effects.SessionStore qualified as SessionStore
 
 
 data EvalCommentRunner :: Effect where
     -- | Scan all loaded source files for eval comments and evaluate them, each
     -- in a fresh GHCi session started in that file's module context.
     EvaluateComments
-        :: Map FilePath (LoadedModule, NonEmpty Eval.Comment)
-        -> EvalCommentRunner m [Eval.Evaluation]
+        :: Command
+        -> NonEmpty (LoadedModule, NonEmpty Eval.Comment)
+        -> EvalCommentRunner m (NonEmpty Eval.Evaluation)
+    -- | Extract eval comments from provided source files. Returns a map of all
+    -- files that have at least 1 eval comment.
     FindEvalCommentsInModules
         :: Map FilePath LoadedModule
-        -> EvalCommentRunner m (Map FilePath (LoadedModule, NonEmpty Eval.Comment))
-    -- | Terminate the GHCi process currently running an eval (if any) and
-    -- latch the abort flag so that subsequent per-file evaluations
-    -- short-circuit until 'ResetAbort' is called.
-    InterruptCurrent :: EvalCommentRunner m ()
-    -- | Clear the abort flag. Call this at the start of a new eval run.
-    ResetAbort :: EvalCommentRunner m ()
-    -- | Read the abort flag without clearing it.
-    IsAborted :: EvalCommentRunner m Bool
+        -> EvalCommentRunner m [(LoadedModule, NonEmpty Eval.Comment)]
 
 
 makeEffect ''EvalCommentRunner
@@ -74,7 +56,7 @@ makeEffect ''EvalCommentRunner
 -- | Production interpreter: spawns one short-lived @cabal repl@ session per
 -- source file that contains at least one eval comment, then runs each
 -- eval comment in that module's context.
-runEvalCommentRunnerIO
+run
     :: ( Conc :> es
        , Concurrent :> es
        , File :> es
@@ -82,56 +64,27 @@ runEvalCommentRunnerIO
        , Log :> es
        , Process :> es
        , Reader ProjectRoot :> es
-       , SessionStore :> es
        , Timeout :> es
        )
     => Eff (EvalCommentRunner : es) a -> Eff es a
-runEvalCommentRunnerIO act = do
-    currentProcRef <- newTVarIO (Nothing :: Maybe GhciProcess)
-    abortedRef <- newTVarIO False
+run act = do
     interpretWith_ act \case
-        InterruptCurrent -> do
-            mProc <- atomically do
-                writeTVar abortedRef True
-                readTVar currentProcRef
-            for_ mProc terminateGhciProcess
-        ResetAbort -> atomically (writeTVar abortedRef False)
-        IsAborted -> atomically (readTVar abortedRef)
         FindEvalCommentsInModules loadedModules -> do
-            Map.fromList . concat <$> for (Map.toList loadedModules) \(absPath, lm) -> do
+            concat <$> for (Map.toList loadedModules) \(absPath, lm) -> do
                 fileResult <- trySync $ readFileBs absPath
                 pure $ case fileResult of
                     Left _ -> []
                     Right bs ->
                         case Eval.findComments $ decodeUtf8Lenient bs of
                             [] -> []
-                            x : xs -> [(absPath, (lm, x :| xs))]
-        EvaluateComments modulesWithComments -> do
-            ProjectRoot projectRoot <- ask
-            session <- SessionStore.get
-            let go [] acc = pure acc
-                go ((absPath, (lm, comments)) : rest) acc = do
-                    aborted <- atomically (readTVar abortedRef)
-                    if aborted then
-                        pure acc
-                    else do
-                        res <- runFileEvals currentProcRef session.command projectRoot absPath lm.relPath lm.moduleName comments
-                        abortedNow <- atomically (readTVar abortedRef)
-                        if abortedNow then
-                            pure acc
-                        else
-                            go rest (acc <> toList res)
-            go (Map.toList modulesWithComments) []
-
-
--- | Inert interpreter for testing: always returns empty results.
-runEvalCommentRunnerNoOp :: Eff (EvalCommentRunner : es) a -> Eff es a
-runEvalCommentRunnerNoOp = interpret_ \case
-    EvaluateComments _ -> pure []
-    FindEvalCommentsInModules _ -> pure Map.empty
-    InterruptCurrent -> pure ()
-    ResetAbort -> pure ()
-    IsAborted -> pure False
+                            x : xs -> [(lm, x :| xs)]
+        EvaluateComments command moduleComments -> do
+            fmap sconcat $ for moduleComments \(lm, comments) -> do
+                runFileEvals
+                    command
+                    lm.relPath
+                    lm.moduleName
+                    comments
 
 
 -- ---------------------------------------------------------------------------
@@ -150,14 +103,10 @@ runFileEvals
        , File :> es
        , Log :> es
        , Process :> es
+       , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => TVar (Maybe GhciProcess)
-    -> Command
-    -> FilePath
-    -- ^ Project root (working directory for the GHCi process).
-    -> FilePath
-    -- ^ Absolute path to the source file (for logging and error results).
+    => Command
     -> FilePath
     -- ^ Relative path to the source file (stored in results).
     -> Text
@@ -165,17 +114,15 @@ runFileEvals
     -- in interpreted mode so that its full local scope is available.
     -> NonEmpty Eval.Comment
     -> Eff es (NonEmpty Eval.Evaluation)
-runFileEvals currentProcRef cmd projectRoot absPath relPath moduleName comments = do
+runFileEvals cmd relPath moduleName comments = do
+    ProjectRoot projectRoot <- ask
     let noProgress = \_ -> pure ()
+        noSetup = \_ -> pure ()
         wrapForGhci expr
             | T.elem '\n' expr = ":{" <> "\n" <> expr <> "\n" <> ":}"
             | otherwise = expr
-        onReady ghci = atomically (writeTVar currentProcRef (Just ghci))
     sessionResult <- trySync
-        $ bracket_
-            (pure ())
-            (atomically (writeTVar currentProcRef Nothing))
-        $ withGhciProcess def cmd projectRoot noProgress onReady \ghci _ -> do
+        $ withGhciProcess def cmd projectRoot noProgress noSetup \ghci _ -> do
             _ <- execGhci ghci (":load *" <> moduleName) noProgress
             for comments \comment -> do
                 outputResult <- trySync $ execGhci ghci (wrapForGhci comment.expression) noProgress
@@ -188,10 +135,11 @@ runFileEvals currentProcRef cmd projectRoot absPath relPath moduleName comments 
                             Right ls -> T.unlines ls
                         }
     case sessionResult of
+        Right results -> pure results
         Left ex -> do
             let errMsg =
                     "EvalRunner: session startup failed for "
-                        <> toText absPath
+                        <> toText relPath
                         <> ": "
                         <> toText (displayException ex)
             Log.warn errMsg
@@ -206,4 +154,3 @@ runFileEvals currentProcRef cmd projectRoot absPath relPath moduleName comments 
                     , state = Eval.Completed errMsg
                     }
                     :| []
-        Right results -> pure results

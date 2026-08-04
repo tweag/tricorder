@@ -2,6 +2,7 @@ module Unit.Tricorder.SessionSpec (spec_Session) where
 
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (runFileSystemState)
+import Atelier.Effects.Input (runInputConst)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Data.Aeson (Value (Null))
 import Data.Default (Default (..))
@@ -484,9 +485,9 @@ testLoadSession = do
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
             . runFileSystemState
-            . runReader cabalFiles
+            . runInputConst cabalFiles
             . runReader (ProjectRoot "/")
-            . runReader (LoadedConfig Null)
+            . runInputConst (LoadedConfig Null)
             $ loadSession
 
 

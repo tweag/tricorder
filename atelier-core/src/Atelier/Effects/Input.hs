@@ -8,11 +8,17 @@ module Atelier.Effects.Input
     , input
     , runInputEff
     , runInputConst
+    , toReader
+    , fromState
     ) where
 
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful.Reader.Static (Reader, runReader)
+import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
+
+import Effectful.State.Static.Shared qualified as State
 
 
 -- | Request a value from the effect system.
@@ -45,3 +51,14 @@ runInputEff mk = interpret_ \Input -> mk
 -- 'Effectful.Reader.Local', but is available here for testing.
 runInputConst :: i -> Eff (Input i : es) a -> Eff es a
 runInputConst = runInputEff . pure
+
+
+-- | Retrieves the value once, and exposes it as a 'Reader' effect.
+toReader :: (Input i :> es) => Eff (Reader i : es) a -> Eff es a
+toReader act = do
+    x <- input
+    runReader x act
+
+
+fromState :: (State i :> es) => Eff (Input i : es) a -> Eff es a
+fromState = interpret_ \Input -> State.get

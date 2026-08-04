@@ -1,14 +1,17 @@
 module Unit.Tricorder.Effects.GhciSessionSpec (spec_GhciSession) where
 
+import Atelier.Effects.Publishing.Pub (Pub)
 import Control.Exception (ErrorCall (..))
 import Effectful (IOE, runEff)
 import Effectful.Exception (try)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
+import Atelier.Effects.Publishing.Pub qualified as Pub
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.BuildState (Diagnostic (..), Severity (..))
+import Tricorder.BuildState.BuildProgress (BuildProgress)
 import Tricorder.Effects.GhciSession (Controls (..), GhciSession, LoadResult (..), runGhciSessionScripted, withGhci)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Command (..))
@@ -119,5 +122,8 @@ simpleResult :: [Diagnostic] -> Either SomeException LoadResult
 simpleResult msgs = Right LoadResult {moduleCount = 0, compiledFiles = Set.empty, loadedModules = Map.empty, targetNames = [], diagnostics = msgs}
 
 
-runScripted :: [Either SomeException LoadResult] -> Eff '[GhciSession, IOE] a -> IO a
-runScripted results = runEff . runGhciSessionScripted results
+runScripted
+    :: [Either SomeException LoadResult]
+    -> Eff '[GhciSession, Pub BuildProgress, IOE] a
+    -> IO a
+runScripted results = runEff . Pub.runNoOp . runGhciSessionScripted results

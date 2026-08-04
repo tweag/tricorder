@@ -1,4 +1,4 @@
-module Unit.Tricorder.BuildStateSpec (spec_BuildState) where
+module Unit.Tricorder.Daemon.BuildStateSpec (spec_BuildState) where
 
 import Data.Aeson (eitherDecode, encode)
 import Data.Time (UTCTime (..), fromGregorian)
@@ -6,14 +6,16 @@ import Test.Hspec
 
 import Tricorder.BuildState
     ( BuildId (..)
-    , BuildPhase (..)
     , BuildResult (..)
-    , BuildState (..)
-    , DaemonInfo (..)
     , Diagnostic (..)
     , PostBuild (..)
     , Severity (..)
     )
+import Tricorder.Daemon.BuildState (BuildState (..))
+import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
+
+import Tricorder.BuildState.EvalComments qualified as Eval
+import Tricorder.Daemon.Progress qualified as Progress
 
 
 spec_BuildState :: Spec
@@ -72,8 +74,8 @@ spec_BuildState = do
                     mkBuildState [] :: BuildState
                 failed =
                     bs
-                        { phase =
-                            BuildFailed
+                        { progress =
+                            Progress.Failed
                                 "cabal: Could not resolve dependencies:\n[__0] trying: \8216base\8217\nrejecting: ..."
                         }
             eitherDecode (encode failed) `shouldBe` Right failed
@@ -83,8 +85,8 @@ mkBuildState :: [Diagnostic] -> BuildState
 mkBuildState msgs =
     BuildState
         { buildId = BuildId 1
-        , phase =
-            BuildComplete
+        , progress =
+            Progress.Finished
                 ( BuildResult
                     { completedAt = epoch
                     , duration = 0
@@ -92,14 +94,13 @@ mkBuildState msgs =
                     , diagnostics = msgs
                     }
                 )
-                $ PostBuild mempty mempty
+                $ PostBuild mempty Eval.NoneFound
         , daemonInfo =
             DaemonInfo
                 { targets = []
                 , watchDirs = []
                 , sockPath = ""
                 , logFile = ""
-                , metricsPort = Nothing
                 }
         }
   where

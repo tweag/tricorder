@@ -7,102 +7,33 @@
 -- belong here — they live next to the component that owns them.
 module Tricorder.BuildState
     ( BuildId (..)
-    , BuildState (..)
+    -- , BuildState (..)
     , BuildPhase (..)
     , BuildResult (..)
     , PostBuild (..)
-    , DaemonInfo (..)
-    , loadDaemonInfo
-    , runDaemonInfo
     , Diagnostic (..)
     , Severity (..)
     , ChangeKind (..)
-    , initialBuildState
-    , stateLabel
     , CabalChangeDetected (..)
     , SourceChangeDetected (..)
     ) where
 
 import Atelier.Effects.FileWatcher (FileEvent)
-import Atelier.Effects.Input (Input, runInputEff)
 import Atelier.Time (Millisecond)
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Time (UTCTime)
-import Effectful.Reader.Static (Reader, ask)
 import GHC.Generics (Generically (..))
-import System.FilePath (makeRelative)
 
 import Tricorder.BuildState.BuildProgress (BuildProgress)
-import Tricorder.Effects.SessionStore (SessionStore)
-import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
-import Tricorder.Session (Session (..), Target, WatchDirs (..))
 
 import Tricorder.BuildState.EvalComments qualified as Eval
 import Tricorder.BuildState.Test qualified as Test
-import Tricorder.BuildState.Test qualified as Tests
-import Tricorder.Effects.SessionStore qualified as SessionStore
-import Tricorder.Observability qualified as Observability
 
 
-data BuildState = BuildState
-    { buildId :: BuildId
-    , phase :: BuildPhase
-    , daemonInfo :: DaemonInfo
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically BuildState
-
-
-newtype BuildId = BuildId Int
+newtype BuildId = BuildId {getBuildId :: Int}
     deriving stock (Eq, Show)
     deriving newtype (FromJSON, ToJSON)
     deriving (Num) via Int
-
-
-data DaemonInfo = DaemonInfo
-    { targets :: [Target]
-    , watchDirs :: [FilePath]
-    , sockPath :: FilePath
-    , logFile :: FilePath
-    , metricsPort :: Maybe Int
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically DaemonInfo
-
-
-loadDaemonInfo
-    :: ( Reader LogPath :> es
-       , Reader Observability.Config :> es
-       , Reader ProjectRoot :> es
-       , Reader SocketPath :> es
-       , SessionStore :> es
-       )
-    => Eff es DaemonInfo
-loadDaemonInfo = do
-    session <- SessionStore.get
-    obsCfg <- ask @Observability.Config
-    ProjectRoot projectRoot <- ask
-    SocketPath sockPath <- ask
-    LogPath logFile <- ask
-    pure
-        $ DaemonInfo
-            { targets = session.targets
-            , watchDirs = map (makeRelative projectRoot) session.watchDirs.getWatchDirs
-            , sockPath
-            , logFile
-            , metricsPort = if obsCfg.metrics.enabled then Just obsCfg.metrics.port else Nothing
-            }
-
-
-runDaemonInfo
-    :: ( Reader LogPath :> es
-       , Reader Observability.Config :> es
-       , Reader ProjectRoot :> es
-       , Reader SocketPath :> es
-       , SessionStore :> es
-       )
-    => Eff (Input DaemonInfo : es) a -> Eff es a
-runDaemonInfo = runInputEff loadDaemonInfo
 
 
 data BuildPhase
@@ -126,7 +57,7 @@ data BuildResult = BuildResult
 
 data PostBuild = PostBuild
     { testSuites :: Test.Suites
-    , evalComments :: Eval.Comments
+    , evalComments :: Eval.Phase
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically PostBuild
@@ -162,18 +93,6 @@ instance ToJSON Severity where
     toJSON SWarning = "warning"
 
 
-stateLabel :: BuildPhase -> Text
-stateLabel (Building _) = "building"
-stateLabel Restarting = "restarting"
-stateLabel (BuildFailed _) = "error"
-stateLabel (BuildComplete result postBuild)
-    | any (\m -> m.severity == SError) result.diagnostics = "error"
-    | any (\m -> m.severity == SWarning) result.diagnostics = "warning"
-    | Tests.anyRunningTests postBuild.testSuites = "testing"
-    | Eval.anyRunningComments postBuild.evalComments = "evaluating comments"
-    | otherwise = "ok"
-
-
 -- | Classifies what kind of file change triggered a dirty signal.
 -- 'CabalChange' takes priority over 'SourceChange': if both fire before the
 -- next build starts, the session will be fully restarted rather than reloaded.
@@ -184,12 +103,3 @@ data CabalChangeDetected = CabalChangeDetected FilePath FileEvent
     deriving stock (Eq, Show)
 data SourceChangeDetected = SourceChangeDetected FilePath FileEvent
     deriving stock (Eq, Show)
-
-
-initialBuildState :: DaemonInfo -> BuildState
-initialBuildState di =
-    BuildState
-        { buildId = BuildId 0
-        , phase = Building Nothing
-        , daemonInfo = di
-        }
