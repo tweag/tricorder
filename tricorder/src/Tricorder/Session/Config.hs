@@ -1,0 +1,32 @@
+module Tricorder.Session.Config (Config (..)) where
+
+import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.WithDefaults (WithDefaults (..))
+import Data.Aeson (FromJSON (..))
+import Data.Default (Default (..))
+
+
+data Config = Config
+    { command :: Maybe Text
+    , targets :: [Text]
+    , watchDirs :: [FilePath]
+    , watchExclusionPatterns :: [Text]
+    , testTargets :: Maybe [Text]
+    , replBuildDir :: FilePath
+    , testTimeout :: Int
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (FromJSON) via WithDefaults (QuietSnake Config)
+
+
+instance Default Config where
+    def =
+        Config
+            { command = Nothing
+            , targets = []
+            , watchDirs = []
+            , watchExclusionPatterns = []
+            , testTargets = Nothing
+            , replBuildDir = "dist-newstyle/tricorder"
+            , testTimeout = 10
+            }

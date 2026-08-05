@@ -30,12 +30,9 @@ import Tricorder.Build.Changes
     , SourceChangeDetected (..)
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session
-    ( Pattern
-    , Session (..)
-    , WatchDirs (..)
-    , WatchExclusionPatterns (..)
-    )
+import Tricorder.Session (Session (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
+import Tricorder.Session.WatchExclusionPatterns (Pattern, WatchExclusionPatterns (..))
 
 
 data WatchedFile = WatchedFile

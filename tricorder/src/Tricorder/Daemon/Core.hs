@@ -55,14 +55,10 @@ import Tricorder.Daemon.GhciSession.GhciParser
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session
-    ( CabalFile
-    , Session (..)
-    , TestTarget
-    , TestTimeout
-    , loadSession
-    , renderTestTarget
-    )
+import Tricorder.Session (Session (..), loadSession)
+import Tricorder.Session.CabalFile (CabalFile)
+import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.TestTimeout (TestTimeout)
 import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build qualified as Build

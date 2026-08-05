@@ -19,7 +19,7 @@ import Tricorder.Daemon.GhciSession
     , withGhci
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command (..))
+import Tricorder.Session.Command (Command (..))
 
 
 spec_GhciSession :: Spec

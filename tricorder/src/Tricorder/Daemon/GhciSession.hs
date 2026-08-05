@@ -51,7 +51,7 @@ import Tricorder.Daemon.GhciSession.GhciParser
     )
 import Tricorder.Daemon.GhciSession.GhciProcess (addGhci, collectGhciResult, interruptGhci, reloadGhci, unaddGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command)
+import Tricorder.Session.Command (Command)
 
 
 data GhciSession :: Effect where

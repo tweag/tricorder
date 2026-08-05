@@ -12,7 +12,9 @@ import Tricorder.Daemon.TestRunner
     , detectOutcome
     , runTestSuite
     )
-import Tricorder.Session (Target (..), TestTarget (..), TestTimeout (..))
+import Tricorder.Session.Target (Target (..))
+import Tricorder.Session.TestTarget (TestTarget (..))
+import Tricorder.Session.TestTimeout (TestTimeout (..))
 
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.TestRunner qualified as TestRunner

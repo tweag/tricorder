@@ -15,7 +15,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import GHC.Generics (Generically (..))
 
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Session (TestTarget)
+import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test

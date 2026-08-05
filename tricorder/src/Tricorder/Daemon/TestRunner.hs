@@ -41,12 +41,9 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session
-    ( Command (..)
-    , TestTarget
-    , TestTimeout (..)
-    , renderTestTarget
-    )
+import Tricorder.Session.Command (Command (..))
+import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
 import Tricorder.Build.Test qualified as Test

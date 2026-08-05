@@ -31,7 +31,7 @@ import Data.Text qualified as T
 import Tricorder.Daemon.GhciSession.GhciParser (LoadedModule (..))
 import Tricorder.Daemon.GhciSession.GhciProcess (execGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Command)
+import Tricorder.Session.Command (Command)
 
 import Tricorder.Build.EvalComment qualified as Eval
 

@@ -26,7 +26,7 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , pathSuffixesAsModuleName
     , unattributedFailure
     )
-import Tricorder.Session (WatchDirs (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 
 -- | The Builder's per-GHCi-session cache: what it last saw from GHCi plus its

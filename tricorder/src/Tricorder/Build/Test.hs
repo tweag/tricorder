@@ -20,7 +20,7 @@ import GHC.Generics (Generically (..))
 
 import Data.Map.Strict qualified as Map
 
-import Tricorder.Session (TestTarget)
+import Tricorder.Session.TestTarget (TestTarget)
 
 
 newtype Suites = Suites {getSuites :: Map TestTarget Suite}

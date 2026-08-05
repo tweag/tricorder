@@ -61,6 +61,15 @@ library tricorder-internal
       Tricorder.Module
       Tricorder.Runtime
       Tricorder.Session
+      Tricorder.Session.CabalFile
+      Tricorder.Session.Command
+      Tricorder.Session.Config
+      Tricorder.Session.ReplBuildDir
+      Tricorder.Session.Target
+      Tricorder.Session.TestTarget
+      Tricorder.Session.TestTimeout
+      Tricorder.Session.WatchDirs
+      Tricorder.Session.WatchExclusionPatterns
       Tricorder.Socket.Client
       Tricorder.Socket.Protocol
       Tricorder.Socket.Server
@@ -230,6 +239,12 @@ test-suite tricorder-test
       Unit.Tricorder.Daemon.GhciSessionSpec
       Unit.Tricorder.Daemon.TestRunnerSpec
       Unit.Tricorder.Daemon.WatchSpec
+      Unit.Tricorder.Session.CabalFileSpec
+      Unit.Tricorder.Session.CommandSpec
+      Unit.Tricorder.Session.Helpers
+      Unit.Tricorder.Session.TargetSpec
+      Unit.Tricorder.Session.TestTargetSpec
+      Unit.Tricorder.Session.WatchDirsSpec
       Unit.Tricorder.SessionSpec
       Unit.Tricorder.SocketSpec
       Unit.Tricorder.SourceLookup.GhcPkgSpec
