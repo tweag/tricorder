@@ -203,7 +203,7 @@ runSession buildId session = do
     Pub.publish Build.Starting
     err <- fmap (either id absurd)
         $ Pub.map (Build.Building session.testTargets)
-        $ Builder.with buildId buildConfig \_ initialLoad -> do
+        $ Builder.with buildId session.command session.watchDirs \_ initialLoad -> do
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
             newestReloadEvent <- atomically newEmptyTMVar
@@ -222,8 +222,6 @@ runSession buildId session = do
                     $ waitForReload session event
 
     Pub.publish $ Build.Failed $ show err
-  where
-    buildConfig = sessionToBuildConfig session
 
 
 -- | Handles source changes as they come, determining whether the source change
@@ -395,16 +393,6 @@ newLoadResultToBuildResult session newLoadResult = do
                 compileBuildResults
                     root
                     session.watchDirs
-                    newLoadResult
                     s.diagnosticMap
+                    newLoadResult
         in  (buildResult, s {diagnosticMap = newDiagnosticMap})
-
-
-sessionToBuildConfig :: Session -> Builder.BuildConfig
-sessionToBuildConfig session =
-    Builder.BuildConfig
-        { command = session.command
-        , targets = session.targets
-        , testTargets = session.testTargets
-        , watchDirs = session.watchDirs
-        }

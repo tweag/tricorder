@@ -1,18 +1,13 @@
 module Unit.Tricorder.Daemon.BuilderSpec (spec_Builder) where
 
-import Data.Default (def)
 import Data.Time (UTCTime (..), addUTCTime, fromGregorian)
-import Effectful (runPureEff)
-import Effectful.Reader.Static (runReader)
-import Effectful.State.Static.Shared (runState)
 import Test.Hspec (Spec, describe, it, shouldBe)
 
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (BuildResult (..), Diagnostic (..), Severity (..))
-import Tricorder.Daemon.Builder (NewLoadResult (..), compileLoadResultsIntoBuildResults)
-import Tricorder.Daemon.Dispatch (BuilderState (..), emptyBuilderState)
+import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult (..)
     , LoadedModule (..)
@@ -22,13 +17,11 @@ import Tricorder.Daemon.GhciSession.GhciParser
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (WatchDirs (..))
 
-import Tricorder.Daemon.Builder qualified as Builder
-
 
 spec_Builder :: Spec
 spec_Builder = do
     describe "extractTitle" testExtractTitle
-    describe "compileLoadResultsIntoBuildResults" testCompileLoadResultsIntoBuildResults
+    describe "compileBuildResults" testCompileBuildResults
     describe "resolveKnownTargets" testResolveKnownTargets
 
 
@@ -36,11 +29,13 @@ data StopSignal = StopSignal
     deriving stock (Show)
 
 
-testCompileLoadResultsIntoBuildResults :: Spec
-testCompileLoadResultsIntoBuildResults = do
+testCompileBuildResults :: Spec
+testCompileBuildResults = do
     it "uses NewLoadResult's times to calculate duration" do
         let (_, r) =
-                runTest
+                compileBuildResults
+                    root
+                    watchDirs
                     mempty
                     NewLoadResult
                         { startTime = addUTCTime 10 epoch
@@ -57,7 +52,7 @@ testCompileLoadResultsIntoBuildResults = do
         r.duration `shouldBe` 10_000
     it "merges with existing results" do
         let (m, _) =
-                runTest (Map.fromList [(errMsg.file, [errMsg])])
+                compileBuildResults root watchDirs (Map.fromList [(errMsg.file, [errMsg])])
                     $ NewLoadResult
                         { startTime = epoch
                         , endTime = epoch
@@ -78,7 +73,7 @@ testCompileLoadResultsIntoBuildResults = do
 
     it "returns a BuildResult" do
         let (_, r) =
-                runTest mempty
+                compileBuildResults root watchDirs mempty
                     $ NewLoadResult
                         { startTime = epoch
                         , endTime = addUTCTime 10 epoch
@@ -100,13 +95,8 @@ testCompileLoadResultsIntoBuildResults = do
                     }
         r `shouldBe` expected
   where
-    runTest acc nlr =
-        let (buildResult, builderState) =
-                runPureEff
-                    . runReader (ProjectRoot "/")
-                    . runState (emptyBuilderState {diagnosticMap = acc})
-                    $ compileLoadResultsIntoBuildResults (def {Builder.watchDirs = WatchDirs ["/src"]}) nlr
-        in  (builderState.diagnosticMap, buildResult)
+    root = ProjectRoot "/"
+    watchDirs = WatchDirs ["/src"]
 
 
 --------------------------------------------------------------------------------
