@@ -18,6 +18,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `tricorder log --print-path` prints the path to the current repo's Tricorder
   log file.
 
+### Fixed
+
+- No diagnostics are listed in single-package repos.
+
 ### Changed
 
 - `tricorder source` now uses a package's sdist tarball from cabal's global
