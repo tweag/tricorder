@@ -3,7 +3,6 @@ module Tricorder.Daemon.Builder
     , NewLoadResult (..)
     , BuildConsideration (..)
     , BuildFailure (..)
-    , BuildConfig (..)
     , build
     , consider
     , with
@@ -15,7 +14,6 @@ import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Time (Millisecond, nominalDiffTime)
-import Data.Default (Default (..))
 import Data.Time (diffUTCTime)
 import Effectful (Effect, inject)
 import Effectful.Dispatch.Dynamic (reinterpretWith_)
@@ -47,10 +45,7 @@ import Tricorder.Daemon.Dispatch
 import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Session (..))
 import Tricorder.Session.Command (Command)
-import Tricorder.Session.Target (Target)
-import Tricorder.Session.TestTarget (TestTarget)
 import Tricorder.Session.WatchDirs (WatchDirs)
 
 import Tricorder.Daemon.GhciSession qualified as GhciSession
@@ -80,28 +75,6 @@ data NewLoadResult = NewLoadResult
 
 
 makeEffect ''Builder
-
-
--- | A subset of 'Session' with just the properties that 'Builder' cares about.
-data BuildConfig = BuildConfig
-    { command :: Command
-    , targets :: [Target]
-    , testTargets :: [TestTarget]
-    , watchDirs :: WatchDirs
-    }
-    deriving stock (Eq)
-
-
-instance Default BuildConfig where
-    def =
-        BuildConfig
-            { command = session.command
-            , targets = session.targets
-            , testTargets = session.testTargets
-            , watchDirs = session.watchDirs
-            }
-      where
-        session = def @Session
 
 
 with
