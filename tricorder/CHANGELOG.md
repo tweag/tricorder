@@ -12,6 +12,21 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - The TUI can now restart the daemon — press `R` (the `restart_daemon` key
   event, rebindable like the others). It reconnects automatically once the
   fresh daemon is ready.
+- Support for eval comments. See [Features of Tricorder - Eval Comments] for
+  more information
+- `tricorder eval-comments` subcommand.
+- `tricorder log --print-path` prints the path to the current repo's Tricorder
+  log file.
+
+### Changed
+
+- `tricorder source` now uses a package's sdist tarball from cabal's global
+  cache instead of parsing Haddock-HTML, fetching them if necessary. This
+  allows Tricorder to show sources for packages without documentation.
+
+### Removed
+
+- Observability and metrics stack.
 
 ## [0.1.1.0] - 2026-06-26
 
@@ -56,3 +71,5 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Configurable via `.tricorder.toml` (targets, debounce, log file, etc.).
 - File watcher with debouncing; auto-restarts the GHCi session on crash
   (fixes ghcid's crash-on-file-removal bug).
+
+[Features of Tricorder - Eval Comments]: ../docs/features-of-tricorder.md#eval-comments
