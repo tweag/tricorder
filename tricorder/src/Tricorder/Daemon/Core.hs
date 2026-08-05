@@ -177,9 +177,8 @@ withSession
     => Session -> Eff es Void
 withSession session = do
     Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
-        forever $ Conc.scoped do
-            buildId <- State.state (\s -> (s, s + 1))
-            runSession buildId session
+        buildId <- State.state (\s -> (s, s + 1))
+        runSession buildId session
 
 
 -- | Starts the initial build with GHCi, and waits for source changes.
@@ -201,7 +200,7 @@ runSession
 runSession buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
-    err <- fmap (either id absurd)
+    startupError <- fmap (either id absurd)
         $ Pub.map (Build.Building session.testTargets)
         $ Builder.with buildId session.command session.watchDirs \_ initialLoad -> do
             processPostBuild session $ Right initialLoad
@@ -221,7 +220,7 @@ runSession buildId session = do
                 Conc.restartableFork checkCancel
                     $ waitForReload session event
 
-    Pub.publish $ Build.Failed $ show err
+    Pub.publish $ Build.Failed $ show startupError
 
 
 -- | Handles source changes as they come, determining whether the source change
