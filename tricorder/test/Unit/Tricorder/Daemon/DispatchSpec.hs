@@ -14,7 +14,7 @@ import Tricorder.Daemon.Dispatch
     , preserveFailureVisibility
     )
 import Tricorder.Daemon.GhciSession.GhciParser (LoadResult (..), collectResult)
-import Tricorder.Session (WatchDirs (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 
 spec_Dispatch :: Spec

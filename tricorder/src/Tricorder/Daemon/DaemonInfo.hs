@@ -11,7 +11,9 @@ import GHC.Generics (Generically (..))
 import System.FilePath (makeRelative)
 
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
-import Tricorder.Session (Session (..), Target, WatchDirs (..))
+import Tricorder.Session (Session (..))
+import Tricorder.Session.Target (Target)
+import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 
 data DaemonInfo = DaemonInfo

@@ -47,13 +47,11 @@ import Tricorder.Daemon.Dispatch
 import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session
-    ( Command (..)
-    , Session (..)
-    , Target
-    , TestTarget
-    , WatchDirs
-    )
+import Tricorder.Session (Session (..))
+import Tricorder.Session.Command (Command)
+import Tricorder.Session.Target (Target)
+import Tricorder.Session.TestTarget (TestTarget)
+import Tricorder.Session.WatchDirs (WatchDirs)
 
 import Tricorder.Daemon.GhciSession qualified as GhciSession
 

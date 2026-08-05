@@ -56,7 +56,7 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , stripAnsi
     , unattributedFailure
     )
-import Tricorder.Session (Command (..))
+import Tricorder.Session.Command (Command (..))
 
 
 -- | Configuration for GHCi process management.

@@ -40,7 +40,8 @@ import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced,
 import Tricorder.CLI.UI.Route (Route)
 import Tricorder.CLI.UI.State (Processed (..), State (..), TestFilter (..), Viewports (..), currentRoute)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
-import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
+import Tricorder.Session.Target (Target, renderTarget)
+import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build

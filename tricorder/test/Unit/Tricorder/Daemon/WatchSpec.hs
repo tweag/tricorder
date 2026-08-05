@@ -14,7 +14,8 @@ import Tricorder.Build.Changes
     )
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (WatchDirs (..), WatchExclusionPatterns (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
+import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..))
 
 import Tricorder.Daemon.Watch qualified as Watch
 

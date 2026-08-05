@@ -15,7 +15,7 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , resolveKnownTargets
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (WatchDirs (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 
 spec_Builder :: Spec
