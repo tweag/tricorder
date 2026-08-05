@@ -1,16 +1,13 @@
 module Tricorder.Daemon.Builder
     ( Builder (..)
-    , build
-    , consider
+    , NewLoadResult (..)
     , BuildConsideration (..)
     , BuildFailure (..)
+    , BuildConfig (..)
+    , build
+    , consider
     , with
     , compileBuildResults
-    , BuildConfig (..)
-
-      -- * Internals exposed for testing
-    , NewLoadResult (..)
-    , compileLoadResultsIntoBuildResults
     ) where
 
 import Atelier.Effects.Clock (Clock, UTCTime)
@@ -117,15 +114,16 @@ with
        , Reader ProjectRoot :> es
        )
     => BuildId
-    -> BuildConfig
+    -> Command
+    -> WatchDirs
     -> (BuilderState -> NewLoadResult -> Eff (Builder : es) a)
     -> Eff es (Either SomeException a)
-with buildId config action = do
+with buildId command watchDirs action = do
     root <- ask
     startTime <- Clock.currentTime
-    trySync $ GhciSession.withGhciWith Pub.publish config.command root \initialLoad controls -> do
+    trySync $ GhciSession.withGhciWith Pub.publish command root \initialLoad controls -> do
         endTime <- Clock.currentTime
-        let filteredMsgs = filterToWatchDirs root.getProjectRoot config.watchDirs initialLoad.diagnostics
+        let filteredMsgs = filterToWatchDirs root.getProjectRoot watchDirs initialLoad.diagnostics
         Log.info
             $ mconcat
                 [ "GHCi started (session #"
@@ -192,10 +190,11 @@ buildSource controls action = do
 compileBuildResults
     :: ProjectRoot
     -> WatchDirs
-    -> NewLoadResult
     -> DiagnosticMap
+    -> NewLoadResult
     -> (DiagnosticMap, BuildResult)
-compileBuildResults (ProjectRoot projectRoot) watchDirs newLoadResult diagnosticMap = (merged, buildResult)
+compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadResult =
+    (merged, buildResult)
   where
     NewLoadResult {startTime, endTime, loadResult} = newLoadResult
     merged = mergeDiagnostics diagnosticMap filteredResult
@@ -219,35 +218,3 @@ runAction controls = \case
     Reload -> controls.reload
     Add fp -> controls.add fp
     Unadd mn -> controls.unadd mn
-
-
-compileLoadResultsIntoBuildResults
-    :: ( Reader ProjectRoot :> es
-       , State BuilderState :> es
-       )
-    => BuildConfig
-    -> NewLoadResult
-    -> Eff es BuildResult
-compileLoadResultsIntoBuildResults session newLoadResult = do
-    ProjectRoot projectRoot <- ask
-    let filteredResult =
-            loadResult
-                { GhciSession.diagnostics =
-                    preserveFailureVisibility loadResult.diagnostics
-                        $ filterToWatchDirs projectRoot watchDirs loadResult.diagnostics
-                }
-
-    newAccumulated <- State.state \s ->
-        let merged = mergeDiagnostics s.diagnosticMap filteredResult
-        in  (merged, s {diagnosticMap = merged})
-
-    pure
-        BuildResult
-            { completedAt = endTime
-            , duration = nominalDiffTime (diffUTCTime endTime startTime) :: Millisecond
-            , moduleCount = loadResult.moduleCount
-            , diagnostics = sortOn (\d -> (d.severity, d.file, d.line, d.col)) $ concat (Map.elems newAccumulated)
-            }
-  where
-    BuildConfig {watchDirs} = session
-    NewLoadResult {startTime, endTime, loadResult} = newLoadResult
