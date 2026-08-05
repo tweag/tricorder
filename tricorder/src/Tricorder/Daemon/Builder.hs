@@ -51,7 +51,7 @@ import Tricorder.Session
     ( Command (..)
     , Session (..)
     , Target
-    , TestTargets
+    , TestTarget
     , WatchDirs
     )
 
@@ -88,7 +88,7 @@ makeEffect ''Builder
 data BuildConfig = BuildConfig
     { command :: Command
     , targets :: [Target]
-    , testTargets :: TestTargets
+    , testTargets :: [TestTarget]
     , watchDirs :: WatchDirs
     }
     deriving stock (Eq)

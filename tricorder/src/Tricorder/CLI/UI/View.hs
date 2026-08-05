@@ -40,7 +40,7 @@ import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced,
 import Tricorder.CLI.UI.Route (Route)
 import Tricorder.CLI.UI.State (Processed (..), State (..), TestFilter (..), Viewports (..), currentRoute)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
-import Tricorder.Session (Target, TestTarget, TestTargets, getTestTargets, renderTarget, renderTestTarget)
+import Tricorder.Session (Target, TestTarget, renderTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
@@ -307,12 +307,11 @@ viewBuildPhase tz = \case
         viewBuildFailed msg
 
 
-viewPendingTestTargets :: TestTargets -> Widget n
+viewPendingTestTargets :: [TestTarget] -> Widget n
 viewPendingTestTargets =
     vBox
         . ([txt "Pending test suites:"] <>)
         . fmap (subtle . txt . renderTestTarget)
-        . getTestTargets
 
 
 viewBuildFailed :: Text -> Widget Viewports

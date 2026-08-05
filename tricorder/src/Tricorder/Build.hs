@@ -15,7 +15,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import GHC.Generics (Generically (..))
 
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Session (TestTargets)
+import Tricorder.Session (TestTarget)
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
@@ -37,7 +37,7 @@ newtype BuildId = BuildId {getBuildId :: Int}
 
 data BuildPhase
     = Starting
-    | Building TestTargets BuildProgress
+    | Building [TestTarget] BuildProgress
     | Failed Text
     | PostBuilding BuildResult PostBuild
     | Finished BuildResult PostBuild
