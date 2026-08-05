@@ -12,6 +12,14 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Atelier.Effects.Process`: `getExecutablePath` returns the absolute path of
   the currently running executable, for re-invoking the program as a
   subprocess.
+- `Atelier.Effects.Publishing.Pub:` `map` and `mapM` allows mapping over
+  published effects, producing a new `Pub` effect with the transformed values.
+
+### Changed
+
+- Moved `Pub` and `Sub` out of `Atelier.Effects.Publishing` to separate modules,
+  `Atelier.Effects.Publishing.Pub` and `Atelier.Effects.Publishing.Sub`
+  respectively.
 
 ## [0.2.0.0] - 2026-06-26
 
