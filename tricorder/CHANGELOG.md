@@ -21,6 +21,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Fixed
 
 - No diagnostics are listed in single-package repos.
+- Build loops on startup failure.
 
 ### Changed
 
