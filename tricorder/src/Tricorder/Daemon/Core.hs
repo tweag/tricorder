@@ -58,7 +58,7 @@ import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session
     ( CabalFile
     , Session (..)
-    , TestTargets (..)
+    , TestTarget
     , TestTimeout
     , loadSession
     , renderTestTarget
@@ -349,7 +349,7 @@ runTests session buildResult
         runTestsForTargets session.testTimeout session.testTargets
     | otherwise = pure mempty
   where
-    hasTargets testTargets = not $ null testTargets.getTestTargets
+    hasTargets = not . null
     noErrors = all \d -> d.severity /= SError
 
 
@@ -359,15 +359,14 @@ runTestsForTargets
        , TestRunner :> es
        )
     => TestTimeout
-    -> TestTargets
+    -> [TestTarget]
     -> Eff es Test.Suites
 runTestsForTargets testTimeout testTargets = do
     Pub.publish $ Test.Suites initial
-    Log.info $ "Running " <> show (length tgts) <> " test suite(s)"
-    fmap Test.Suites . State.execState initial $ traverse_ go tgts
+    Log.info $ "Running " <> show (length testTargets) <> " test suite(s)"
+    fmap Test.Suites . State.execState initial $ traverse_ go testTargets
   where
-    initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> tgts
-    tgts = testTargets.getTestTargets
+    initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testTargets
     go target = do
         Log.info $ "Running tests: " <> renderTestTarget target
         finishedSuite <-
