@@ -167,12 +167,19 @@ filterToWatchDirs projectRoot (WatchDirs watchDirs) diags =
         | isAbsolute wd = wd
         | otherwise = projectRoot </> wd
     isUnderAnyWatchDir file
-        | not (isAbsolute file) && not ("./" `isPrefixOf` file) = False
+        | isCPPMangledFile file = False
         | isAbsolute file =
             any (\wd -> (wd ++ "/") `isPrefixOf` file || wd == file) absWatchDirs
         | otherwise =
-            let absFile = projectRoot </> drop 2 file
+            let absFile = projectRoot </> normalizeRelativePath file
             in  any (\wd -> (wd ++ "/") `isPrefixOf` absFile || wd == absFile) absWatchDirs
+    isCPPMangledFile = ("In file included from" `isPrefixOf`)
+    normalizeRelativePath file
+        -- GHCi reports filenames relative to the project root for
+        -- single-package repos. E.g. "src/Foo/Bar.hs", instead of
+        -- an absolute path or a "./" prefixed path.
+        | "./" `isPrefixOf` file = drop 2 file
+        | otherwise = file
 
 
 -- | Keep a failed build from ever reading as clean after watch-dir filtering.

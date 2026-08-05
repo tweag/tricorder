@@ -224,6 +224,7 @@ test-suite tricorder-test
       Unit.Tricorder.CLI.RenderSpec
       Unit.Tricorder.Daemon.BuilderSpec
       Unit.Tricorder.Daemon.BuildStateSpec
+      Unit.Tricorder.Daemon.DispatchSpec
       Unit.Tricorder.Daemon.GhciSession.GhciParserSpec
       Unit.Tricorder.Daemon.GhciSession.GhciProcessSpec
       Unit.Tricorder.Daemon.GhciSessionSpec
