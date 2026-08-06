@@ -119,17 +119,72 @@ let
           # Ensuring $out is a directory makes this check compatible with
           # symlinkJoin.
           mkdir -p $out
-          touch $out/ok
+          touch $out/check-overlay-ok
+        '';
+    cabal-check =
+      pkgs.runCommand "cabal-check"
+        {
+          packagenames = builtins.concatStringsSep "\n" sdistPackages;
+          buildInputs = [
+            pkgs.cabal-install
+            pkgs.writableTmpDirAsHomeHook
+          ];
+        }
+        ''
+          for package in $packagenames; do
+            echo "Checking $package" >&2
+            (cd "${../.}/$package" && cabal check)
+          done
+          # Ensuring $out is a directory makes this check compatible with
+          # symlinkJoin.
+          mkdir -p "$out"
+          touch "$out/cabal-check-ok"
         '';
   };
+
+  sdistPackages = [
+    "atelier-core"
+    "atelier-prelude"
+    "atelier-db"
+    "atelier-testing"
+    "tricorder"
+  ];
+  mkSdist =
+    package:
+    pkgs.runCommand "${package}-sdist"
+      {
+        nativeBuildInputs = [
+          pkgs.cabal-install
+          pkgs.writableTmpDirAsHomeHook
+        ];
+      }
+      ''
+        cp -r ${../${package}} ./package
+        chmod 777 ./package
+        cd ./package
+        cabal sdist -o "$out"
+      '';
+  sdists = builtins.listToAttrs (
+    map (name: {
+      name = "${name}-sdist";
+      value = mkSdist name;
+    }) sdistPackages
+  );
 in
 {
   # Expose packages built by haskell.nix
-  packages = projectFlake.packages // {
-    default = tricorder;
-    tricorder = tricorder;
-    inherit nix-hpack;
-  };
+  packages =
+    projectFlake.packages
+    // sdists
+    // {
+      default = tricorder;
+      tricorder = tricorder;
+      inherit nix-hpack;
+      sdists = pkgs.symlinkJoin {
+        name = "sdists";
+        paths = builtins.attrValues sdists;
+      };
+    };
 
   # Development shell
   devShells.default = import ./shell.nix {
