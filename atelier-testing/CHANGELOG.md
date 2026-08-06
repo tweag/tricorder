@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.1.0.0] - 2026-06-04
+
 ### Added
 
 - Initial release: database-backed test utilities (tmp-postgres) for the
