@@ -11,7 +11,7 @@ let
     aeson = ">=2.2 && <2.3";
     ansi-terminal = ">=1.1 && <1.2";
     async = ">=2.2 && <2.3";
-    atelier-core = ">=0.2 && <0.3";
+    atelier-core = ">=0.3 && <0.4";
     atelier-db = ">=0.1 && <0.2";
     atelier-prelude = ">=0.1 && <0.2";
     base64-bytestring = ">=1.2 && <1.3";

@@ -4,7 +4,7 @@ let
 in
 {
   name = "atelier-core";
-  version = "0.2.0.0";
+  version = "0.3.0.0";
   synopsis = "Foundational Effectful-based effects and utilities";
   description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
   github = "tweag/tricorder";
