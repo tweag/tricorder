@@ -52,3 +52,86 @@ jobs:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: ${{ runner.temp }}/result/
           publish: false
+
+  tricorder-tag:
+    name: Tag new Tricorder version
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.tagging.outputs.created }}
+      name: ${{ steps.tagging.outputs.name }}
+      version: ${{ steps.tagging.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: sol/haskell-autotag@v1
+        id: tagging
+        with:
+          package-path: tricorder
+
+  build-binaries:
+    name: Build binaries
+    needs:
+      - checks
+      - tricorder-tag
+    if: ${{ needs.tricorder-tag.outputs.created }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        system:
+          - x86_64-linux
+          - aarch64-darwin
+        include:
+          - system: x86_64-linux
+            runs-on: ubuntu-latest
+          - system: aarch64-darwin
+            runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@v17
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - name: Build
+        run: nix build .#tricorder
+      - name: Compress
+        run: |
+          compressed_name="tricorder_${{ matrix.system }}"
+          cat result/bin/tricorder | gzip > "$compressed_name.gz"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tricorder_${{ matrix.system }}
+          path: tricorder_${{ matrix.system }}.gz
+
+  publish-github:
+    name: Publish binaries to GitHub
+    needs:
+      - build-binaries
+      - tricorder-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Extract from CHANGELOG
+        run: |
+          nix run .#get-changelog-section -- \
+            ${{ needs.tricorder-tag.outputs.version }} \
+            tricorder/CHANGELOG.md \
+          | tee release-notes.md
+      - uses: actions/download-artifact@v8
+        with:
+          path: binaries
+          merge-multiple: true
+      - name: Publish to GitHub
+        run: |
+          gh release create \
+            '${{ needs.tricorder-tag.outputs.name }}' \
+            --title 'Tricorder ${{ needs.tricorder-tag.outputs.name }}' \
+            --notes-file release-notes.md \
+            --verify-tag \
+            binaries/*

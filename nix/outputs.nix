@@ -226,6 +226,40 @@ in
         echo "Hlint refactoring complete!"
       ''}";
     };
+
+    get-changelog-section = {
+      type = "app";
+      program = lib.getExe (
+        pkgs.writeShellApplication {
+          name = "get-changelog-section";
+          runtimeInputs = [ pkgs.gawk ];
+          text = ''
+            version="''${1:?Usage: $0 <version> [changelog-file]}"
+            changelog="''${2:-tricorder/CHANGELOG.md}"
+            version="''${version#v}"
+
+            if [[ ! -f "$changelog" ]]; then
+              echo "error: missing changelog file: $changelog" >&2
+              exit 1
+            fi
+
+            section=$(awk -v ver="$version" '
+              /^## \[/ {
+                if (in_section) exit
+                if ($0 ~ "^## \\[" ver "\\]") { in_section = 1; print; next }
+              }
+              in_section { print }
+            ' "$changelog")
+
+            if [[ -z "$section" ]]; then
+              echo "error: version $version not found in $changelog" >&2
+              exit 1
+            fi
+            printf '%s\n' "$section"
+          '';
+        }
+      );
+    };
   };
 
   legacyChecks.${compiler-nix-name} = templateChecks // {
