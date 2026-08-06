@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.2.0.0] - 2026-08-06
+
 ### Added
 
 - The TUI can now restart the daemon — press `R` (the `restart_daemon` key
