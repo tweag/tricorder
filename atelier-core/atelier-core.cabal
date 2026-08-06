@@ -5,7 +5,7 @@ cabal-version: 2.0
 -- see: https://github.com/sol/hpack
 
 name:           atelier-core
-version:        0.2.0.0
+version:        0.3.0.0
 synopsis:       Foundational Effectful-based effects and utilities
 description:    Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.
 category:       Control
@@ -202,7 +202,7 @@ test-suite atelier-test
   build-depends:
       aeson ==2.2.*
     , async ==2.2.*
-    , atelier-core ==0.2.*
+    , atelier-core ==0.3.*
     , atelier-prelude ==0.1.*
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
