@@ -1,0 +1,32 @@
+name: Release
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.cabal"
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Check
+        run: nix build .#checks.x86_64-linux.cabal-check
+      - name: Pack
+        run: nix build .#sdists
+      - name: Publish to Hackage
+        uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: ${{ runner.temp }}/result
+          publish: false
