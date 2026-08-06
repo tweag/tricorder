@@ -11,8 +11,20 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  release:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  release-hackage:
+    needs: [checks]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - atelier-db
+          - atelier-prelude
+          - atelier-testing
+          - atelier-core
+          - tricorder
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
@@ -20,13 +32,23 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             experimental-features = nix-command flakes
-      - name: Check
-        run: nix build .#checks.x86_64-linux.cabal-check
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@v17
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - uses: sol/haskell-autotag@v1
+        id: tagging
+        with:
+          package-path: ${{ matrix.package }}
+          prefix: ${{ matrix.package }}-v
       - name: Pack
-        run: nix build .#sdists
+        run: nix build .#${{ matrix.package }}-sdist
       - name: Publish to Hackage
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
-          packagesPath: ${{ runner.temp }}/result
+          packagesPath: ${{ runner.temp }}/result/
           publish: false
