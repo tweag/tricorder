@@ -1,4 +1,4 @@
-name: Release Tricorder binaries
+name: Create draft Tricorder GitHub release
 on:
   push:
     tags:
