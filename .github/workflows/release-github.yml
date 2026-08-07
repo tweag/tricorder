@@ -1,0 +1,85 @@
+name: Release Tricorder binaries
+on:
+  push:
+    tags:
+      - "tricorder-*"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  build-binaries:
+    name: Build binaries
+    needs:
+      - checks
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        system:
+          - x86_64-linux
+          - aarch64-darwin
+        include:
+          - system: x86_64-linux
+            runs-on: ubuntu-latest
+          - system: aarch64-darwin
+            runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - name: Build
+        run: nix build .#tricorder
+      - name: Compress
+        run: |
+          compressed_name="tricorder_${{ matrix.system }}"
+          cat result/bin/tricorder | gzip > "$compressed_name.gz"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: tricorder_${{ matrix.system }}
+          path: tricorder_${{ matrix.system }}.gz
+          archive: false
+
+  publish-github:
+    name: Publish binaries to GitHub
+    needs:
+      - build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - id: version
+        run: |
+          version="$(echo '${{ github.ref }}' | sed 's/^tricorder-//')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Extract from CHANGELOG
+        run: |
+          nix run .#get-changelog-section -- \
+            "${{ steps.version.outputs.version }}" \
+            tricorder/CHANGELOG.md \
+          | tee release-notes.md
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: tricorder_*
+          path: binaries
+          merge-multiple: true
+      - name: Publish to GitHub
+        run: |
+          gh release create \
+            '${{ github.ref }}' \
+            --title 'Tricorder v${{ steps.version.outputs.version }}' \
+            --notes-file release-notes.md \
+            --verify-tag \
+            binaries/*.gz
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ github.ref }}/candidate"

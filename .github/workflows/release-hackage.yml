@@ -1,0 +1,53 @@
+name: Release Hackage packages
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.cabal"
+  workflow_dispatch:
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  release-hackage:
+    needs:
+      - checks
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - atelier-db
+          - atelier-prelude
+          - atelier-testing
+          - atelier-core
+          - tricorder
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - uses: sol/haskell-autotag@a535f2ac35a62c541de1919b04984b2970866f71
+        id: tagging
+        with:
+          package-path: ${{ matrix.package }}
+          prefix: ${{ matrix.package }}-v
+      - name: Pack
+        if: ${{ steps.tagging.outputs.created }}
+        run: nix build .#${{ matrix.package }}-sdist
+      - name: Publish to Hackage
+        if: ${{ steps.tagging.outputs.created }}
+        uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: ${{ runner.temp }}/result/
+          publish: false
