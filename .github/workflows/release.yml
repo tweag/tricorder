@@ -6,10 +6,6 @@ on:
       - "**/*.cabal"
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
@@ -114,6 +110,7 @@ jobs:
     needs:
       - build-binaries
       - tricorder-tag
+    if: ${{ needs.tricorder-tag.outputs.created }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
@@ -135,3 +132,5 @@ jobs:
             --notes-file release-notes.md \
             --verify-tag \
             binaries/*
+        env:
+          GH_TOKEN: ${{ github.token }}
