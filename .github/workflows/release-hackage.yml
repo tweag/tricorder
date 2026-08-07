@@ -51,3 +51,4 @@ jobs:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: ${{ runner.temp }}/result/
           publish: false
+      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ github.ref }}/candidate"

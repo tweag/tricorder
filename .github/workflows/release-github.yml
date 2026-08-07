@@ -82,4 +82,3 @@ jobs:
             binaries/*.gz
         env:
           GH_TOKEN: ${{ github.token }}
-      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ github.ref }}/candidate"
