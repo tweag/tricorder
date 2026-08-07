@@ -17,8 +17,8 @@ jobs:
     outputs:
       versions: ${{ steps.compute.outputs.ghc-versions }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
         with:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
@@ -49,8 +49,8 @@ jobs:
           - os: ubuntu-latest
             system: x86_64-linux
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
         with:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
@@ -58,7 +58,7 @@ jobs:
             accept-flake-config = true
             extra-substituters = https://cache.iog.io
             extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
-      - uses: cachix/cachix-action@v17
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"

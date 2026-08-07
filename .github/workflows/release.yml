@@ -26,8 +26,8 @@ jobs:
           - atelier-core
           - tricorder
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
         with:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
@@ -35,11 +35,11 @@ jobs:
             accept-flake-config = true
             extra-substituters = https://cache.iog.io
             extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
-      - uses: cachix/cachix-action@v17
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
-      - uses: sol/haskell-autotag@v1
+      - uses: sol/haskell-autotag@a535f2ac35a62c541de1919b04984b2970866f71
         id: tagging
         with:
           package-path: ${{ matrix.package }}
@@ -61,8 +61,8 @@ jobs:
       name: ${{ steps.tagging.outputs.name }}
       version: ${{ steps.tagging.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: sol/haskell-autotag@v1
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: sol/haskell-autotag@a535f2ac35a62c541de1919b04984b2970866f71
         id: tagging
         with:
           package-path: tricorder
@@ -85,8 +85,8 @@ jobs:
           - system: aarch64-darwin
             runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
         with:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
@@ -94,7 +94,7 @@ jobs:
             accept-flake-config = true
             extra-substituters = https://cache.iog.io
             extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
-      - uses: cachix/cachix-action@v17
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
@@ -104,7 +104,7 @@ jobs:
         run: |
           compressed_name="tricorder_${{ matrix.system }}"
           cat result/bin/tricorder | gzip > "$compressed_name.gz"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: tricorder_${{ matrix.system }}
           path: tricorder_${{ matrix.system }}.gz
@@ -116,14 +116,14 @@ jobs:
       - tricorder-tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
       - name: Extract from CHANGELOG
         run: |
           nix run .#get-changelog-section -- \
             ${{ needs.tricorder-tag.outputs.version }} \
             tricorder/CHANGELOG.md \
           | tee release-notes.md
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: binaries
           merge-multiple: true
