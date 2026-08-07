@@ -124,7 +124,7 @@ let
     cabal-check =
       pkgs.runCommand "cabal-check"
         {
-          packagenames = builtins.concatStringsSep "\n" sdistPackages;
+          packagenames = builtins.concatStringsSep "\n" packageNames;
           buildInputs = [
             pkgs.cabal-install
             pkgs.writableTmpDirAsHomeHook
@@ -142,7 +142,7 @@ let
         '';
   };
 
-  sdistPackages = [
+  packageNames = [
     "atelier-core"
     "atelier-prelude"
     "atelier-db"
@@ -168,7 +168,21 @@ let
     map (name: {
       name = "${name}-sdist";
       value = mkSdist name;
-    }) sdistPackages
+    }) packageNames
+  );
+  mkDocs =
+    package:
+    let
+      pkg =
+        projectFlake.packages."${package}:lib:${package}"
+          or projectFlake.packages."${package}:lib:${package}-internal";
+    in
+    pkg.passthru.haddock.doc;
+  docs = builtins.listToAttrs (
+    map (name: {
+      name = "${name}-docs";
+      value = mkDocs name;
+    }) packageNames
   );
 in
 {
@@ -176,6 +190,7 @@ in
   packages =
     projectFlake.packages
     // sdists
+    // docs
     // {
       default = tricorder;
       tricorder = tricorder;
@@ -268,6 +283,8 @@ in
       paths = builtins.attrValues checks ++ builtins.attrValues templateChecks;
     };
   };
+
+  legacyPackages.projectFlake.${compiler-nix-name} = projectFlake;
 
   inherit checks;
 }

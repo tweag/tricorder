@@ -5,7 +5,13 @@
   self,
 }:
 let
-  nix-hpack = pkgs.callPackage ./package/nix-hpack.nix { };
+  component = {
+    # Treat warnings as errors in Nix builds (CI), but not in local dev.
+    # Applied to every first-party package.
+    ghcOptions = [ "-Werror" ];
+    # Make generated documentation suitable for upload to Hackage.
+    setupHaddockFlags = [ "--for-hackage" ];
+  };
 in
 pkgs.haskell-nix.cabalProject' {
   src = ../.;
@@ -24,16 +30,13 @@ pkgs.haskell-nix.cabalProject' {
         # Disable tests for tmp-postgres
         tmp-postgres.doCheck = false;
 
-        # Treat warnings as errors in Nix builds (CI), but not in local dev.
-        # Applied to every first-party package.
-        atelier-prelude.ghcOptions = [ "-Werror" ];
-        atelier-core.ghcOptions = [ "-Werror" ];
-        atelier-db.ghcOptions = [ "-Werror" ];
-        atelier-testing.ghcOptions = [ "-Werror" ];
+        atelier-prelude = component;
+        atelier-core = component;
+        atelier-db = component;
+        atelier-testing = component;
 
         # Configure tricorder package
-        tricorder = {
-          ghcOptions = [ "-Werror" ];
+        tricorder = component // {
           # Embed the flake's git revision so the released binary carries the
           # correct hash. Falls back to "unknown" on dirty trees (no shortRev).
           preBuild = ''

@@ -41,14 +41,23 @@ jobs:
         with:
           package-path: ${{ matrix.package }}
           prefix: ${{ matrix.package }}-v
+      - run: mkdir -p ${{ runner.temp }}/release
       - name: Pack
         if: ${{ steps.tagging.outputs.created }}
-        run: nix build .#${{ matrix.package }}-sdist
+        run: |
+          nix build .#${{ matrix.package }}-sdist
+          cp result/*.tar.gz ${{ runner.temp }}/release/
+      - name: Build docs
+        if: ${{ steps.tagging.outputs.created }}
+        run: |
+          nix build .#${{ matrix.package }}-docs
+          cp result-doc/*.tar.gz ${{ runner.temp }}/release/
+
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
-          packagesPath: ${{ runner.temp }}/result/
+          packagesPath: ${{ runner.temp }}/release/
           publish: false
-      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ github.ref }}/candidate"
+      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
