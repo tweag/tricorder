@@ -5,7 +5,7 @@ cabal-version: 1.18
 -- see: https://github.com/sol/hpack
 
 name:           atelier-prelude
-version:        0.1.0.0
+version:        0.2.0.0
 synopsis:       Custom relude-based prelude with Effectful conventions
 description:    A custom prelude based on relude, adapted for Effectful — part of the atelier toolkit.
 category:       Prelude
