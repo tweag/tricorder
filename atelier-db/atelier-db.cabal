@@ -61,7 +61,7 @@ library
   build-depends:
       aeson ==2.2.*
     , atelier-core ==0.3.*
-    , atelier-prelude ==0.1.*
+    , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
     , containers >=0.6 && <0.9

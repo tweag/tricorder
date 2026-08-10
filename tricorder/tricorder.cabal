@@ -112,7 +112,7 @@ library tricorder-internal
     , aeson ==2.2.*
     , ansi-terminal ==1.1.*
     , atelier-core ==0.3.*
-    , atelier-prelude ==0.1.*
+    , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , brick ==2.10.*
     , bytestring >=0.11 && <0.13
@@ -176,7 +176,7 @@ executable tricorder
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      atelier-prelude ==0.1.*
+      atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , effectful-core ==2.6.*
     , effectful-plugin >=2.0 && <2.2
@@ -214,7 +214,7 @@ executable tricorder-daemon
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      atelier-prelude ==0.1.*
+      atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , effectful-core ==2.6.*
     , effectful-plugin >=2.0 && <2.2
@@ -282,7 +282,7 @@ test-suite tricorder-test
       Cabal-syntax >=3.12 && <3.17
     , aeson ==2.2.*
     , atelier-core ==0.3.*
-    , atelier-prelude ==0.1.*
+    , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
     , containers >=0.6 && <0.9
