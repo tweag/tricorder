@@ -4,7 +4,7 @@ let
 in
 {
   name = "atelier-db";
-  version = "0.1.1.0";
+  version = "0.2.0.0";
   synopsis = "Relational database effect for atelier (Hasql/Rel8)";
   description = "Relational database access via Hasql and Rel8, exposed as an Effectful effect — part of the atelier toolkit.";
   github = "tweag/tricorder";
