@@ -1,0 +1,51 @@
+name: Release Hackage package
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        description: Name of the package to release
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - uses: sol/haskell-autotag@a535f2ac35a62c541de1919b04984b2970866f71
+        id: tagging
+        with:
+          package-path: ${{ inputs.package-name }}
+          prefix: ${{ inputs.package-name }}-
+      - run: mkdir -p ${{ runner.temp }}/release
+      - name: Pack
+        if: ${{ steps.tagging.outputs.created }}
+        run: |
+          nix build .#${{ inputs.package-name }}-sdist
+          cp result/*.tar.gz ${{ runner.temp }}/release/
+      - name: Build docs
+        if: ${{ steps.tagging.outputs.created }}
+        run: |
+          nix build .#${{ inputs.package-name }}-docs
+          cp result-doc/*.tar.gz ${{ runner.temp }}/release/
+
+      - name: Publish to Hackage
+        if: ${{ steps.tagging.outputs.created }}
+        uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
+        with:
+          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
+          packagesPath: ${{ runner.temp }}/release/
+          publish: false
+      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
