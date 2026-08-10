@@ -48,4 +48,9 @@ jobs:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: ${{ runner.temp }}/release/
           publish: false
-      - run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
+      - id: finished
+        run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
+      - name: Clean up stray tag on failure
+        if: ${{ (failure() || skipped() || cancelled()) && steps.tagging.outputs.created }}
+        run: |
+          git push --delete origin '${{ steps.tagging.outputs.name }}'
