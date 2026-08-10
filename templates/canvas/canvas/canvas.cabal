@@ -112,7 +112,7 @@ executable canvas
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      atelier-prelude ==0.1.*
+      atelier-prelude >=0.1
     , base >=4.18 && <4.23
     , canvas
     , effectful-core ==2.6.*
@@ -154,7 +154,7 @@ test-suite canvas-test
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
-      atelier-prelude ==0.1.*
+      atelier-prelude >=0.1
     , base >=4.18 && <4.23
     , canvas
     , effectful-core ==2.6.*
