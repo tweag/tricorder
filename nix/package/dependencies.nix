@@ -12,8 +12,8 @@ let
     ansi-terminal = ">=1.1 && <1.2";
     async = ">=2.2 && <2.3";
     atelier-core = ">=0.3 && <0.4";
-    atelier-db = ">=0.1 && <0.2";
-    atelier-prelude = ">=0.1 && <0.2";
+    atelier-db = ">=0.1 && <0.3";
+    atelier-prelude = ">=0.1 && <0.3";
     base64-bytestring = ">=1.2 && <1.3";
     brick = ">=2.10 && <2.11";
     bytestring = ">=0.11 && <0.13";
