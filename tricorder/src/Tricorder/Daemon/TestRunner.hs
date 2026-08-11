@@ -41,7 +41,7 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..))
+import Tricorder.Session.Command (Command (..), Repl)
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
@@ -55,6 +55,7 @@ data TestRunner :: Effect where
     RunTestSuite
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
+        -> Repl
         -> TestTimeout
         -> TestTarget
         -> TestRunner m Test.Suite
@@ -78,14 +79,14 @@ run
     => Eff (TestRunner : es) a -> Eff es a
 run act = do
     interpretWith act \env -> \case
-        RunTestSuite progressHandler testTimeout target ->
+        RunTestSuite progressHandler repl testTimeout target ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
                     noProgress _ = pure ()
                     noReady _ = pure ()
                 ProjectRoot projectRoot <- ask
                 result <- trySync
-                    $ withGhciProcess def (Command $ "cabal repl " <> renderTestTarget target) projectRoot onProgress noReady \ghci _ ->
+                    $ withGhciProcess def (Command repl [renderTestTarget target]) projectRoot onProgress noReady \ghci _ ->
                         case testTimeout of
                             TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
                             TestTimeout secs ->
@@ -140,7 +141,7 @@ runScripted
 runScripted results =
     reinterpret_
         (evalState results)
-        (\(RunTestSuite _ _ _) -> popResult)
+        (\(RunTestSuite _ _ _ _) -> popResult)
   where
     popResult :: Eff (State [Either SomeException Test.Suite] : es) Test.Suite
     popResult =

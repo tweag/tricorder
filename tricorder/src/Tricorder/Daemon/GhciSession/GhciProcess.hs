@@ -58,6 +58,8 @@ import Tricorder.Daemon.GhciSession.GhciParser
     )
 import Tricorder.Session.Command (Command (..))
 
+import Tricorder.Session.Command qualified as Command
+
 
 -- | Configuration for GHCi process management.
 data Config = Config
@@ -234,7 +236,9 @@ withGhciProcess config cmd dir onProgress onReady action =
             $ setStdout createPipe
             $ setStderr createPipe
             $ setWorkingDir dir
-            $ shell (toString cmd.getCommand)
+            $ shell
+            $ toString
+            $ Command.render cmd
 
 
 -- | Execute a command in GHCi and return the combined stdout+stderr output

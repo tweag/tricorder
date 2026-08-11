@@ -9,11 +9,12 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..), resolveCommand)
+import Tricorder.Session.Command (resolveCommand)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (parseTarget)
 import Tricorder.Session.TestTarget (parseTestTargets)
 
+import Tricorder.Session.Command qualified as Command
 import Tricorder.Session.Config qualified as Config
 
 
@@ -26,8 +27,9 @@ testResolveCommand :: Spec
 testResolveCommand = do
     describe "when config has a command" do
         it "should use specified command" do
-            let Command actual =
-                    runPureEff
+            let actual =
+                    Command.render
+                        . runPureEff
                         . evalState mempty
                         . runFileSystemState
                         $ resolveCommand pr def {command = Just "foo"} [] testTargets
@@ -35,8 +37,9 @@ testResolveCommand = do
 
     describe "when config has explicit targets" do
         it "should spell them out verbatim, ignoring discovered test targets" do
-            let Command actual =
-                    runPureEff
+            let actual =
+                    Command.render
+                        . runPureEff
                         . evalState (Map.singleton "/cabal.project" "")
                         . runFileSystemState
                         $ resolveCommand pr cfg (parseTarget <$> ["lib:foo"]) testTargets
@@ -45,8 +48,9 @@ testResolveCommand = do
     describe "when config does not have a command or targets" do
         describe "and there is a cabal.project file" do
             it "should use cabal 'all' plus the discovered test targets" do
-                let Command actual =
-                        runPureEff
+                let actual =
+                        Command.render
+                            . runPureEff
                             . evalState (Map.singleton "/cabal.project" "")
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
@@ -55,8 +59,9 @@ testResolveCommand = do
 
         describe "and there is at least one *.cabal file" do
             it "should use cabal 'all' plus the discovered test targets" do
-                let Command actual =
-                        runPureEff
+                let actual =
+                        Command.render
+                            . runPureEff
                             . evalState (Map.singleton "/foo.cabal" "")
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
@@ -65,17 +70,39 @@ testResolveCommand = do
 
         describe "and there is a stack.yaml file" do
             it "should use stack ghci with 'all' plus test targets" do
-                let Command actual =
-                        runPureEff
+                let actual =
+                        Command.render
+                            . runPureEff
                             . evalState (Map.singleton "/stack.yaml" "")
+                            . runFileSystemState
+                            $ resolveCommand pr cfg [] testTargets
+                actual `shouldBe` "stack ghci all test:foo"
+
+        describe "and there is both a stack.yaml and a cabal.project file" do
+            it "should prefer stack ghci over cabal" do
+                let actual =
+                        Command.render
+                            . runPureEff
+                            . evalState (Map.fromList [("/stack.yaml", ""), ("/cabal.project", "")])
+                            . runFileSystemState
+                            $ resolveCommand pr cfg [] testTargets
+                actual `shouldBe` "stack ghci all test:foo"
+
+        describe "and there is both a stack.yaml and a *.cabal file" do
+            it "should prefer stack ghci over cabal" do
+                let actual =
+                        Command.render
+                            . runPureEff
+                            . evalState (Map.fromList [("/stack.yaml", ""), ("/foo.cabal", "")])
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
                 actual `shouldBe` "stack ghci all test:foo"
 
         describe "but there are no project files" do
             it "should use default cabal repl with 'all' plus test targets" do
-                let Command actual =
-                        runPureEff
+                let actual =
+                        Command.render
+                            . runPureEff
                             . evalState mempty
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
@@ -83,8 +110,9 @@ testResolveCommand = do
 
         describe "and no test targets are discovered" do
             it "should fall back to plain 'all'" do
-                let Command actual =
-                        runPureEff
+                let actual =
+                        Command.render
+                            . runPureEff
                             . evalState (Map.singleton "/cabal.project" "")
                             . runFileSystemState
                             $ resolveCommand pr cfg [] (parseTestTargets [])
