@@ -2,7 +2,6 @@ module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
 import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit, exitSuccess)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input, input)
@@ -41,8 +40,9 @@ import Tricorder.Socket.UnixSocket
     , sendLine
     )
 import Tricorder.SourceLookup (ModuleSourceResult, SourceQuery (..), lookupModuleSource)
-import Tricorder.SourceLookup.Cabal (Cabal)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
+import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 import Tricorder.Waiters (Waiters)
 
@@ -58,17 +58,17 @@ data SocketRemoved = SocketRemoved
 
 
 main
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
+       , PackageStore :> es
        , Reader SocketPath :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -84,17 +84,17 @@ main = State.evalState Build.Starting do
 
 
 acceptTrigger
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
+       , PackageStore :> es
        , Reader SocketPath :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -112,17 +112,17 @@ acceptTrigger = do
 
 
 handleConnection
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
+       , PackageStore :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -144,17 +144,17 @@ handleConnection h = do
 
 
 dispatch
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
        , Conc :> es
-       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Log :> es
+       , PackageStore :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -265,13 +265,13 @@ respondDiagnostic idx h = do
 
 -- | Look up source for each requested module and send the results as a JSON array.
 respondSource
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
-       , Env :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Log :> es
+       , PackageStore :> es
        , UnixSocket :> es
        )
     => [SourceQuery]

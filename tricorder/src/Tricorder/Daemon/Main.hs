@@ -35,7 +35,6 @@ import Tricorder.Session (inputSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup (SourceQuery)
-import Tricorder.SourceLookup.Cabal (runCabalIO)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
 import Tricorder.Daemon.Core qualified as Core
@@ -44,6 +43,8 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
+import Tricorder.SourceLookup.Hackage qualified as Hackage
+import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 import Tricorder.Version qualified as Version
 import Tricorder.Waiters qualified as Waiters
 
@@ -77,7 +78,6 @@ main =
         . runCacheTtl @ModuleName @PackageId
         . runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult
         . runProcessIO
-        . runCabalIO
         . runEnv
         . runGhcPkgIO
         . runUnixSocketIO
@@ -85,6 +85,8 @@ main =
         . evalState (BuildId 1)
         . Input.fromState @BuildId
         . runPubSub_ @BuildPhase
+        . Hackage.run
+        . PackageStore.run
         . EvalCommentRunner.run
         . TestRunner.run
         . Waiters.run

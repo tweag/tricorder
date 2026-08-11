@@ -8,11 +8,11 @@ import Codec.Archive.Tar.Entry qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
 
+import Tricorder.Module (splitPackageId)
 import Tricorder.SourceLookup.Tarball
     ( cabalPackagesDirs
     , extractModule
     , matchesModule
-    , splitPackageId
     , tarballPath
     )
 

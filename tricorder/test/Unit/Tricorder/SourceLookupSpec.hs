@@ -7,7 +7,6 @@ import Atelier.Effects.Log (Log, runLogNoOp)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State, evalState, gets, modify)
 import System.FilePath ((</>))
 import Test.Hspec
@@ -22,14 +21,16 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Module (ModuleName, PackageId)
-import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
     , SourceQuery (..)
     , lookupModuleSource
     )
-import Tricorder.SourceLookup.Cabal (Cabal, FetchResult (..), runCabalFetchWith)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
+import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
+import Tricorder.SourceLookup.PackageStore (PackageStore)
+
+import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 
 spec_SourceLookup :: Spec
@@ -61,13 +62,13 @@ spec_SourceLookup = describe "lookupModuleSource" do
                 $ lookupModuleSource (wholeModule "Data.Unknown")
         result `shouldBe` SourceNotFound (wholeModule "Data.Unknown")
 
-    it "fetches on a cache miss, then reads the now-present tarball" do
+    it "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
         result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty (fetchProduces tarballPath tarballBytes)
+            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty (pure (Success (BSL.toStrict tarballBytes)))
                 $ lookupModuleSource (wholeModule "Data.Aeson")
         result `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
 
-    it "returns SourceUnavailable when the fetch produces no tarball" do
+    it "returns SourceUnavailable when the package is not found on Hackage" do
         result <-
             runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
                 $ lookupModuleSource (wholeModule "Data.Aeson")
@@ -85,9 +86,10 @@ spec_SourceLookup = describe "lookupModuleSource" do
         r2 `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
 
     it "caches an unavailable result and does not re-fetch on a repeat lookup" do
-        -- The tarball is absent and every fetch fails, so the first lookup is
-        -- SourceUnavailable. A repeat lookup must be served from cache — no
-        -- second `cabal fetch` on the (network) request path.
+        -- The tarball is absent and every fetch reports the package as not
+        -- found, so the first lookup is SourceUnavailable. A repeat lookup must
+        -- be served from cache — no second Hackage fetch on the (network)
+        -- request path.
         fetchCount <- IORef.newIORef (0 :: Int)
         let countingFetch = do
                 liftIO (IORef.modifyIORef' fetchCount (+ 1))
@@ -103,14 +105,14 @@ spec_SourceLookup = describe "lookupModuleSource" do
         fetches `shouldBe` 1
 
     it "re-fetches after a failed fetch rather than caching the failure" do
-        -- A failed `cabal fetch` (offline, stale index) is transient, so the
-        -- resulting SourceUnavailable must NOT be cached: a repeat lookup has to
-        -- retry the fetch, or a brief network blip pins unavailability for the
-        -- whole cache window.
+        -- A failed Hackage fetch (offline, DNS failure, 5xx) is transient, so
+        -- the resulting SourceUnavailable must NOT be cached: a repeat lookup
+        -- has to retry the fetch, or a brief network blip pins unavailability
+        -- for the whole cache window.
         fetchCount <- IORef.newIORef (0 :: Int)
         let failingFetch = do
                 liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                pure FetchFailed
+                pure (Failure "network unreachable")
         (r1, r2) <-
             runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
                 r1 <- lookupModuleSource (wholeModule "Data.Aeson")
@@ -190,32 +192,26 @@ symbol m s = SourceQuery {moduleName = m, function = Just s}
 -- Harness
 --------------------------------------------------------------------------------
 
--- | The action a faked @cabal fetch@ runs: 'noFetch' leaves the filesystem
--- untouched (a clean fetch that produces no tarball); 'fetchProduces' inserts a
--- file. A failed fetch is modelled by returning 'FetchFailed' directly.
-noFetch :: Eff es FetchResult
-noFetch = pure Fetched
-
-
-fetchProduces
-    :: (State (Map FilePath LByteString) :> es)
-    => FilePath -> LByteString -> Eff es FetchResult
-fetchProduces path bytes = do
-    modify (Map.insert path bytes)
-    pure Fetched
+-- | The scripted response to a faked Hackage fetch: 'noFetch' reports the
+-- package as a clean 404 (absent from the index, so no tarball). A successful
+-- fetch is modelled by returning 'Success' with the tarball bytes directly —
+-- 'PackageStore.add' is the one that persists it into the fake filesystem — and
+-- a failed fetch, by returning 'Failure' directly.
+noFetch :: Eff es Result
+noFetch = pure NotFound
 
 
 runTest
     :: [GhcPkgScript]
     -> Map FilePath LByteString
-    -> Eff '[FileSystem, State (Map FilePath LByteString), Log, Concurrent, IOE] FetchResult
+    -> Eff '[PackageStore, Env, FileSystem, State (Map FilePath LByteString), Log, Concurrent, IOE] Result
     -> Eff
         '[ Cache ModuleName PackageId
          , Cache (PackageId, SourceQuery) ModuleSourceResult
          , GhcPkg
+         , Hackage
+         , PackageStore
          , Env
-         , Reader ProjectRoot
-         , Cabal
          , FileSystem
          , State (Map FilePath LByteString)
          , Log
@@ -230,18 +226,26 @@ runTest pkgScript initialFs onFetch action =
         . runLogNoOp
         . evalState initialFs
         . runFileSystemFake
-        . runCabalFetchWith onFetch
-        . runReader (ProjectRoot "/proj")
         . runEnvConst [("HOME", "/h")]
+        . PackageStore.run
+        . runHackageWith onFetch
         . runGhcPkgScripted pkgScript
         . runCacheForever @(PackageId, SourceQuery) @ModuleSourceResult
         . runCacheForever @ModuleName @PackageId
         $ action
 
 
+-- | A scripted 'Hackage' interpreter: every 'fetchPackage' yields the given
+-- action's result.
+runHackageWith :: Eff es Result -> Eff (Hackage : es) a -> Eff es a
+runHackageWith onFetch = interpret_ \case
+    FetchPackage _ -> onFetch
+
+
 -- | A 'FileSystem' backed by an in-memory map, with directory semantics good
 -- enough for the cabal-cache layout: 'doesPathExist' treats a key as living
--- under any of its path prefixes, and 'listDirectory' returns immediate child
+-- under any of its path prefixes (or being one), 'doesDirectoryExist' requires
+-- something strictly under it, and 'listDirectory' returns immediate child
 -- names (so a repo subdir like @hackage.haskell.org@ is discoverable).
 runFileSystemFake
     :: (State (Map FilePath LByteString) :> es)
@@ -249,11 +253,15 @@ runFileSystemFake
 runFileSystemFake = interpret_ \case
     DoesFileExist p -> gets (Map.member p)
     DoesPathExist p -> gets (any (isUnder p) . Map.keys)
+    DoesDirectoryExist p -> gets (any (isStrictlyUnder p) . Map.keys)
     ListDirectory p -> gets (ordNub . mapMaybe (childName p) . Map.keys)
     ReadFileLbsFrom p _ -> gets (fromMaybe "" . Map.lookup p)
+    CreateDirectoryIfMissing _ _ -> pure ()
+    WriteFileBS p bytes -> modify (Map.insert p (BSL.fromStrict bytes))
     _ -> error "runFileSystemFake: unexpected operation"
   where
-    isUnder p k = p == k || (p <> "/") `List.isPrefixOf` k
+    isUnder p k = p == k || isStrictlyUnder p k
+    isStrictlyUnder p k = (p <> "/") `List.isPrefixOf` k
     childName p k = case List.stripPrefix (p <> "/") k of
         Just rest | not (null rest) -> Just (takeWhile (/= '/') rest)
         _ -> Nothing

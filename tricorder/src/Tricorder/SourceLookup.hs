@@ -8,7 +8,6 @@ module Tricorder.SourceLookup
     ) where
 
 import Atelier.Effects.Cache (Cache, cacheInsert, cacheLookup)
-import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (FromJSON, ToJSON)
@@ -16,8 +15,9 @@ import Data.Aeson (FromJSON, ToJSON)
 import Atelier.Effects.Log qualified as Log
 
 import Tricorder.Module (ModuleName (..), PackageId (..))
-import Tricorder.SourceLookup.Cabal (Cabal)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
+import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.SourceLookup.Slice (sliceSymbol)
 import Tricorder.SourceLookup.Tarball
     ( TarballOutcome (..)
@@ -66,13 +66,13 @@ data SourceQuery = SourceQuery
 -- steps are cached, so the fetch + read cost is paid at most once per
 -- (package, query).
 lookupModuleSource
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , Cache ModuleName PackageId :> es
-       , Env :> es
        , FileSystem :> es
        , GhcPkg :> es
+       , Hackage :> es
        , Log :> es
+       , PackageStore :> es
        )
     => SourceQuery
     -> Eff es ModuleSourceResult
@@ -110,10 +110,11 @@ resolvePackage modName = do
 -- | Locate (or fetch) the package's tarball, read the module member, and slice
 -- the requested symbol if any. Caches and returns the result.
 serveFromTarball
-    :: ( Cabal :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Env :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
        , FileSystem :> es
+       , Hackage :> es
+       , Log :> es
+       , PackageStore :> es
        )
     => SourceQuery
     -> PackageId
