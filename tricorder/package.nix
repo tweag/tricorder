@@ -4,7 +4,7 @@ let
 in
 {
   name = "tricorder";
-  version = "0.2.0.0";
+  version = "0.2.0.1";
   synopsis = "Continuous Haskell build status, diagnostics, and tests via a shared daemon";
   description = "tricorder rebuilds your Haskell project continuously and surfaces build status, diagnostics, test results, and documentation - for developers and LLM coding agents. Like ghcid and ghciwatch it reloads on every change, but builds run in a background daemon so multiple clients (an interactive TUI, a status CLI, an agent skill) share a single build state without triggering redundant rebuilds. It discovers components across multi-package cabal.project workspaces automatically and ships context-friendly output for agentic use via the CLI.";
   github = "tweag/tricorder";
