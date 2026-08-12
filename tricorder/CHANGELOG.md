@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.2.0.1] - 2026-08-12
+
 ### Fixed
 
 - `tricorder source` does not work without `cabal` in `PATH` (for `stack`
