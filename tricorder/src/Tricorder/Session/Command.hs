@@ -29,7 +29,7 @@ data Command = Command
     deriving stock (Eq, Generic, Show)
 
 
-data Repl = Stack | Cabal | Unknown
+data Repl = StackMulti | Stack | Cabal | Unknown
     deriving stock (Eq, Generic, Show)
 
 
@@ -37,12 +37,14 @@ render :: Command -> Text
 render command = unwords $ renderRepl command.repl <> command.arguments <> tgts
   where
     tgts = case command.repl of
-        Stack -> fmap Target.componentName command.targets
-        Cabal -> fmap Target.renderTarget command.targets
-        Unknown -> fmap Target.renderTarget command.targets
+        Stack -> Target.componentName <$> command.targets
+        StackMulti -> Target.renderTarget <$> command.targets
+        Cabal -> Target.renderTarget <$> command.targets
+        Unknown -> Target.renderTarget <$> command.targets
 
 
 renderRepl :: Repl -> [Text]
+renderRepl StackMulti = ["stack", "ghci"]
 renderRepl Stack = ["stack", "ghci"]
 renderRepl Cabal = ["cabal", "repl"]
 renderRepl Unknown = []
@@ -58,15 +60,24 @@ instance Default Command where
 -- the auto-detected @all@ target (see 'detectCommand'). They are ignored when
 -- the user has pinned an explicit @command@ or explicit @targets@ in config.
 resolveCommand :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [TestTarget] -> Eff es Command
-resolveCommand projectRoot cfg targets testTargets =
+resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
     case cfg.command of
         Just cmd -> case words cmd of
-            "stack" : "repl" : args -> pure $ Command Stack args []
-            "stack" : "ghci" : args -> pure $ Command Stack args []
+            "stack" : "repl" : args -> detectStackKind args
+            "stack" : "ghci" : args -> detectStackKind args
             "cabal" : "repl" : args -> pure $ Command Cabal args []
             args -> pure $ Command Unknown args []
         Nothing ->
             detectCommand targets testTargets cfg.replBuildDir projectRoot
+  where
+    detectStackKind args = do
+        hasCabalFileInRoot <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory root
+        let repl =
+                if hasCabalFileInRoot then
+                    Stack
+                else
+                    StackMulti
+        pure $ Command repl args []
 
 
 detectCommand :: (FileSystem :> es) => [Target] -> [TestTarget] -> FilePath -> ProjectRoot -> Eff es Command
