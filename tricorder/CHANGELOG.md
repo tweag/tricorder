@@ -7,6 +7,15 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `tricorder source` does not work without `cabal` in `PATH` (for `stack`
+  projects, for example). Tricorder now fetches tarballs for source distributions
+  manually with good old-fashioned HTTP instead of relying on `cabal fetch`.
+  This means `tricorder source` works regardless whether `cabal` or `stack` is in
+  `PATH`. (Still requires `ghc-pkg` to be in `PATH` though to resolve the module
+  name to a package.)
+
 ## [0.2.0.0] - 2026-08-06
 
 ### Added
