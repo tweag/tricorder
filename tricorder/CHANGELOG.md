@@ -19,11 +19,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   to be able to use a module's top-level definitions in its expression.
 - Auto-resolved targets are not compatible with `stack ghci` (and its alias
   `stack ghci`). Targets are now automatically resolved with package name,
-  `pkg:kind:name`, instead of just with the component name and kind
-  `kind:name`. `stack ghci` is not compatible with the form `kind:name` (but
-  `cabal repl` is), but both of them are compatible with the fully qualified
-  `pkg:kind:name` form. If you manually specify a `kind:name` target in your
-  `stack` repo's `.tricorder.yaml` though, you are on your own!
+  `pkg:kind:name` for multi-package repos and just `name` for single-package
+  repos, instead of just with the component name and kind `kind:name`. `stack
+ghci` is not compatible with the form `kind:name` (but `cabal repl` is), but
+  both of them are compatible with the fully qualified `pkg:kind:name` form. If
+  you manually specify a `kind:name` target in your `stack` repo's
+  `.tricorder.yaml` though, you are on your own!
 
 ## [0.2.0.0] - 2026-08-06
 
