@@ -37,8 +37,8 @@ render :: Command -> Text
 render command = unwords $ renderRepl command.repl <> command.arguments <> tgts
   where
     tgts = case command.repl of
-        Stack -> Target.componentName <$> command.targets
-        StackMulti -> Target.renderTarget <$> command.targets
+        Stack -> List.nub $ Target.componentName <$> command.targets
+        StackMulti -> List.nub $ Target.renderTarget <$> command.targets
         Cabal -> Target.renderTarget <$> command.targets
         Unknown -> Target.renderTarget <$> command.targets
 
