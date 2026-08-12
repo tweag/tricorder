@@ -19,7 +19,7 @@ import Tricorder.Daemon.GhciSession
     , withGhci
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..))
+import Tricorder.Session.Command (Command (..), Repl (..))
 
 
 spec_GhciSession :: Spec
@@ -38,40 +38,40 @@ testScripted = do
             it "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [errMsg]]
-                        $ withGhci (Command "cabal repl") (ProjectRoot "/") \initial _ -> pure initial
+                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
                 msgs `shouldBe` [errMsg]
 
             it "returns empty list when scripted result has no messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult []]
-                        $ withGhci (Command "cabal repl") (ProjectRoot "/") \initial _ -> pure initial
+                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
                 msgs `shouldBe` []
 
             it "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
-                        $ withGhci (Command "cabal repl") (ProjectRoot "/") \initial _ -> pure initial
+                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
                 result `shouldBe` Left boom
 
         describe "reloading" do
             it "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [warnMsg], simpleResult [errMsg]]
-                        $ withGhci (Command "cabal repl") (ProjectRoot "/") \_ controls -> controls.reload
+                        $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
                 msgs `shouldBe` [errMsg]
 
             it "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
-                        $ withGhci (Command "cabal repl") (ProjectRoot "/") \_ controls -> controls.reload
+                        $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
                 result `shouldBe` Left boom
 
     describe "sequencing" do
         it "consumes results in order across mixed operations" do
             (a, b) <- runScripted [simpleResult [errMsg], simpleResult [warnMsg]] do
-                withGhci (Command "cabal repl") (ProjectRoot "/") \LoadResult {diagnostics = a} controls -> do
+                withGhci cmd (ProjectRoot "/") \LoadResult {diagnostics = a} controls -> do
                     LoadResult {diagnostics = b} <- controls.reload
                     pure (a, b)
             a `shouldBe` [errMsg]
@@ -79,8 +79,8 @@ testScripted = do
 
         it "recover scenario: error then success" do
             result <- runScripted [Left (toException boom), simpleResult []] do
-                r1 <- try @ErrorCall $ withGhci (Command "cabal repl") (ProjectRoot "/") \i _ -> pure i
-                LoadResult {diagnostics = r2} <- withGhci (Command "cabal repl") (ProjectRoot "/") \i _ -> pure i
+                r1 <- try @ErrorCall $ withGhci cmd (ProjectRoot "/") \i _ -> pure i
+                LoadResult {diagnostics = r2} <- withGhci cmd (ProjectRoot "/") \i _ -> pure i
                 pure (r1, r2)
             fst result `shouldSatisfy` isLeft
             snd result `shouldBe` []
@@ -89,6 +89,10 @@ testScripted = do
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
+
+cmd :: Command
+cmd = Command Cabal []
+
 
 boom :: ErrorCall
 boom = ErrorCall "simulated GHCi crash"

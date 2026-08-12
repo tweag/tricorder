@@ -1,12 +1,18 @@
 module Tricorder.Session.Command
     ( Command (..)
+    , Repl (..)
+    , render
     , resolveCommand
     ) where
 
-import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory)
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (Default (..))
-import System.FilePath (takeExtension, (</>))
+import Effectful.NonDet (NonDet, OnEmptyPolicy (..), emptyEff, plusEff, runNonDet)
+import GHC.Records (HasField (..))
+import System.FilePath ((</>))
+
+import Atelier.Effects.FileSystem qualified as FileSystem
+import Data.List qualified as List
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Config (Config (..))
@@ -14,13 +20,38 @@ import Tricorder.Session.Target (Target, renderTarget)
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 
 
-newtype Command = Command {getCommand :: Text}
+data Command = Command Repl [Text]
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Text
+
+
+instance HasField "repl" Command Repl where
+    getField (Command r _) = r
+
+
+instance HasField "arguments" Command [Text] where
+    getField (Command _ args) = args
+
+
+appendArgs :: [Text] -> Command -> Command
+appendArgs args (Command r oldArgs) = Command r $ oldArgs <> args
+
+
+data Repl = Stack | Cabal | Unknown
+    deriving stock (Eq, Generic, Show)
+
+
+render :: Command -> Text
+render (Command r args) = unwords $ renderRepl r <> args
+
+
+renderRepl :: Repl -> [Text]
+renderRepl Stack = ["stack", "ghci"]
+renderRepl Cabal = ["cabal", "repl"]
+renderRepl Unknown = []
 
 
 instance Default Command where
-    def = Command ""
+    def = Command Unknown []
 
 
 -- | Resolve the GHCi command, using config if set or autodetecting otherwise.
@@ -31,35 +62,50 @@ instance Default Command where
 resolveCommand :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [TestTarget] -> Eff es Command
 resolveCommand projectRoot cfg targets testTargets =
     case cfg.command of
-        Just cmd -> pure $ Command cmd
+        Just cmd -> case words cmd of
+            "stack" : "repl" : args -> pure $ Command Stack args
+            "stack" : "ghci" : args -> pure $ Command Stack args
+            "cabal" : "repl" : args -> pure $ Command Cabal args
+            args -> pure $ Command Unknown args
         Nothing -> detectCommand targets testTargets cfg.replBuildDir projectRoot
 
 
--- | Build the autodetected GHCi command.
---
--- Configured @targets@ are spelled out verbatim. Otherwise we use cabal's
--- catch-all @all@ plus the discovered @test:@ targets, because
--- @cabal repl --enable-multi-repl all@ omits test suites unless the project sets
--- @tests: True@ in @cabal.project@ — so test errors would go unnoticed.
---
--- We keep @all@ rather than enumerating every component: @all@ lets cabal order
--- the multi-repl units, and GHCi makes the /last/ unit the active one. If that
--- unit imports a custom @Prelude@ from a sibling home package, GHCi reports it
--- "not loaded" and the session dies — which a naive discovery-order enumeration
--- triggers but @all@ avoids. Appending already-included test targets is a no-op
--- (cabal deduplicates).
 detectCommand :: (FileSystem :> es) => [Target] -> [TestTarget] -> FilePath -> ProjectRoot -> Eff es Command
-detectCommand targets testTargets replBuildDir (ProjectRoot projectRoot) = do
-    hasCabalProject <- doesFileExist (projectRoot </> "cabal.project")
-    cabalFiles <- filter (\f -> takeExtension f == ".cabal") <$> listDirectory projectRoot
-    hasStack <- doesFileExist (projectRoot </> "stack.yaml")
-    let targetStr
-            | not (null targets) = unwords (map renderTarget targets)
-            | otherwise = unwords ("all" : map renderTestTarget testTargets)
-        buildDirFlag = "--builddir " <> toText replBuildDir <> " "
-    pure
-        if
-            | hasCabalProject || not (null cabalFiles) ->
-                Command $ "cabal repl --enable-multi-repl " <> buildDirFlag <> targetStr
-            | hasStack -> Command $ "stack ghci " <> targetStr
-            | otherwise -> Command $ "cabal repl " <> buildDirFlag <> targetStr
+detectCommand targets testTargets replBuildDir projectRoot = do
+    cmd <-
+        fmap (fromMaybe (fallback replBuildDir) . rightToMaybe)
+            $ runNonDet OnEmptyKeep
+            $ useStack projectRoot
+                `plusEff` useMultiCabal projectRoot replBuildDir
+    pure $ appendArgs targetArgs cmd
+  where
+    targetArgs
+        | not (null targets) = map renderTarget targets
+        | otherwise = "all" : map renderTestTarget testTargets
+
+
+useStack :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> Eff es Command
+useStack (ProjectRoot projectRoot) = do
+    hasStack <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
+    if hasStack then
+        pure $ Command Stack []
+    else
+        emptyEff
+
+
+useMultiCabal :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> FilePath -> Eff es Command
+useMultiCabal (ProjectRoot projectRoot) replBuildDir = do
+    hasCabalProject <- FileSystem.doesFileExist $ projectRoot </> "cabal.project"
+    hasCabalFiles <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory projectRoot
+    if hasCabalFiles || hasCabalProject then
+        pure $ Command Cabal $ ["--enable-multi-repl"] <> buildDirFlag replBuildDir
+    else
+        emptyEff
+
+
+fallback :: FilePath -> Command
+fallback replBuildDir = Command Cabal $ buildDirFlag replBuildDir
+
+
+buildDirFlag :: FilePath -> [Text]
+buildDirFlag replBuildDir = ["--builddir", toText replBuildDir]

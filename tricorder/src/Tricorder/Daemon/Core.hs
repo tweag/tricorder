@@ -57,6 +57,7 @@ import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile)
+import Tricorder.Session.Command (Command)
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout)
 import Tricorder.Waiters (Waiters)
@@ -345,7 +346,7 @@ runTests
     => Session -> BuildResult -> Eff es Test.Suites
 runTests session buildResult
     | hasTargets session.testTargets && noErrors buildResult.diagnostics =
-        runTestsForTargets session.testTimeout session.testTargets
+        runTestsForTargets session.command session.testTimeout session.testTargets
     | otherwise = pure mempty
   where
     hasTargets = not . null
@@ -357,10 +358,11 @@ runTestsForTargets
        , Pub Test.Suites :> es
        , TestRunner :> es
        )
-    => TestTimeout
+    => Command
+    -> TestTimeout
     -> [TestTarget]
     -> Eff es Test.Suites
-runTestsForTargets testTimeout testTargets = do
+runTestsForTargets command testTimeout testTargets = do
     Pub.publish $ Test.Suites initial
     Log.info $ "Running " <> show (length testTargets) <> " test suite(s)"
     fmap Test.Suites . State.execState initial $ traverse_ go testTargets
@@ -374,6 +376,7 @@ runTestsForTargets testTimeout testTargets = do
                     updated <- State.state $ dup . Map.insert target suite
                     Pub.publish $ Test.Suites updated
                 )
+                command.repl
                 testTimeout
                 target
         updated <- State.state $ dup . Map.insert target finishedSuite
