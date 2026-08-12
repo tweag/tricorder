@@ -327,7 +327,7 @@ runEvalComments session loadResult = do
             let pendingComments =
                     sconcat $ (\(lm, ecs) -> toPending lm.relPath <$> ecs) <$> nonEmptyComments
             Pub.publish $ Eval.Found $ Eval.Comments pendingComments
-            evaluatedComments <- EvalCommentRunner.evaluateComments session.command nonEmptyComments
+            evaluatedComments <- EvalCommentRunner.evaluateComments session.command.repl nonEmptyComments
             pure $ Eval.Found $ Eval.Comments evaluatedComments
   where
     toPending file comment =

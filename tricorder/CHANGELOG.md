@@ -15,6 +15,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   This means `tricorder source` works regardless whether `cabal` or `stack` is in
   `PATH`. (Still requires `ghc-pkg` to be in `PATH` though to resolve the module
   name to a package.)
+- Incorrect repl command used for eval comments. This caused eval comments not
+  to be able to use a module's top-level definitions in its expression.
 
 ## [0.2.0.0] - 2026-08-06
 
