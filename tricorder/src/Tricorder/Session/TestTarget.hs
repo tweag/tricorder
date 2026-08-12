@@ -35,6 +35,7 @@ projectTestTargets :: [Target] -> [TestTarget]
 projectTestTargets = mapMaybe mkTestTarget
   where
     mkTestTarget tgt@(Qualified Test _) = Just $ TestTarget tgt
+    mkTestTarget tgt@(PackageQualified _ Test _) = Just $ TestTarget tgt
     mkTestTarget _ = Nothing
 
 

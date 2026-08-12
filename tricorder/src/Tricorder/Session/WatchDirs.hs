@@ -87,6 +87,14 @@ sourceDirsForTarget gpd target =
         Qualified Exe name -> exeSourceDirs name
         Qualified Test name -> testSourceDirs name
         Qualified Bench name -> benchSourceDirs name
+        PackageQualified _ Lib "" -> mainLibSourceDirs
+        PackageQualified _ Lib name
+            | toString name == mainPkgName -> mainLibSourceDirs
+            | otherwise -> subLibSourceDirs name
+        PackageQualified _ FLib name -> flibSourceDirs name
+        PackageQualified _ Exe name -> exeSourceDirs name
+        PackageQualified _ Test name -> testSourceDirs name
+        PackageQualified _ Bench name -> benchSourceDirs name
         -- A bare target (no @kind:@ prefix) is a package name or a component
         -- name. A package name covers every component; otherwise match a
         -- single component by name across the kinds.

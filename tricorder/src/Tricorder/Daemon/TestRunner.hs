@@ -42,7 +42,7 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command (Command (..), Repl)
-import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.TestTarget (TestTarget, getTestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
@@ -86,7 +86,7 @@ run act = do
                     noReady _ = pure ()
                 ProjectRoot projectRoot <- ask
                 result <- trySync
-                    $ withGhciProcess def (Command repl [renderTestTarget target]) projectRoot onProgress noReady \ghci _ ->
+                    $ withGhciProcess def (Command repl [] [getTestTarget target]) projectRoot onProgress noReady \ghci _ ->
                         case testTimeout of
                             TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
                             TestTimeout secs ->

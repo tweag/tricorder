@@ -34,6 +34,7 @@ import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command (Command (..), Repl)
 
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Session.Target qualified as Target
 
 
 data EvalCommentRunner :: Effect where
@@ -122,7 +123,7 @@ runFileEvals repl relPath moduleName comments = do
             | T.elem '\n' expr = ":{" <> "\n" <> expr <> "\n" <> ":}"
             | otherwise = expr
     sessionResult <- trySync
-        $ withGhciProcess def (Command repl [moduleName]) projectRoot noProgress noSetup \ghci _ -> do
+        $ withGhciProcess def (Command repl [] [Target.Bare moduleName]) projectRoot noProgress noSetup \ghci _ -> do
             _ <- execGhci ghci (":m *" <> moduleName) noProgress
             for comments \comment -> do
                 outputResult <- trySync $ execGhci ghci (wrapForGhci comment.expression) noProgress

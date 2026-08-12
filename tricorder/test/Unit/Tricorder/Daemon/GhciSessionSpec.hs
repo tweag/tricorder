@@ -91,7 +91,7 @@ testScripted = do
 --------------------------------------------------------------------------------
 
 cmd :: Command
-cmd = Command Cabal []
+cmd = Command Cabal [] []
 
 
 boom :: ErrorCall
