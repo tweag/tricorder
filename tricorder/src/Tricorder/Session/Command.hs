@@ -8,32 +8,25 @@ module Tricorder.Session.Command
 import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (Default (..))
 import Effectful.NonDet (NonDet, OnEmptyPolicy (..), emptyEff, plusEff, runNonDet)
-import GHC.Records (HasField (..))
 import System.FilePath ((</>))
 
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.List qualified as List
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Config (Config (..))
-import Tricorder.Session.Target (Target, renderTarget)
-import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.Config (Config, command, replBuildDir)
+import Tricorder.Session.Target (Target (..))
+import Tricorder.Session.TestTarget (TestTarget, getTestTarget)
+
+import Tricorder.Session.Target qualified as Target
 
 
-data Command = Command Repl [Text]
+data Command = Command
+    { repl :: Repl
+    , arguments :: [Text]
+    , targets :: [Target]
+    }
     deriving stock (Eq, Generic, Show)
-
-
-instance HasField "repl" Command Repl where
-    getField (Command r _) = r
-
-
-instance HasField "arguments" Command [Text] where
-    getField (Command _ args) = args
-
-
-appendArgs :: [Text] -> Command -> Command
-appendArgs args (Command r oldArgs) = Command r $ oldArgs <> args
 
 
 data Repl = Stack | Cabal | Unknown
@@ -41,7 +34,12 @@ data Repl = Stack | Cabal | Unknown
 
 
 render :: Command -> Text
-render (Command r args) = unwords $ renderRepl r <> args
+render command = unwords $ renderRepl command.repl <> command.arguments <> tgts
+  where
+    tgts = case command.repl of
+        Stack -> fmap Target.componentName command.targets
+        Cabal -> fmap Target.renderTarget command.targets
+        Unknown -> fmap Target.renderTarget command.targets
 
 
 renderRepl :: Repl -> [Text]
@@ -51,7 +49,7 @@ renderRepl Unknown = []
 
 
 instance Default Command where
-    def = Command Unknown []
+    def = Command Unknown [] []
 
 
 -- | Resolve the GHCi command, using config if set or autodetecting otherwise.
@@ -63,11 +61,12 @@ resolveCommand :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [Te
 resolveCommand projectRoot cfg targets testTargets =
     case cfg.command of
         Just cmd -> case words cmd of
-            "stack" : "repl" : args -> pure $ Command Stack args
-            "stack" : "ghci" : args -> pure $ Command Stack args
-            "cabal" : "repl" : args -> pure $ Command Cabal args
-            args -> pure $ Command Unknown args
-        Nothing -> detectCommand targets testTargets cfg.replBuildDir projectRoot
+            "stack" : "repl" : args -> pure $ Command Stack args []
+            "stack" : "ghci" : args -> pure $ Command Stack args []
+            "cabal" : "repl" : args -> pure $ Command Cabal args []
+            args -> pure $ Command Unknown args []
+        Nothing ->
+            detectCommand targets testTargets cfg.replBuildDir projectRoot
 
 
 detectCommand :: (FileSystem :> es) => [Target] -> [TestTarget] -> FilePath -> ProjectRoot -> Eff es Command
@@ -77,18 +76,21 @@ detectCommand targets testTargets replBuildDir projectRoot = do
             $ runNonDet OnEmptyKeep
             $ useStack projectRoot
                 `plusEff` useMultiCabal projectRoot replBuildDir
-    pure $ appendArgs targetArgs cmd
-  where
-    targetArgs
-        | not (null targets) = map renderTarget targets
-        | otherwise = "all" : map renderTestTarget testTargets
+    pure
+        $ cmd
+            { targets =
+                if not (null targets) then
+                    targets
+                else
+                    Bare "all" : (getTestTarget <$> testTargets)
+            }
 
 
 useStack :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> Eff es Command
 useStack (ProjectRoot projectRoot) = do
     hasStack <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
     if hasStack then
-        pure $ Command Stack []
+        pure $ Command Stack [] []
     else
         emptyEff
 
@@ -98,13 +100,23 @@ useMultiCabal (ProjectRoot projectRoot) replBuildDir = do
     hasCabalProject <- FileSystem.doesFileExist $ projectRoot </> "cabal.project"
     hasCabalFiles <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory projectRoot
     if hasCabalFiles || hasCabalProject then
-        pure $ Command Cabal $ ["--enable-multi-repl"] <> buildDirFlag replBuildDir
+        pure
+            $ Command
+                { repl = Cabal
+                , arguments = ["--enable-multi-repl"] <> buildDirFlag replBuildDir
+                , targets = []
+                }
     else
         emptyEff
 
 
 fallback :: FilePath -> Command
-fallback replBuildDir = Command Cabal $ buildDirFlag replBuildDir
+fallback replBuildDir =
+    Command
+        { repl = Cabal
+        , arguments = buildDirFlag replBuildDir
+        , targets = [Bare "all"]
+        }
 
 
 buildDirFlag :: FilePath -> [Text]

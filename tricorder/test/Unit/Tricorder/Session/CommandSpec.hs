@@ -76,7 +76,7 @@ testResolveCommand = do
                             . evalState (Map.singleton "/stack.yaml" "")
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
-                actual `shouldBe` "stack ghci all test:foo"
+                actual `shouldBe` "stack ghci all foo"
 
         describe "and there is both a stack.yaml and a cabal.project file" do
             it "should prefer stack ghci over cabal" do
@@ -86,7 +86,7 @@ testResolveCommand = do
                             . evalState (Map.fromList [("/stack.yaml", ""), ("/cabal.project", "")])
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
-                actual `shouldBe` "stack ghci all test:foo"
+                actual `shouldBe` "stack ghci all foo"
 
         describe "and there is both a stack.yaml and a *.cabal file" do
             it "should prefer stack ghci over cabal" do
@@ -96,7 +96,7 @@ testResolveCommand = do
                             . evalState (Map.fromList [("/stack.yaml", ""), ("/foo.cabal", "")])
                             . runFileSystemState
                             $ resolveCommand pr cfg [] testTargets
-                actual `shouldBe` "stack ghci all test:foo"
+                actual `shouldBe` "stack ghci all foo"
 
         describe "but there are no project files" do
             it "should use default cabal repl with 'all' plus test targets" do

@@ -3,6 +3,7 @@ module Tricorder.Session.Target
     , ComponentKind (..)
     , parseTarget
     , renderTarget
+    , componentName
     , resolveTargets
     , definesCustomPrelude
     , compareTargets
@@ -38,6 +39,10 @@ data Target
     = -- | A @kind:name@ reference, e.g. @lib:foo@, @exe:foo@, @test:foo@. An
       -- empty name with 'Lib' (i.e. @lib:@) denotes the package's main library.
       Qualified ComponentKind Text
+    | -- | A @package:kind:name@ reference, e.g. @foo:lib:foo@, @bar:exe:foo@,
+      -- @baz:test:foo@. An empty name with 'Lib' (i.e. @foo:lib:@) denotes the
+      -- package's main library.
+      PackageQualified Text ComponentKind Text
     | -- | A name with no @kind:@ prefix. Refers either to a package (all of its
       -- components) or to a single component matched by name.
       Bare Text
@@ -95,6 +100,7 @@ parseKind = inverseMap kindPrefix
 -- 'Unrecognized'.
 parseTarget :: Text -> Target
 parseTarget target = case T.splitOn ":" target of
+    [packageName, prefix, name] | Just kind <- parseKind prefix -> PackageQualified packageName kind name
     [prefix, name] | Just kind <- parseKind prefix -> Qualified kind name
     [name] -> Bare name
     _ -> Unrecognized target
@@ -106,6 +112,15 @@ parseTarget target = case T.splitOn ":" target of
 renderTarget :: Target -> Text
 renderTarget = \case
     Qualified kind name -> kindPrefix kind <> ":" <> name
+    PackageQualified packageName kind name -> packageName <> ":" <> kindPrefix kind <> ":" <> name
+    Bare name -> name
+    Unrecognized raw -> raw
+
+
+componentName :: Target -> Text
+componentName = \case
+    Qualified _ name -> name
+    PackageQualified _ _ name -> name
     Bare name -> name
     Unrecognized raw -> raw
 
@@ -153,13 +168,10 @@ definesCustomPrelude cabalFiles target = any check cabalFiles
     relevantLibs gpd =
         let pkgN = unPackageName gpd.packageDescription.package.pkgName
         in  case target of
-                Qualified Lib "" ->
-                    toList $ condTreeData <$> condLibrary gpd
-                Qualified Lib name
-                    | toString name == pkgN ->
-                        toList $ condTreeData <$> condLibrary gpd
-                    | otherwise ->
-                        subLibsNamed gpd (toString name)
+                PackageQualified _ Lib "" -> getMainLib gpd
+                Qualified Lib "" -> getMainLib gpd
+                PackageQualified _ Lib name -> getSubLib gpd pkgN name
+                Qualified Lib name -> getSubLib gpd pkgN name
                 Bare name
                     | toString name == pkgN ->
                         toList (condTreeData <$> condLibrary gpd)
@@ -171,6 +183,12 @@ definesCustomPrelude cabalFiles target = any check cabalFiles
         map (condTreeData . snd)
             $ filter ((== mkUnqualComponentName name) . fst)
             $ condSubLibraries gpd
+    getMainLib gpd = toList $ condTreeData <$> condLibrary gpd
+    getSubLib gpd pkgN name
+        | toString name == pkgN =
+            toList $ condTreeData <$> condLibrary gpd
+        | otherwise =
+            subLibsNamed gpd (toString name)
 
 
 allComponentTargets :: GenericPackageDescription -> [Target]
@@ -183,10 +201,11 @@ allComponentTargets gpd =
         ++ benchTargets
   where
     mainPkgName = toText $ unPackageName . pkgName . package . packageDescription $ gpd
-    mainLibTargets = maybe [] (const [Qualified Lib mainPkgName]) (condLibrary gpd)
-    subLibTargets = map (\(n, _) -> Qualified Lib (componentName n)) (condSubLibraries gpd)
-    flibTargets = map (\(n, _) -> Qualified FLib (componentName n)) (condForeignLibs gpd)
-    exeTargets = map (\(n, _) -> Qualified Exe (componentName n)) (condExecutables gpd)
-    testTargets = map (\(n, _) -> Qualified Test (componentName n)) (condTestSuites gpd)
-    benchTargets = map (\(n, _) -> Qualified Bench (componentName n)) (condBenchmarks gpd)
-    componentName = toText . unUnqualComponentName
+    mainLibTargets = maybe [] (const [qualified Lib mainPkgName]) (condLibrary gpd)
+    subLibTargets = map (\(n, _) -> qualified Lib (getComponentName n)) (condSubLibraries gpd)
+    flibTargets = map (\(n, _) -> qualified FLib (getComponentName n)) (condForeignLibs gpd)
+    exeTargets = map (\(n, _) -> qualified Exe (getComponentName n)) (condExecutables gpd)
+    testTargets = map (\(n, _) -> qualified Test (getComponentName n)) (condTestSuites gpd)
+    benchTargets = map (\(n, _) -> qualified Bench (getComponentName n)) (condBenchmarks gpd)
+    getComponentName = toText . unUnqualComponentName
+    qualified = PackageQualified mainPkgName

@@ -10,13 +10,20 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Fixed
 
 - `tricorder source` does not work without `cabal` in `PATH` (for `stack`
-  projects, for example). Tricorder now fetches tarballs for source distributions
-  manually with good old-fashioned HTTP instead of relying on `cabal fetch`.
-  This means `tricorder source` works regardless whether `cabal` or `stack` is in
-  `PATH`. (Still requires `ghc-pkg` to be in `PATH` though to resolve the module
-  name to a package.)
+  projects, for example). Tricorder now fetches tarballs for source
+  distributions manually with good old-fashioned HTTP instead of relying on
+  `cabal fetch`. This means `tricorder source` works regardless whether `cabal`
+  or `stack` is in `PATH`. (Still requires `ghc-pkg` to be in `PATH` though to
+  resolve the module name to a package.)
 - Incorrect repl command used for eval comments. This caused eval comments not
   to be able to use a module's top-level definitions in its expression.
+- Auto-resolved targets are not compatible with `stack ghci` (and its alias
+  `stack ghci`). Targets are now automatically resolved with package name,
+  `pkg:kind:name`, instead of just with the component name and kind
+  `kind:name`. `stack ghci` is not compatible with the form `kind:name` (but
+  `cabal repl` is), but both of them are compatible with the fully qualified
+  `pkg:kind:name` form. If you manually specify a `kind:name` target in your
+  `stack` repo's `.tricorder.yaml` though, you are on your own!
 
 ## [0.2.0.0] - 2026-08-06
 

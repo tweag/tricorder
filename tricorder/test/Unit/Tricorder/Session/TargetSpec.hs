@@ -84,17 +84,17 @@ testResolveTargets = do
             -- alphabetically by their rendered form.
             let actual = resolveTargets singleCabalFile []
             actual
-                `shouldBe` [ Qualified Bench "myapp-bench"
-                           , Qualified Exe "myapp-exe"
-                           , Qualified FLib "myapp-flib"
-                           , Qualified Lib "myapp"
-                           , Qualified Lib "myapp-utils"
-                           , Qualified Test "myapp-test"
+                `shouldBe` [ PackageQualified "myapp" Bench "myapp-bench"
+                           , PackageQualified "myapp" Exe "myapp-exe"
+                           , PackageQualified "myapp" FLib "myapp-flib"
+                           , PackageQualified "myapp" Lib "myapp"
+                           , PackageQualified "myapp" Lib "myapp-utils"
+                           , PackageQualified "myapp" Test "myapp-test"
                            ]
 
         it "surfaces test-suite components so they can be run after a build" do
             let actual = resolveTargets singleCabalFile []
-            actual `shouldContain` [Qualified Test "myapp-test"]
+            actual `shouldContain` [PackageQualified "myapp" Test "myapp-test"]
 
         it "returns no targets when there are no cabal files" do
             let actual = resolveTargets [] []
@@ -104,10 +104,10 @@ testResolveTargets = do
         it "aggregates components across every package (regression: was 0)" do
             let actual = resolveTargets multiCabalFiles []
             actual
-                `shouldMatchList` [ Qualified Test "pkg-a-test"
-                                  , Qualified Test "pkg-b-test"
-                                  , Qualified Lib "pkg-a"
-                                  , Qualified Lib "pkg-b"
+                `shouldMatchList` [ PackageQualified "pkg-a" Test "pkg-a-test"
+                                  , PackageQualified "pkg-b" Test "pkg-b-test"
+                                  , PackageQualified "pkg-a" Lib "pkg-a"
+                                  , PackageQualified "pkg-b" Lib "pkg-b"
                                   ]
 
         it "sorts a library exposing a custom Prelude last" do
@@ -116,7 +116,10 @@ testResolveTargets = do
                         $ fromMaybe (error "libWithPreludeCabal failed to parse")
                         $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
             let actual = resolveTargets [cabalFile] []
-            actual `shouldBe` [Qualified Exe "myprelude-exe", Qualified Lib "myprelude"]
+            actual
+                `shouldBe` [ PackageQualified "myprelude" Exe "myprelude-exe"
+                           , PackageQualified "myprelude" Lib "myprelude"
+                           ]
 
 
 testCompareTargets :: Spec
@@ -177,12 +180,12 @@ testAllComponentTargets :: Spec
 testAllComponentTargets = do
     it "returns every component for the fixture" do
         allComponentTargets gpd
-            `shouldMatchList` [ Qualified Lib "myapp"
-                              , Qualified Lib "myapp-utils"
-                              , Qualified FLib "myapp-flib"
-                              , Qualified Exe "myapp-exe"
-                              , Qualified Test "myapp-test"
-                              , Qualified Bench "myapp-bench"
+            `shouldMatchList` [ PackageQualified "myapp" Lib "myapp"
+                              , PackageQualified "myapp" Lib "myapp-utils"
+                              , PackageQualified "myapp" FLib "myapp-flib"
+                              , PackageQualified "myapp" Exe "myapp-exe"
+                              , PackageQualified "myapp" Test "myapp-test"
+                              , PackageQualified "myapp" Bench "myapp-bench"
                               ]
     -- This test ensures `allComponentTargets`' part of the aggregate test.
     -- [ref:test_resolve_targest_aggregate]
@@ -192,7 +195,10 @@ testAllComponentTargets = do
                     $ fromMaybe (error "failed to parse cabal")
                     $ parseGenericPackageDescriptionMaybe
                     $ libTestCabal "pkg-a"
-        actual `shouldMatchList` [Qualified Lib "pkg-a", Qualified Test "pkg-a-test"]
+        actual
+            `shouldMatchList` [ PackageQualified "pkg-a" Lib "pkg-a"
+                              , PackageQualified "pkg-a" Test "pkg-a-test"
+                              ]
 
 
 testDefinesCustomPrelude :: Spec

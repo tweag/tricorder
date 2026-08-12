@@ -250,7 +250,7 @@ viewTargets targets =
         , if null targets then
             txt "(all)"
           else
-            txtWrap (T.intercalate " " (map renderTarget targets))
+            vBox $ (map (txt . renderTarget) targets)
         ]
 
 
