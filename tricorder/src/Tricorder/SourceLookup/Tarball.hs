@@ -7,38 +7,31 @@ module Tricorder.SourceLookup.Tarball
     , readModuleMember
 
       -- * Pure helpers (exposed for testing)
-    , splitPackageId
     , tarballPath
     , cabalPackagesDirs
     , matchesModule
     , extractModule
     ) where
 
-import Atelier.Effects.Env (Env, getEnvironment)
-import Atelier.Effects.FileSystem
-    ( FileSystem
-    , doesFileExist
-    , doesPathExist
-    , listDirectory
-    , readFileLbs
-    )
+import Atelier.Effects.FileSystem (FileSystem, readFileLbs)
+import Atelier.Effects.Log (Log)
 import Data.Char (isUpper)
 import Effectful.Exception (trySync)
 import System.FilePath (splitDirectories, (</>))
 
+import Atelier.Effects.Log qualified as Log
 import Codec.Archive.Tar qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Module (ModuleName (..), PackageId (..))
-import Tricorder.SourceLookup.Cabal (Cabal, FetchResult (..), fetchSource)
+import Tricorder.Module (ModuleName (..), PackageId (..), splitPackageId)
+import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageStore (PackageStore)
 
-
--- | The default repository subdirectory under the cabal package cache.
-hackageRepo :: FilePath
-hackageRepo = "hackage.haskell.org"
+import Tricorder.SourceLookup.Hackage qualified as Hackage
+import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 
 -- ── High-level ─────────────────────────────────────────────────────────────
@@ -54,30 +47,28 @@ data TarballOutcome
     deriving stock (Eq, Show)
 
 
--- | Locate @pkgId@'s sdist tarball in the cabal cache, fetching it on demand if
--- absent.
---
--- The cache holds one @\<pkg\>-\<ver\>.tar.gz@ per resolved package at a
--- predictable path. On a hit we return that path directly. On a miss we warm
--- the cache with @cabal fetch --no-dependencies@ — the exact version @ghc-pkg@
--- reports — and look again. The outcome distinguishes a genuine absence from a
--- transient fetch failure.
 obtainTarball
-    :: (Cabal :> es, Env :> es, FileSystem :> es)
+    :: (Hackage :> es, Log :> es, PackageStore :> es)
     => PackageId
     -> Eff es TarballOutcome
 obtainTarball pkgId = do
-    found <- findTarball pkgId
+    found <- PackageStore.getPath pkgId
     case found of
         Just path -> pure (TarballAt path)
         Nothing -> do
-            fetched <- fetchSource pkgId
-            refound <- findTarball pkgId
-            pure $ case refound of
-                Just path -> TarballAt path
-                Nothing -> case fetched of
-                    Fetched -> TarballAbsent
-                    FetchFailed -> TarballFetchFailed
+            res <- Hackage.fetchPackage pkgId
+            case res of
+                Hackage.NotFound -> do
+                    Log.warn $ "Package not found: " <> unPackageId pkgId
+                    pure TarballAbsent
+                Hackage.Failure err -> do
+                    Log.err $ "Hackage fetch error: " <> err
+                    pure $ TarballFetchFailed
+                Hackage.Success bytes -> do
+                    Log.info $ "Storing tarball for " <> unPackageId pkgId
+                    path <- PackageStore.add pkgId bytes
+                    Log.info $ "Tarball stored at " <> toText path
+                    pure $ TarballAt path
 
 
 -- | Read a single module's source from a tarball, in-process. 'Nothing' when
@@ -93,35 +84,6 @@ readModuleMember tarball modName = do
 
 
 -- ── Locate ─────────────────────────────────────────────────────────────────
-
--- | Search every candidate cabal cache directory (and every repository subdir
--- within it) for @pkgId@'s tarball, preferring @hackage.haskell.org@.
-findTarball :: (Env :> es, FileSystem :> es) => PackageId -> Eff es (Maybe FilePath)
-findTarball pkgId = do
-    env <- getEnvironment
-    candidates <- concat <$> traverse basePaths (cabalPackagesDirs env)
-    firstExisting candidates
-  where
-    basePaths base = do
-        repos <- listRepos base
-        pure [tarballPath base repo pkgId | repo <- repos]
-    firstExisting [] = pure Nothing
-    firstExisting (p : ps) = do
-        exists <- doesFileExist p
-        if exists then pure (Just p) else firstExisting ps
-
-
--- | The repository subdirectories under the cache, @hackage.haskell.org@ first.
--- Falls back to just @hackage.haskell.org@ when the cache directory is absent.
-listRepos :: (FileSystem :> es) => FilePath -> Eff es [FilePath]
-listRepos base = do
-    exists <- doesPathExist base
-    if not exists then
-        pure [hackageRepo]
-    else do
-        entries <- listDirectory base
-        pure (hackageRepo : filter (/= hackageRepo) entries)
-
 
 -- | Candidate cabal package-cache directories to search, most-preferred first.
 --
@@ -151,16 +113,6 @@ cabalPackagesDirs env =
 
 
 -- ── Pure helpers ───────────────────────────────────────────────────────────
-
--- | Split a 'PackageId' into its package name and version. The version is the
--- final hyphen-delimited component (versions are dot-, not hyphen-separated),
--- so @"list-t-1.0.5.7"@ → @("list-t", "1.0.5.7")@.
-splitPackageId :: PackageId -> (Text, Text)
-splitPackageId (PackageId pid) =
-    case reverse (T.splitOn "-" pid) of
-        (ver : nameParts@(_ : _)) -> (T.intercalate "-" (reverse nameParts), ver)
-        _ -> (pid, "")
-
 
 -- | The cache path of a package's tarball under one repository subdir:
 -- @\<base\>\/\<repo\>\/\<pkg\>\/\<ver\>\/\<pkg\>-\<ver\>.tar.gz@.

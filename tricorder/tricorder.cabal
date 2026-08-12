@@ -75,8 +75,9 @@ library tricorder-internal
       Tricorder.Socket.Server
       Tricorder.Socket.UnixSocket
       Tricorder.SourceLookup
-      Tricorder.SourceLookup.Cabal
       Tricorder.SourceLookup.GhcPkg
+      Tricorder.SourceLookup.Hackage
+      Tricorder.SourceLookup.PackageStore
       Tricorder.SourceLookup.Slice
       Tricorder.SourceLookup.Tarball
       Tricorder.TestOutput
@@ -133,6 +134,7 @@ library tricorder-internal
     , process ==1.6.*
     , regex-tdfa >=1.3.2.5 && <1.4
     , relude ==1.2.*
+    , req >=3.13.4 && <3.14
     , stm ==2.5.*
     , tar >=0.6 && <0.8
     , template-haskell >=2.20 && <2.25

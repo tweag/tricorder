@@ -12,9 +12,12 @@ module Atelier.Effects.FileSystem
     , followFile
     , doesFileExist
     , doesPathExist
+    , doesDirectoryExist
     , listDirectory
     , createDirectoryIfMissing
     , removeFile
+    , writeFileBS
+    , writeFileLBS
     , canonicalizePath
     , getCurrentDirectory
     , getXdgRuntimeDir
@@ -51,17 +54,23 @@ data FileSystem :: Effect where
     -- | Read a file's full contents strictly.
     ReadFileBs :: FilePath -> FileSystem m ByteString
     -- | Read a file from the given byte offset to the end, lazily.
-    ReadFileLbsFrom :: FilePath -> FileOffset -> FileSystem m LBS.ByteString
+    ReadFileLbsFrom :: FilePath -> FileOffset -> FileSystem m LByteString
     -- | Does a regular file exist at the path?
     DoesFileExist :: FilePath -> FileSystem m Bool
     -- | Does anything (file or directory) exist at the path?
     DoesPathExist :: FilePath -> FileSystem m Bool
+    -- | Does a directory exist at the path?
+    DoesDirectoryExist :: FilePath -> FileSystem m Bool
     -- | List the entries of a directory.
     ListDirectory :: FilePath -> FileSystem m [FilePath]
     -- | Create a directory. The 'Bool' requests creation of missing parents.
     CreateDirectoryIfMissing :: Bool -> FilePath -> FileSystem m ()
     -- | Delete a file.
     RemoveFile :: FilePath -> FileSystem m ()
+    -- | Write a 'ByteString' to a file path.
+    WriteFileBS :: FilePath -> ByteString -> FileSystem m ()
+    -- | Write a (lazy) 'LByteString' to a file path.
+    WriteFileLBS :: FilePath -> LByteString -> FileSystem m ()
     -- | Resolve a path to a canonical, absolute form.
     CanonicalizePath :: FilePath -> FileSystem m FilePath
     -- | The process's current working directory.
@@ -74,7 +83,7 @@ makeEffect ''FileSystem
 
 
 -- | Read a file's full contents lazily (equivalent to reading from offset 0).
-readFileLbs :: (FileSystem :> es) => FilePath -> Eff es LBS.ByteString
+readFileLbs :: (FileSystem :> es) => FilePath -> Eff es LByteString
 readFileLbs path = readFileLbsFrom path 0
 
 
@@ -106,9 +115,12 @@ runFileSystemIO = interpret_ $ \case
                 (readFdFrom offset)
     DoesFileExist path -> liftIO $ Dir.doesFileExist path
     DoesPathExist path -> liftIO $ Dir.doesPathExist path
+    DoesDirectoryExist path -> liftIO $ Dir.doesDirectoryExist path
     ListDirectory path -> liftIO $ Dir.listDirectory path
     CreateDirectoryIfMissing p path -> liftIO $ Dir.createDirectoryIfMissing p path
     RemoveFile path -> liftIO $ Dir.removeFile path
+    WriteFileBS path bytes -> liftIO $ BS.writeFile path bytes
+    WriteFileLBS path bytes -> liftIO $ LBS.writeFile path bytes
     CanonicalizePath path -> liftIO $ Dir.canonicalizePath path
     GetCurrentDirectory -> liftIO Dir.getCurrentDirectory
     GetXdgRuntimeDir -> liftIO $ fromMaybe "/tmp" <$> lookupEnv "XDG_RUNTIME_DIR"
@@ -122,9 +134,12 @@ runFileSystemNoOp = interpret_ $ \case
     ReadFileLbsFrom _ _ -> pure mempty
     DoesFileExist _ -> pure False
     DoesPathExist _ -> pure False
+    DoesDirectoryExist _ -> pure False
     ListDirectory _ -> pure []
     CreateDirectoryIfMissing _ _ -> pure ()
     RemoveFile _ -> pure ()
+    WriteFileBS _ _ -> pure ()
+    WriteFileLBS _ _ -> pure ()
     CanonicalizePath path -> pure path
     GetCurrentDirectory -> pure "."
     GetXdgRuntimeDir -> pure "/tmp"
@@ -150,9 +165,12 @@ runFileSystemState = interpret_ \case
             $ contents
     DoesFileExist fp -> gets $ M.member fp
     DoesPathExist fp -> gets $ any (\p -> fp `isPrefixOf` p && fp /= p) . M.keys
+    DoesDirectoryExist fp -> gets $ any (\p -> fp `isPrefixOf` p) . M.keys
     ListDirectory fp -> gets $ filter (\p -> fp `isPrefixOf` p && fp /= p) . M.keys
     CreateDirectoryIfMissing _ _ -> pure ()
     RemoveFile fp -> modify $ M.delete fp
+    WriteFileBS fp bytes -> modify $ M.insert fp bytes
+    WriteFileLBS fp bytes -> modify $ M.insert fp $ toStrict bytes
     CanonicalizePath fp -> pure fp
     GetCurrentDirectory -> pure "/"
     GetXdgRuntimeDir -> pure "/tmp"
