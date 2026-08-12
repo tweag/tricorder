@@ -128,9 +128,6 @@ main = runPubSub_ @ReloadSession
     waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
 
 
--- $> 2 + 2 :: Int
-
-
 shouldReloadSession
     :: ( FileSystem :> es
        , Input LoadedConfig :> es
