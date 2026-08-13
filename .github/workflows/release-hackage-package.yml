@@ -45,14 +45,12 @@ jobs:
           fi
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
-        uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
-        with:
-          hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
-          packagesPath: ${{ runner.temp }}/release/packages
-          docsPath: ${{ runner.temp }}/release/docs
-          publish: true
-      - id: finished
-        run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
+        run: |
+          cabal upload '--token=${{ secrets.HACKAGE_AUTH_TOKEN }}' ${{ runner.temp }}/release/packages/*.tar.gz
+          if test -d '${{ runner.temp }}/release/docs'; then
+            cabal upload --documentation '--token=${{ secrets.HACKAGE_AUTH_TOKEN }}' ${{ runner.temp }}/release/docs/*.tar.gz
+          fi
+          echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
       - name: Clean up stray tag on failure
         if: ${{ (failure() || cancelled()) && steps.tagging.outputs.created }}
         run: |
