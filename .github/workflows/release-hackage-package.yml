@@ -50,7 +50,7 @@ jobs:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: ${{ runner.temp }}/release/packages
           docsPath: ${{ runner.temp }}/release/docs
-          publish: false
+          publish: true
       - id: finished
         run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
       - name: Clean up stray tag on failure
