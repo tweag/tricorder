@@ -4,7 +4,12 @@ on:
     tags:
       - "tricorder-*"
   workflow_dispatch:
-
+    inputs:
+      ref:
+        description: Tag or ref to release
+        required: false
+        type: string
+        default: ${{ github.ref }}
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
@@ -59,8 +64,10 @@ jobs:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
       - id: version
         run: |
-          version="$(echo '${{ github.ref }}' | sed 's/^tricorder-//')"
+          tag="$(echo '${{ inputs.ref }}' | sed 's!refs/tags/!!')"
+          version="$(echo "$tag" | sed 's/^tricorder-//')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Extract from CHANGELOG
         run: |
           set -euo pipefail
@@ -87,7 +94,7 @@ jobs:
       - name: Publish to GitHub
         run: |
           gh release create \
-            'tricorder-${{ github.ref }}' \
+            'tricorder-${{ steps.version.outputs.tag }}' \
             --draft \
             --title 'Tricorder v${{ steps.version.outputs.version }}' \
             --notes-file release-notes.md \
