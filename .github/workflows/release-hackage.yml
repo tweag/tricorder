@@ -22,7 +22,7 @@ jobs:
     needs:
       - release-hackage-atelier-core
       - checks
-    if: ${{ !failure() && needs.checks.result == "success" }}
+    if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: atelier-prelude
 
@@ -32,7 +32,7 @@ jobs:
       - checks
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
-    if: ${{ !failure() && needs.checks.result == "success" }}
+    if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: atelier-db
 
@@ -42,7 +42,7 @@ jobs:
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
       - release-hackage-atelier-db
-    if: ${{ !failure() && needs.checks.result == "success" }}
+    if: ${{ !failure() && needs.checks.result == 'success' }}
     uses: ./.github/workflows/release-hackage-package.yml
     with:
       package-name: atelier-testing
@@ -53,6 +53,6 @@ jobs:
       - checks
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
-    if: ${{ !failure() && needs.checks.result == "success" }}
+    if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: tricorder
