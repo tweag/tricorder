@@ -39,8 +39,9 @@ jobs:
         if: ${{ steps.tagging.outputs.created }}
         run: |
           nix build .#${{ inputs.package-name }}-docs
-          cp result-doc/*.tar.gz ${{ runner.temp }}/release/
-
+          if test -f result-doc/*.tar.gz; then
+            cp result-doc/*.tar.gz ${{ runner.temp }}/release/
+          fi
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
