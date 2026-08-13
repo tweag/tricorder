@@ -29,25 +29,27 @@ jobs:
         with:
           package-path: ${{ inputs.package-name }}
           prefix: ${{ inputs.package-name }}-
-      - run: mkdir -p ${{ runner.temp }}/release
       - name: Pack
         if: ${{ steps.tagging.outputs.created }}
         run: |
           nix build .#${{ inputs.package-name }}-sdist
-          cp result/*.tar.gz ${{ runner.temp }}/release/
+          mkdir -p ${{ runner.temp }}/release/packages
+          cp result/*.tar.gz ${{ runner.temp }}/release/packages
       - name: Build docs
         if: ${{ steps.tagging.outputs.created }}
         run: |
           nix build .#${{ inputs.package-name }}-docs
           if test -f result-doc/*.tar.gz; then
-            cp result-doc/*.tar.gz ${{ runner.temp }}/release/
+            mkdir -p ${{ runner.temp }}/release/docs
+            cp result-doc/*.tar.gz ${{ runner.temp }}/release/docs
           fi
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
-          packagesPath: ${{ runner.temp }}/release/
+          packagesPath: ${{ runner.temp }}/release/packages
+          docsPath: ${{ runner.temp }}/release/docs
           publish: false
       - id: finished
         run: echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
