@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.2.0.0] - 2026-08-13
+
 ### Changed
 
 - Relax `base` constraint to support GHC 9.6 up to GHC 9.12.
