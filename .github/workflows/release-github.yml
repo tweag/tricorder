@@ -63,6 +63,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Extract from CHANGELOG
         run: |
+          set -euo pipefail
           nix run .#get-changelog-section -- \
             "${{ steps.version.outputs.version }}" \
             tricorder/CHANGELOG.md \
@@ -86,7 +87,7 @@ jobs:
       - name: Publish to GitHub
         run: |
           gh release create \
-            'tricorder-${{ steps.version.outputs.version }}' \
+            'tricorder-${{ github.ref }}' \
             --draft \
             --title 'Tricorder v${{ steps.version.outputs.version }}' \
             --notes-file release-notes.md \
