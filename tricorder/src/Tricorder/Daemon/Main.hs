@@ -71,6 +71,7 @@ main =
         . runLogging
         . inputLoadedConfig
         . runChan
+        . runEnv
         . inputCabalFiles
         . inputSession
         . runReader @CacheConfig.Config def
@@ -78,7 +79,6 @@ main =
         . runCacheTtl @ModuleName @PackageId
         . runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult
         . runProcessIO
-        . runEnv
         . runGhcPkgIO
         . runUnixSocketIO
         . runGhciSession
