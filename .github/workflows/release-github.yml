@@ -104,14 +104,14 @@ jobs:
             tricorder/CHANGELOG.md \
           | tee release-notes.md
 
-          date="$(cat release-notes.md | sed 's/^## \[[0-9.]*\] - //')"
+          date="$(cat release-notes.md | head -1 | sed 's/^## \[[0-9.]*\] - //')"
           link_ref="$(echo "${{ needs.version.outputs.version }}" | tr --delete '.')---$date"}
 
           cat >> release-notes.md <<EOF
 
           ---
 
-          See [Tricorder's `CHANGELOG.md`](./tricorder/CHANGELOG.md#$link_ref)
+          See [Tricorder's change log](./tricorder/CHANGELOG.md#$link_ref) for a full list of changes.
           EOF
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
