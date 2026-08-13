@@ -43,15 +43,31 @@ jobs:
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - name: Build
+        run: nix build .#tricorder
+      - name: Compress
+        run: |
+          compressed_name="tricorder_${{ matrix.system }}"
+          cat result/bin/tricorder | gzip > "$compressed_name.gz"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: tricorder_${{ matrix.system }}
+          path: tricorder_${{ matrix.system }}.gz
+          archive: false
+
+  publish-github:
+    name: Publish binaries to GitHub
+    needs:
+      - build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
       - id: version
         run: |
           tag="$(echo '${{ case(inputs.ref != '', inputs.ref, github.ref) }}' | sed 's!refs/tags/!!')"
           version="$(echo "$tag" | sed 's/^tricorder-//')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
-        with:
-          ref: ${{ steps.version.tag }}
       - name: Extract from CHANGELOG
         run: |
           set -euo pipefail
@@ -70,12 +86,11 @@ jobs:
 
           See [Tricorder's `CHANGELOG.md`](./tricorder/CHANGELOG.md#$link_ref)
           EOF
-      - name: Build
-        run: nix build .#tricorder
-      - name: Compress
-        run: |
-          compressed_name="tricorder_${{ matrix.system }}"
-          cat result/bin/tricorder | gzip > "$compressed_name.gz"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: tricorder_*
+          path: binaries
+          merge-multiple: true
       - name: Publish to GitHub
         run: |
           gh release create \
