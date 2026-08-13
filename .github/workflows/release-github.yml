@@ -9,7 +9,7 @@ on:
         description: Tag or ref to release
         required: false
         type: string
-        default: ${{ github.ref }}
+        default: ""
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
       - id: version
         run: |
-          tag="$(echo '${{ inputs.ref }}' | sed 's!refs/tags/!!')"
+          tag="$(echo '${{ case(inputs.ref != '', inputs.ref, github.ref) }}' | sed 's!refs/tags/!!')"
           version="$(echo "$tag" | sed 's/^tricorder-//')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
