@@ -11,8 +11,8 @@ description:    Test utilities for database-backed tests using tmp-postgres — 
 category:       Testing
 homepage:       https://github.com/tweag/tricorder#readme
 bug-reports:    https://github.com/tweag/tricorder/issues
-author:         Christian Georgii
-maintainer:     christian.georgii@tweag.io
+author:         Victor Nascimento Bakke
+maintainer:     victor.bakke@tweag.io
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple

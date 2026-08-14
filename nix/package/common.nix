@@ -27,8 +27,8 @@ let
   ];
 in
 {
-  author = "Christian Georgii";
-  maintainer = "christian.georgii@tweag.io";
+  author = "Victor Nascimento Bakke";
+  maintainer = "victor.bakke@tweag.io";
   license = "MIT";
   license-file = "LICENSE";
   language = "GHC2021";
