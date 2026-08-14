@@ -3,8 +3,11 @@
 -- Provides interpreters and interposers that automatically propagate
 -- OpenTelemetry trace context across thread boundaries using span links.
 module Atelier.Effects.Conc.Traced
-    ( -- * Interpreters
-      runConc
+    ( module ExConc
+    , ExConc.await
+
+      -- * Interpreters
+    , runConc
     , runConcByConfig
     , runConcTraced
 
@@ -13,17 +16,18 @@ module Atelier.Effects.Conc.Traced
     )
 where
 
+import Atelier.Effects.Conc (Conc (..), Scope (..), concStrat, fork, forkTry, fork_, runConcBase)
 import Effectful (IOE, raise, withEffToIO)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpose, localLend, localUnlift, passthrough)
 import Effectful.Reader.Static (Reader, asks)
 
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Conc qualified as ExConc hiding (runConc)
 import Ki qualified
 
-import Atelier.Effects.Conc (Conc (..), Scope (..), concStrat, fork, forkTry, fork_, runConcBase)
 import Atelier.Effects.Monitoring.Tracing (Tracing, TracingConfig (..))
 
-import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Monitoring.Tracing qualified as Tracing
 
 

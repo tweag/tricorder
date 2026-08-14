@@ -9,7 +9,7 @@ import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Publishing (runPubSub_)
+import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Publishing.Sub (Sub)
 import Data.List (isSuffixOf)
@@ -100,12 +100,12 @@ main
        , Waiters :> es
        )
     => Eff es Void
-main = runPubSub_ @ReloadSession
-    . runPubSub_ @WatchedFile
-    . runPubSub_ @CabalChangeDetected
-    . runPubSub_ @SourceChangeDetected
-    . runPubSub_ @RestartBuilder
-    . runPubSub_ @ReloadBuilder
+main = runPubSub @ReloadSession
+    . runPubSub @WatchedFile
+    . runPubSub @CabalChangeDetected
+    . runPubSub @SourceChangeDetected
+    . runPubSub @RestartBuilder
+    . runPubSub @ReloadBuilder
     $ Conc.restartableFork waitForReloadSession do
         root <- Reader.ask
         session <- loadSession

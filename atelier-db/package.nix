@@ -43,9 +43,10 @@ in
       }
     ]
     ++ depList [
-      "atelier-prelude"
-      "atelier-core"
       "aeson"
+      "atelier-core"
+      "atelier-monitoring"
+      "atelier-prelude"
       "bytestring"
       "containers"
       "data-default"

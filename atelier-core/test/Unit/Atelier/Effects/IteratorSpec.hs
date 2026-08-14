@@ -8,7 +8,6 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, fork, runConc)
-import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Publishing.Sub (Sub)
@@ -110,12 +109,11 @@ testChanges = do
 -- Test Helpers
 --------------------------------------------------------------------------------
 
-runTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Tracing, Conc, Concurrent, IOE] a -> IO a
+runTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Conc, Concurrent, IOE] a -> IO a
 runTest =
     runEff
         . runConcurrent
         . runConc
-        . runTracingNoOp
         . runClock
         . runChan
         . runPubSub @Int

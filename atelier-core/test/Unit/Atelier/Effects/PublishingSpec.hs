@@ -9,7 +9,6 @@ import Test.Hspec (Spec, describe, it, shouldBe)
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock, runClockConst)
 import Atelier.Effects.Conc (Conc, runConc)
-import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Publishing.Sub (Sub)
@@ -62,13 +61,12 @@ spec_Publishing = do
 --------------------------------------------------------------------------------
 
 runPubSubTest
-    :: Eff '[Pub TestEvent, Sub TestEvent, Chan, Clock, Tracing, Conc, Concurrent, IOE] a
+    :: Eff '[Pub TestEvent, Sub TestEvent, Chan, Clock, Conc, Concurrent, IOE] a
     -> IO a
 runPubSubTest =
     runEff
         . runConcurrent
         . runConc
-        . runTracingNoOp
         . runClock
         . runChan
         . runPubSub @TestEvent
@@ -76,13 +74,12 @@ runPubSubTest =
 
 runPubSubTestWithClock
     :: UTCTime
-    -> Eff '[Pub TestEvent, Sub TestEvent, Chan, Clock, Tracing, Conc, Concurrent, IOE] a
+    -> Eff '[Pub TestEvent, Sub TestEvent, Chan, Clock, Conc, Concurrent, IOE] a
     -> IO a
 runPubSubTestWithClock t =
     runEff
         . runConcurrent
         . runConc
-        . runTracingNoOp
         . runClockConst t
         . runChan
         . runPubSub @TestEvent

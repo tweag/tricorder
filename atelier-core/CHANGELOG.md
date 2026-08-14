@@ -18,6 +18,21 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   - `http-api-data`
   - `time`
 
+### Removed
+
+- Move all metrics and observability tooling to `atelier-monitoring`:
+  - `Atelier.Component`: moved to `atelier-monitoring`.
+  - `Atelier.Effects.Conc.Traced`: moved to `atelier-monitoring`.
+  - `Atelier.Effects.Monitoring.Metrics`: moved to `atelier-monitoring`.
+  - `Atelier.Effects.Monitoring.Metrics.Server`: moved to `atelier-monitoring`.
+  - `Atelier.Effects.Monitoring.Metrics.Registry`: moved to `atelier-monitoring`.
+  - `Atelier.Effects.Cache.Singleflight`: removed tracing capability. Old version
+    with tracing capability is available in `atelier-monitoring` as
+    `Atelier.Effects.Cache.Singleflight.Traced`.
+  - `Atelier.Effects.Publishing#runPubSub`: moved to `atelier-monitoring` in
+    `Atelier.Effects.Publishing.Traced`.
+  - `Atelier.Effects.Publshing#runPubSub_`: renamed to `runPubSub`.
+
 ## [0.3.0.0] - 2026-08-06
 
 ### Added

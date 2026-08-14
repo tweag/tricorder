@@ -1,7 +1,7 @@
 module Unit.Atelier.Effects.Conc.TracedSpec (spec_ConcTraced) where
 
 import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
-import Data.IORef
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret, localUnlift)
@@ -14,8 +14,7 @@ import OpenTelemetry.Context qualified as Context
 import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace.Core qualified as OT
 
-import Atelier.Effects.Conc (await, concStrat, fork, fork_)
-import Atelier.Effects.Conc.Traced (runConc)
+import Atelier.Effects.Conc.Traced (await, concStrat, fork, fork_, runConc)
 import Atelier.Effects.Monitoring.Tracing (SpanContext, Tracing (..), withLinkPropagation, withSpan)
 
 
