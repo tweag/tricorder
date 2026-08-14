@@ -11,8 +11,8 @@ description:    A custom prelude based on relude, adapted for Effectful — part
 category:       Prelude
 homepage:       https://github.com/tweag/tricorder/tree/main/atelier-prelude
 bug-reports:    https://github.com/tweag/tricorder/issues
-author:         Christian Georgii
-maintainer:     christian.georgii@tweag.io
+author:         Victor Nascimento Bakke
+maintainer:     victor.bakke@tweag.io
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
