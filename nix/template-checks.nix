@@ -45,6 +45,7 @@ let
         atelier-prelude
         atelier-core
         atelier-db
+        atelier-monitoring
         templates/canvas/canvas
 
       tests: True

@@ -26,12 +26,23 @@ jobs:
     with:
       package-name: atelier-prelude
 
+  release-hackage-atelier-monitoring:
+    uses: ./.github/workflows/release-hackage-package.yml
+    needs:
+      - release-hackage-atelier-core
+      - release-hackage-atelier-prelude
+      - checks
+    if: ${{ !failure() && needs.checks.result == 'success' }}
+    with:
+      package-name: atelier-monitoring
+
   release-hackage-atelier-db:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
+      - release-hackage-atelier-monitoring
     if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: atelier-db

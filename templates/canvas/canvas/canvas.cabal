@@ -60,6 +60,7 @@ library
     , atelier-core >=0.2
     , atelier-db >=0.1
     , atelier-prelude >=0.1
+    , atelier-monitoring >=0.1
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
     , casing ==0.1.*

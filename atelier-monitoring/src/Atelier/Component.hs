@@ -18,14 +18,14 @@ module Atelier.Component
     , runSystem
     ) where
 
-import Text.Casing (fromHumps, toQuietSnake)
-
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
+import Text.Casing (fromHumps, toQuietSnake)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
+
+import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 
 -- | A listener reacts to events and runs forever; it never returns normally,

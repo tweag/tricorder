@@ -4,7 +4,7 @@ let
 in
 {
   name = "atelier-testing";
-  version = "0.2.0.0";
+  version = "0.3.0.0";
   synopsis = "Database-backed test utilities for atelier";
   description = "Test utilities for database-backed tests using tmp-postgres — part of the atelier toolkit.";
   github = "tweag/tricorder";

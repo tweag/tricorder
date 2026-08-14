@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.4.0.0] - 2026-08-14
+
 ### Added
 
 - `Atelier.Effects.Env`: `lookupEnv` picks out a single environment variable.

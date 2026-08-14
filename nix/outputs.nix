@@ -277,11 +277,12 @@ in
     };
   };
 
-  legacyChecks.${compiler-nix-name} = templateChecks // {
+  legacyChecks.${compiler-nix-name} = {
     all = pkgs.symlinkJoin {
       name = "all-checks-${compiler-nix-name}";
-      paths = builtins.attrValues checks ++ builtins.attrValues templateChecks;
+      paths = builtins.attrValues checks;
     };
+    inherit templateChecks;
   };
 
   legacyPackages.projectFlake.${compiler-nix-name} = projectFlake;

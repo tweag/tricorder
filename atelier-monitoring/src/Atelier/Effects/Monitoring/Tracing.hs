@@ -41,6 +41,10 @@ module Atelier.Effects.Monitoring.Tracing
     , SpanContext
     ) where
 
+import Atelier.Effects.Timeout (Timeout, timeout)
+import Atelier.Time (Second)
+import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
 import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..))
@@ -54,11 +58,6 @@ import OpenTelemetry.Context qualified as Context
 import OpenTelemetry.Context.ThreadLocal qualified as ThreadLocal
 import OpenTelemetry.Trace qualified as OT
 import OpenTelemetry.Trace.Core qualified as OT
-
-import Atelier.Effects.Timeout (Timeout, timeout)
-import Atelier.Time (Second)
-import Atelier.Types.QuietSnake (QuietSnake (..))
-import Atelier.Types.WithDefaults (WithDefaults (..))
 
 import Atelier.Effects.Monitoring.Tracing.Provider qualified as Provider
 
