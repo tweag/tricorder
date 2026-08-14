@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.4.0.1] - 2026-08-14
+
+### Removed
+
+- Dependency on `hs-opentemeletry-api` for the test suite.
+
 ## [0.4.0.0] - 2026-08-14
 
 ### Added
