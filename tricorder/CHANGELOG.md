@@ -16,6 +16,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   any changed `package.yaml` file in the root of the project or any
   subdirectory. Control this behavior with the `generate_with_hpack`
   configuration.
+- Tricorder will now restart the GHCi session when detecting changes to a
+  project's `stack.yaml`.
 
 ## [0.2.0.1] - 2026-08-12
 

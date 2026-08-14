@@ -18,8 +18,10 @@ import Effectful.Concurrent.STM (Concurrent, atomically, newEmptyTMVar, takeTMVa
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
+import System.FilePath ((</>))
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing.Pub qualified as Pub
@@ -114,6 +116,7 @@ main = runPubSub @ReloadSession
         root <- Reader.ask
         session <- loadSession
         Conc.fork_ $ watchConfigFile root
+        conditionallyWatchStackYaml root
 
         Conc.fork_ $ Watch.files root session
         Conc.fork_ $ Sub.listen_ Watch.publishChange
@@ -124,6 +127,7 @@ main = runPubSub @ReloadSession
                 Pub.publish ReloadSession
             else
                 Pub.publish RestartBuilder
+
         Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
             Pub.publish $ ReloadBuilder fp event
 
@@ -157,7 +161,23 @@ watchConfigFile
 watchConfigFile root = do
     FileWatcher.watchFilePathsDebounced
         [FileWatcher.dirWhere root.getProjectRoot (Config.configFileName `isSuffixOf`)]
-        \_ _ -> Pub.publish $ ReloadSession
+        \_ _ -> Pub.publish ReloadSession
+
+
+conditionallyWatchStackYaml
+    :: ( Conc :> es
+       , Debounce FilePath :> es
+       , FileSystem :> es
+       , FileWatcher :> es
+       , Pub RestartBuilder :> es
+       )
+    => ProjectRoot -> Eff es ()
+conditionallyWatchStackYaml root = do
+    exists <- FileSystem.doesFileExist $ root.getProjectRoot </> "stack.yaml"
+    when exists do
+        Conc.fork_ $ FileWatcher.watchFilePathsDebounced
+            [FileWatcher.dirWhere root.getProjectRoot ("stack.yaml" `isSuffixOf`)]
+            \_ _ -> Pub.publish RestartBuilder
 
 
 -- | For a given session, handles controlling the build process itself,
