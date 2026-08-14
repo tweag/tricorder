@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.1.0.0] - 2026-08-14
+
 ### Added
 
 - All modules relating to monitoring and observability from `atelier-core`.

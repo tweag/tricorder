@@ -16,6 +16,8 @@ package atelier-db
   optimization: False
 package atelier-testing
   optimization: False
+package atelier-monitoring
+  optimization: False
 
 constraints:
   -- See https://github.com/circuithub/rel8/issues/402

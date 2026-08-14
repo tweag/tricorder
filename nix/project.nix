@@ -34,6 +34,7 @@ pkgs.haskell-nix.cabalProject' {
         atelier-core = component;
         atelier-db = component;
         atelier-testing = component;
+        atelier-monitoring = component;
 
         # Configure tricorder package
         tricorder = component // {

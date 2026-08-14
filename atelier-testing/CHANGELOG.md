@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.3.0.0] - 2026-08-14
+
 ### Changed
 
 - Major version bump for the following dependencies' upper version bounds:

@@ -41,6 +41,7 @@ module Atelier.Effects.Monitoring.Metrics
     , runMetricsNoOp
     ) where
 
+import Atelier.Effects.Clock (Clock, currentTime)
 import Data.Time.Clock (diffUTCTime)
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret, interpretWith, localSeqUnlift)
@@ -49,7 +50,6 @@ import Effectful.TH (makeEffect)
 import Prometheus qualified as Prom
 import Prometheus.Metric.GHC qualified as GHC
 
-import Atelier.Effects.Clock (Clock, currentTime)
 import Atelier.Effects.Monitoring.Tracing (Tracing, withSpan)
 
 import Atelier.Effects.Monitoring.Metrics.Registry qualified as Registry
