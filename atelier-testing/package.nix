@@ -51,7 +51,6 @@ in
       "hasql-pool"
       "hspec"
       "postgres-options"
-      "string-conversions"
       "text"
       "tmp-postgres"
       "unix"

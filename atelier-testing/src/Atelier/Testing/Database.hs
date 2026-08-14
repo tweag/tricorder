@@ -14,7 +14,6 @@ where
 import Atelier.Effects.DB.Config (DBConfig (..), DBPools (..), PoolConfig (..), acquireDatabasePool, acquireDatabasePools)
 import Atelier.Exception (trySyncIO)
 import Control.Concurrent (MVar, forkIO, modifyMVar, newEmptyMVar, newMVar, putMVar, takeMVar, threadDelay, tryPutMVar, withMVar)
-import Data.String.Conversions (cs)
 import Database.PostgreSQL.Simple.Options (Options (..))
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))
@@ -95,9 +94,9 @@ startSharedServer cfg = do
                             }
                     adminConfig =
                         DBConfig
-                            { host = cs socketDir
+                            { host = toText socketDir
                             , port = portNum
-                            , user = cs tmpUser
+                            , user = toText tmpUser
                             , password = ""
                             , databaseName = "postgres"
                             , pool = pool
@@ -146,16 +145,16 @@ setupTestDatabase cfg = do
     dbName <- generateUniqueDatabaseName
     let adminConfig =
             DBConfig
-                { host = cs server.socketDir
+                { host = toText server.socketDir
                 , port = server.portNum
-                , user = cs server.tmpUser
+                , user = toText server.tmpUser
                 , password = ""
                 , databaseName = "postgres"
                 , pool = server.defaultPool
                 }
         readerConfig =
             DBConfig
-                { host = cs server.socketDir
+                { host = toText server.socketDir
                 , port = server.portNum
                 , user = cfg.readerUser
                 , password = ""
@@ -164,7 +163,7 @@ setupTestDatabase cfg = do
                 }
         writerConfig =
             DBConfig
-                { host = cs server.socketDir
+                { host = toText server.socketDir
                 , port = server.portNum
                 , user = cfg.writerUser
                 , password = ""
@@ -181,7 +180,7 @@ createDatabaseFromTemplate adminConfig dbName templateName = do
     runOrThrow pool
         $ statement ()
         $ Statement
-            (cs $ "CREATE DATABASE " <> dbName <> " TEMPLATE " <> templateName)
+            (encodeUtf8 $ "CREATE DATABASE " <> dbName <> " TEMPLATE " <> templateName)
             mempty
             Decoders.noResult
             False
@@ -191,7 +190,7 @@ createDatabase :: Pool.Pool -> Text -> IO ()
 createDatabase pool dbName =
     runOrThrow pool
         $ statement ()
-        $ Statement (cs $ "CREATE DATABASE " <> dbName) mempty Decoders.noResult False
+        $ Statement (encodeUtf8 $ "CREATE DATABASE " <> dbName) mempty Decoders.noResult False
 
 
 -- | Grant TRUNCATE on all tables in the schema to the writer role.
@@ -202,7 +201,7 @@ grantTruncatePrivileges config dbName schema writerRole = do
     runOrThrow pool
         $ statement ()
         $ Statement
-            (cs $ "GRANT TRUNCATE ON ALL TABLES IN SCHEMA " <> schema <> " TO " <> writerRole)
+            (encodeUtf8 $ "GRANT TRUNCATE ON ALL TABLES IN SCHEMA " <> schema <> " TO " <> writerRole)
             mempty
             Decoders.noResult
             False
@@ -219,7 +218,7 @@ cleanDatabase cfg pools =
     queryTableNames :: Statement () [Text]
     queryTableNames =
         Statement
-            ( cs
+            ( encodeUtf8
                 $ "SELECT tablename FROM pg_tables WHERE schemaname = '"
                     <> cfg.schemaName
                     <> "'"
@@ -241,7 +240,7 @@ cleanDatabase cfg pools =
     truncateTables tableNames =
         statement ()
             $ Statement
-                (cs $ "TRUNCATE TABLE " <> tableNames <> " CASCADE")
+                (encodeUtf8 $ "TRUNCATE TABLE " <> tableNames <> " CASCADE")
                 mempty
                 Decoders.noResult
                 False

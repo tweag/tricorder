@@ -9,8 +9,6 @@ let
     Cabal = ">=3.12 && <3.17";
     Cabal-syntax = ">=3.12 && <3.17";
     aeson = ">=2.2 && <2.3";
-    ansi-terminal = ">=1.1 && <1.2";
-    async = ">=2.2 && <2.3";
     atelier-core = ">=0.3 && <0.4";
     atelier-db = ">=0.1 && <0.3";
     atelier-prelude = ">=0.1 && <0.3";
@@ -19,7 +17,6 @@ let
     bytestring = ">=0.11 && <0.13";
     casing = ">=0.1 && <0.2";
     containers = ">=0.6 && <0.9";
-    contra-tracer = ">=0.2 && <0.3";
     daemons = ">=0.4 && <0.5";
     data-default = ">=0.8 && <0.9";
     directory = ">=1.3 && <1.4";
@@ -56,7 +53,6 @@ let
     req = ">=3.13.4 && <3.14";
     stm = ">=2.5 && <2.6";
     stm-containers = ">=1.2 && <1.3";
-    string-conversions = ">=0.4 && <0.5";
     tar = ">=0.6 && <0.8";
     tasty = ">=1.5 && <1.6";
     tasty-discover = ">=5.2 && <5.3";

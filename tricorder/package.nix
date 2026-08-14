@@ -46,7 +46,6 @@ in
         "Cabal"
         "Cabal-syntax"
         "aeson"
-        "ansi-terminal"
         "atelier-core"
         "atelier-prelude"
         "brick"

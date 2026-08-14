@@ -111,7 +111,6 @@ library
     , bytestring >=0.11 && <0.13
     , casing ==0.1.*
     , containers >=0.6 && <0.9
-    , contra-tracer ==0.2.*
     , daemons ==0.4.*
     , data-default ==0.8.*
     , directory ==1.3.*
@@ -201,7 +200,6 @@ test-suite atelier-test
       tasty-discover:tasty-discover
   build-depends:
       aeson ==2.2.*
-    , async ==2.2.*
     , atelier-core ==0.3.*
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23

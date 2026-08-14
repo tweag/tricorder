@@ -111,7 +111,6 @@ library tricorder-internal
       Cabal >=3.12 && <3.17
     , Cabal-syntax >=3.12 && <3.17
     , aeson ==2.2.*
-    , ansi-terminal ==1.1.*
     , atelier-core ==0.3.*
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
