@@ -27,7 +27,6 @@ import Test.Hspec (Spec, describe, it, runIO, shouldBe)
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, fork, fork_, runConc, scoped)
-import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Publishing.Sub (Sub)
@@ -122,5 +121,5 @@ runConcTest = runEff . runConcurrent . runConc
 
 
 -- | Mirrors 'IteratorSpec.runTest' — the full effect stack the real victim runs on.
-runIterTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Tracing, Conc, Concurrent, IOE] a -> IO a
-runIterTest = runEff . runConcurrent . runConc . runTracingNoOp . runClock . runChan . runPubSub @Int
+runIterTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Conc, Concurrent, IOE] a -> IO a
+runIterTest = runEff . runConcurrent . runConc . runClock . runChan . runPubSub @Int

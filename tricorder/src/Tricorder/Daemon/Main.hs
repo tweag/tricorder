@@ -12,7 +12,7 @@ import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
 import Atelier.Effects.FileWatcher (runFileWatcherIO)
 import Atelier.Effects.Process (runProcessIO)
-import Atelier.Effects.Publishing (runPubSub_)
+import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Timeout (runTimeout)
 import Data.Default (def)
 import Effectful (runEff)
@@ -84,7 +84,7 @@ main =
         . runGhciSession
         . evalState (BuildId 1)
         . Input.fromState @BuildId
-        . runPubSub_ @BuildPhase
+        . runPubSub @BuildPhase
         . Hackage.run
         . PackageStore.run
         . EvalCommentRunner.run

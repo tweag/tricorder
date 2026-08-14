@@ -4,46 +4,33 @@
 -- When several threads request the same key at once, the first runs the
 -- computation while the rest wait and share its result — so an expensive lookup
 -- happens once per key per in-flight window. Results (and exceptions) can also
--- be seeded with 'updateCache' or invalidated with 'removeFromCache'.
-module Atelier.Effects.Cache.Singleflight
-    ( Singleflight (..)
+-- be seeded with 'updateCache' or invalidated with 'removeFromCache'. Each
+-- operation is traced (see "Atelier.Effects.Monitoring.Tracing").
+module Atelier.Effects.Cache.Singleflight.Traced
+    ( Singleflight
     , withCache
     , updateCache
     , removeFromCache
     , runSingleflight
     ) where
 
-import Effectful (Effect)
+import Atelier.Effects.Cache.Singleflight
+    ( Singleflight (..)
+    , removeFromCache
+    , updateCache
+    , withCache
+    )
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (TMVar)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift)
 import Effectful.Exception (throwIO, trySync)
-import Effectful.TH (makeEffect)
 import StmContainers.Map (Map)
 import Prelude hiding (Map)
 
 import Effectful.Concurrent.STM qualified as STM
 import StmContainers.Map qualified as Map
 
-
--- | Singleflight cache effect for deduplicating concurrent computations
---
--- When multiple concurrent operations request the same key:
--- - The first request executes the computation
--- - Subsequent requests wait for and share the result
--- - After completion, all requests receive the same result
-data Singleflight key value :: Effect where
-    -- | Execute a computation with singleflight semantics
-    -- If another computation for the same key is in-flight, wait for its result
-    WithCache :: (Hashable key) => key -> m value -> Singleflight key value m value
-    -- | Pre-populate the cache with known values
-    -- Useful when values are already available to avoid redundant computation
-    UpdateCache :: [(key, value)] -> Singleflight key value m ()
-    -- | Remove keys from the cache so future requests recompute from source
-    RemoveFromCache :: [key] -> Singleflight key value m ()
-
-
-makeEffect ''Singleflight
+import Atelier.Effects.Monitoring.Tracing (Tracing, addAttribute, withSpan)
 
 
 type InFlightMap key value = Map key (TMVar (Either SomeException value))
@@ -52,7 +39,7 @@ type InFlightMap key value = Map key (TMVar (Either SomeException value))
 -- | Run the Singleflight effect with an in-memory cache
 runSingleflight
     :: forall key value es a
-     . (Concurrent :> es, Hashable key)
+     . (Concurrent :> es, Hashable key, Tracing :> es)
     => Eff (Singleflight key value : es) a
     -> Eff es a
 runSingleflight action = do
@@ -61,7 +48,7 @@ runSingleflight action = do
 
     -- Run with the cache in Reader context, interpreting Singleflight operations
     interpretWith action $ \env -> \case
-        WithCache key computation -> localSeqUnlift env $ \unlift -> do
+        WithCache key computation -> localSeqUnlift env $ \unlift -> withSpan "singleflight.with_cache" do
             -- Singleflight pattern: check if computation is already in-flight.
             -- Also attempt a non-blocking read of any existing result in the same transaction.
             (mvar, isFirst, mResult) <- STM.atomically $ do
@@ -78,10 +65,13 @@ runSingleflight action = do
 
             case (isFirst, mResult) of
                 (_, Just (Right value)) -> do
+                    addAttribute @Text "singleflight.outcome" "hit"
                     pure value
                 (_, Just (Left exception)) -> do
+                    addAttribute @Text "singleflight.outcome" "hit"
                     throwIO exception
                 (True, Nothing) -> do
+                    addAttribute @Text "singleflight.outcome" "compute"
                     result <- unlift $ trySync computation
 
                     -- Try to fill the TMVar with result (success or failure) for waiters
@@ -107,13 +97,15 @@ runSingleflight action = do
                             Left exception -> throwIO exception
                             Right value -> pure value
                 (False, Nothing) -> do
+                    addAttribute @Text "singleflight.outcome" "wait"
                     result <-
-                        STM.atomically
+                        withSpan "singleflight.wait"
+                            $ STM.atomically
                             $ STM.readTMVar mvar
                     case result of
                         Left exception -> throwIO exception
                         Right value -> pure value
-        UpdateCache entries -> do
+        UpdateCache entries -> withSpan "singleflight.update_cache" do
             STM.atomically $ do
                 forM_ entries $ \(key, value) -> do
                     existing <- Map.lookup key cache
@@ -128,5 +120,5 @@ runSingleflight action = do
                             -- No in-flight computation: create fresh TMVar with value
                             tmvar <- STM.newTMVar (Right value)
                             Map.insert tmvar key cache
-        RemoveFromCache keys -> do
+        RemoveFromCache keys -> withSpan "singleflight.remove_from_cache" do
             STM.atomically $ forM_ keys $ \key -> Map.delete key cache

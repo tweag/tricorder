@@ -3,6 +3,7 @@ packages:
   atelier-core
   atelier-db
   atelier-testing
+  atelier-monitoring
   tricorder
 
 tests: True

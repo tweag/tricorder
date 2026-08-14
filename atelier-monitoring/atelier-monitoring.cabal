@@ -4,11 +4,15 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 
-name:           atelier-core
-version:        0.3.0.0
-synopsis:       Foundational Effectful-based effects and utilities
-description:    Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.
-category:       Control
+name:           atelier-monitoring
+version:        0.1.0.0
+synopsis:       Effectful-based monitoring suite
+description:    Moitoring, metrics, and tracing effects and utilities for Effectful-based
+                applications —  part of the atelier toolkit.
+category:       OpenTelemetry,
+                Observability,
+                Monitoring,
+                Tracing
 homepage:       https://github.com/tweag/tricorder#readme
 bug-reports:    https://github.com/tweag/tricorder/issues
 author:         Victor Nascimento Bakke
@@ -31,51 +35,19 @@ source-repository head
 
 library
   exposed-modules:
-      Atelier.Config
-      Atelier.Effects.Arguments
-      Atelier.Effects.Await
-      Atelier.Effects.Cache
-      Atelier.Effects.Cache.Config
-      Atelier.Effects.Cache.Singleflight
-      Atelier.Effects.Chan
-      Atelier.Effects.Clock
-      Atelier.Effects.Conc
-      Atelier.Effects.Console
-      Atelier.Effects.Debounce
-      Atelier.Effects.Delay
-      Atelier.Effects.Env
-      Atelier.Effects.Exit
-      Atelier.Effects.File
-      Atelier.Effects.FileSystem
-      Atelier.Effects.FileWatcher
-      Atelier.Effects.Input
-      Atelier.Effects.Internal.Coroutine
-      Atelier.Effects.Iterator
-      Atelier.Effects.Log
-      Atelier.Effects.Posix.Daemons
-      Atelier.Effects.Posix.IO
-      Atelier.Effects.Process
-      Atelier.Effects.Process.Internal
-      Atelier.Effects.Publishing
-      Atelier.Effects.Publishing.Pub
-      Atelier.Effects.Publishing.Sub
-      Atelier.Effects.Tally
-      Atelier.Effects.Timeout
-      Atelier.Effects.UUID
-      Atelier.Effects.Yield
-      Atelier.Exception
-      Atelier.Time
-      Atelier.Types.Base64
-      Atelier.Types.HttpApiDataReadShow
-      Atelier.Types.JsonReadShow
-      Atelier.Types.QuietSnake
-      Atelier.Types.Semaphore
-      Atelier.Types.Semaphore.STM
-      Atelier.Types.WithDefaults
+      Atelier.Component
+      Atelier.Effects.Cache.Singleflight.Traced
+      Atelier.Effects.Conc.Traced
+      Atelier.Effects.Monitoring.Metrics
+      Atelier.Effects.Monitoring.Metrics.Registry
+      Atelier.Effects.Monitoring.Metrics.Server
+      Atelier.Effects.Monitoring.Tracing
+      Atelier.Effects.Monitoring.Tracing.Provider
+      Atelier.Effects.Publishing.Traced
   other-modules:
-      Paths_atelier_core
+      Paths_atelier_monitoring
   autogen-modules:
-      Paths_atelier_core
+      Paths_atelier_monitoring
   hs-source-dirs:
       src
   default-extensions:
@@ -98,6 +70,7 @@ library
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
   build-depends:
       aeson >=2.2 && <2.4
+    , atelier-core >=0.3 && <0.5
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , base64-bytestring ==1.2.*
@@ -113,6 +86,8 @@ library
     , effectful-th ==1.0.*
     , filepath >=1.4 && <1.6
     , fsnotify ==0.4.*
+    , hs-opentelemetry-api ==0.3.*
+    , hs-opentelemetry-sdk ==0.1.*
     , http-api-data >=0.5.1 && <0.8
     , http-types ==0.12.*
     , ki ==1.0.*
@@ -139,33 +114,14 @@ library
   if impl(GHC >= 9.8)
     ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
 
-test-suite atelier-test
+test-suite atelier-monitoring-test
   type: exitcode-stdio-1.0
   main-is: Driver.hs
   other-modules:
-      Unit.Atelier.ConfigSpec
-      Unit.Atelier.Effects.AwaitSpec
-      Unit.Atelier.Effects.Cache.SingleflightSpec
-      Unit.Atelier.Effects.CacheSpec
-      Unit.Atelier.Effects.ChanSpec
-      Unit.Atelier.Effects.Conc.TeardownStressSpec
-      Unit.Atelier.Effects.ConcSpec
-      Unit.Atelier.Effects.ConsoleSpec
-      Unit.Atelier.Effects.DebounceSpec
-      Unit.Atelier.Effects.FileSystemSpec
-      Unit.Atelier.Effects.FileWatcherSpec
-      Unit.Atelier.Effects.IteratorSpec
-      Unit.Atelier.Effects.LogSpec
-      Unit.Atelier.Effects.Publishing.PubSpec
-      Unit.Atelier.Effects.PublishingSpec
-      Unit.Atelier.Effects.TallySpec
-      Unit.Atelier.Effects.YieldSpec
-      Unit.Atelier.Types.Semaphore.STMSpec
-      Unit.Atelier.Types.SemaphoreSpec
-      Unit.Atelier.Types.WithDefaultsSpec
-      Paths_atelier_core
+      Unit.Atelier.Effects.Conc.TracedSpec
+      Paths_atelier_monitoring
   autogen-modules:
-      Paths_atelier_core
+      Paths_atelier_monitoring
   hs-source-dirs:
       test
   default-extensions:
@@ -190,7 +146,7 @@ test-suite atelier-test
       tasty-discover:tasty-discover
   build-depends:
       aeson >=2.2 && <2.4
-    , atelier-core >=0.3 && <0.5
+    , atelier-monitoring ==0.1.*
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13

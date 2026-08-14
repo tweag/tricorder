@@ -9,7 +9,6 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldThrow)
 import Atelier.Effects.Cache.Singleflight (Singleflight, runSingleflight, updateCache, withCache)
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Delay (Delay, runDelay)
-import Atelier.Effects.Monitoring.Tracing (Tracing, runTracingNoOp)
 import Atelier.Time (Millisecond)
 import Atelier.Types.Semaphore (Semaphore)
 
@@ -26,13 +25,12 @@ data TestException = TestException Text
 
 -- | Run a Singleflight test with execution counter
 runSingleflightTest
-    :: Eff [Singleflight Int Int, State Int, Delay, Tracing, Conc, Concurrent, IOE] a
+    :: Eff [Singleflight Int Int, State Int, Delay, Conc, Concurrent, IOE] a
     -> IO (a, Int)
 runSingleflightTest action =
     runEff
         . runConcurrent
         . runConc
-        . runTracingNoOp
         . runDelay
         . runState @Int 0
         . runSingleflight @Int @Int

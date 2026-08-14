@@ -3,12 +3,20 @@ let
   common = import ../nix/package/common.nix;
 in
 {
-  name = "atelier-core";
-  version = "0.3.0.0";
-  synopsis = "Foundational Effectful-based effects and utilities";
-  description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
+  name = "atelier-monitoring";
+  version = "0.1.0.0";
+  synopsis = "Effectful-based monitoring suite";
+  description = ''
+    Moitoring, metrics, and tracing effects and utilities for Effectful-based
+    applications —  part of the atelier toolkit.
+  '';
   github = "tweag/tricorder";
-  category = "Control";
+  category = [
+    "OpenTelemetry"
+    "Observability"
+    "Monitoring"
+    "Tracing"
+  ];
 
   extra-doc-files = [
     "CHANGELOG.md"
@@ -45,8 +53,9 @@ in
       }
     ]
     ++ depList [
-      "atelier-prelude"
       "aeson"
+      "atelier-core"
+      "atelier-prelude"
       "base64-bytestring"
       "bytestring"
       "casing"
@@ -58,6 +67,8 @@ in
       "effectful-th"
       "filepath"
       "fsnotify"
+      "hs-opentelemetry-api"
+      "hs-opentelemetry-sdk"
       "http-api-data"
       "http-types"
       "ki"
@@ -82,7 +93,7 @@ in
   };
 
   tests = {
-    atelier-test = {
+    atelier-monitoring-test = {
       main = "Driver.hs";
       source-dirs = "test";
       ghc-options = [ "-Wno-prepositive-qualified-module" ];
@@ -97,9 +108,9 @@ in
         }
       ]
       ++ depList [
-        "atelier-prelude"
-        "atelier-core"
         "aeson"
+        "atelier-monitoring"
+        "atelier-prelude"
         "bytestring"
         "containers"
         "data-default"
