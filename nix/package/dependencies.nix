@@ -6,14 +6,14 @@ let
   depList = map dep;
   constraints = {
     base = ">=4.18 && < 4.23";
-    Cabal = ">=3.12 && <3.17";
-    Cabal-syntax = ">=3.12 && <3.17";
-    aeson = ">=2.2 && <2.3";
-    atelier-core = ">=0.3 && <0.4";
-    atelier-db = ">=0.1 && <0.3";
+    Cabal = ">=3.12 && <3.19";
+    Cabal-syntax = ">=3.12 && <3.19";
+    aeson = ">=2.2 && <2.4";
+    atelier-core = ">=0.3 && <0.5";
+    atelier-db = ">=0.1 && <0.4";
     atelier-prelude = ">=0.1 && <0.3";
     base64-bytestring = ">=1.2 && <1.3";
-    brick = ">=2.10 && <2.11";
+    brick = ">=2.10 && <2.14";
     bytestring = ">=0.11 && <0.13";
     casing = ">=0.1 && <0.2";
     containers = ">=0.6 && <0.9";
@@ -28,14 +28,14 @@ let
     fsnotify = ">=0.4 && <0.5";
     hashable = ">=1.5 && <1.6";
     hasql = ">=1.9 && <1.11";
-    hasql-pool = ">=1.3 && <1.4";
+    hasql-pool = ">=1.3 && <1.5";
     hasql-transaction = ">=1.2 && <1.3";
     hedgehog = ">=1.7 && <1.8";
     hs-opentelemetry-api = ">=0.3 && <0.4";
     hs-opentelemetry-sdk = ">=0.1 && <0.2";
     hspec = ">=2.11 && <2.12";
     hspec-hedgehog = ">=0.3 && <0.4";
-    http-api-data = ">=0.7 && <0.8";
+    http-api-data = ">=0.5.1 && <0.8";
     http-types = ">=0.12 && <0.13";
     ki = ">=1.0 && <1.1";
     list-t = ">=1.0 && <1.1";
@@ -59,7 +59,7 @@ let
     tasty-hspec = ">=1.2 && <1.3";
     template-haskell = ">=2.20 && <2.25";
     text = ">=2.1 && <2.2";
-    time = ">=1.12 && <1.16";
+    time = ">=1.12 && <1.17";
     time-units = ">=1.0 && <1.1";
     tmp-postgres = ">=1.35 && <1.36";
     typed-process = ">=0.2 && <0.3";
@@ -67,7 +67,7 @@ let
     unix = ">=2.8 && <2.9";
     unordered-containers = ">=0.2 && <0.3";
     uuid = ">=1.3 && <1.4";
-    vty = ">=6.5 && <6.6";
+    vty = ">=6.5 && <6.7";
     vty-crossplatform = ">=0.5 && <0.6";
     wai = ">=3.2 && <3.3";
     warp = ">=3.4 && <3.5";

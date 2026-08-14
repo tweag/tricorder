@@ -11,6 +11,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - `Atelier.Effects.Env`: `lookupEnv` picks out a single environment variable.
 
+### Changed
+
+- Major version bump for the following dependencies' upper version bounds:
+  - `aeson`
+  - `http-api-data`
+  - `time`
+
 ## [0.3.0.0] - 2026-08-06
 
 ### Added

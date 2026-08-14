@@ -7,6 +7,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Major version bump for the following dependencies' upper version bounds:
+  - `atelier-core`
+  - `atelier-db`
+  - `hasql-pool`
+
 ## [0.2.0.0] - 2026-08-13
 
 ### Changed

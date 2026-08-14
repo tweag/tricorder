@@ -108,13 +108,13 @@ library tricorder-internal
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
   build-depends:
-      Cabal >=3.12 && <3.17
-    , Cabal-syntax >=3.12 && <3.17
-    , aeson ==2.2.*
-    , atelier-core ==0.3.*
+      Cabal >=3.12 && <3.19
+    , Cabal-syntax >=3.12 && <3.19
+    , aeson >=2.2 && <2.4
+    , atelier-core >=0.3 && <0.5
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
-    , brick ==2.10.*
+    , brick >=2.10 && <2.14
     , bytestring >=0.11 && <0.13
     , casing ==0.1.*
     , containers >=0.6 && <0.9
@@ -138,9 +138,9 @@ library tricorder-internal
     , tar >=0.6 && <0.8
     , template-haskell >=2.20 && <2.25
     , text ==2.1.*
-    , time >=1.12 && <1.16
+    , time >=1.12 && <1.17
     , time-units ==1.0.*
-    , vty ==6.5.*
+    , vty >=6.5 && <6.7
     , vty-crossplatform ==0.5.*
     , yaml ==0.11.*
     , zlib ==0.7.*
@@ -280,9 +280,9 @@ test-suite tricorder-test
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
-      Cabal-syntax >=3.12 && <3.17
-    , aeson ==2.2.*
-    , atelier-core ==0.3.*
+      Cabal-syntax >=3.12 && <3.19
+    , aeson >=2.2 && <2.4
+    , atelier-core >=0.3 && <0.5
     , atelier-prelude >=0.1 && <0.3
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
@@ -302,7 +302,7 @@ test-suite tricorder-test
     , tasty-discover ==5.2.*
     , tasty-hspec ==1.2.*
     , text ==2.1.*
-    , time >=1.12 && <1.16
+    , time >=1.12 && <1.17
     , time-units ==1.0.*
     , tricorder-internal
     , typed-process ==0.2.*
