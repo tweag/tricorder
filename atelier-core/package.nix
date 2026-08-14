@@ -4,7 +4,7 @@ let
 in
 {
   name = "atelier-core";
-  version = "0.4.0.0";
+  version = "0.4.0.1";
   synopsis = "Foundational Effectful-based effects and utilities";
   description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
   github = "tweag/tricorder";
@@ -105,7 +105,6 @@ in
         "data-default"
         "effectful"
         "hedgehog"
-        "hs-opentelemetry-api"
         "hspec"
         "hspec-hedgehog"
         "stm"
