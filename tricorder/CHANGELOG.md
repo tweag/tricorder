@@ -12,6 +12,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Tricorder now respects all forms of `cabal.project` files, like
   `cabal.project.local` for example. See
   [Cabal's documentation on project description files](https://cabal.readthedocs.io/en/stable/cabal-project-description-file.html). ([#73](https://github.com/tweag/tricorder/issues/73))
+- With `hpack` in `PATH`, Tricorder will now run `hpack` in the directory of
+  any changed `package.yaml` file in the root of the project or any
+  subdirectory. Control this behavior with the `generate_with_hpack`
+  configuration.
 
 ## [0.2.0.1] - 2026-08-12
 

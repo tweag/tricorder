@@ -21,6 +21,7 @@ session:
   test_targets: [test:foo]
   repl_build_dir: /tmp
   test_timeout: 10
+  generate_with_hpack: true
 ```
 
 - `command`: Build command to use to enter the cabal repl. If not specified,
@@ -46,6 +47,9 @@ session:
 - `test_timeout`: Number of seconds each test target is granted before it is
   considered "timed out". Defaults to `10` seconds. Set to `0` to disable the
   timeout.
+- `generate_with_hpack`: Control whether Tricorder should run `hpack` in the
+  directory of any `package.yaml` files it detects changes for. Enabled by
+  default. This is automatically disabled if `hpack` is not in `PATH`.
 
 ## CLI configuration
 

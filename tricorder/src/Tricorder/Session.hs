@@ -18,6 +18,7 @@ import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..), resolveCommand)
 import Tricorder.Session.Config (Config (..))
+import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Target (Target, definesCustomPrelude, resolveTargets)
 import Tricorder.Session.TestTarget (TestTarget, resolveTestTargets)
@@ -34,6 +35,7 @@ data Session = Session
     , watchExclusionPatterns :: WatchExclusionPatterns
     , replBuildDir :: ReplBuildDir
     , testTimeout :: TestTimeout
+    , generateWithHpack :: GenerateWithHpack
     }
     deriving stock (Eq)
 
@@ -48,6 +50,7 @@ instance Default Session where
             , watchExclusionPatterns = def
             , replBuildDir = def
             , testTimeout = def
+            , generateWithHpack = def
             }
 
 
@@ -101,6 +104,7 @@ loadSession = do
             , testTargets
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
+            , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
             }
 
 
