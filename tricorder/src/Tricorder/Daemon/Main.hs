@@ -40,6 +40,7 @@ import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
+import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
@@ -85,6 +86,7 @@ main =
         . evalState (BuildId 1)
         . Input.fromState @BuildId
         . runPubSub @BuildPhase
+        . Hpack.run
         . Hackage.run
         . PackageStore.run
         . EvalCommentRunner.run

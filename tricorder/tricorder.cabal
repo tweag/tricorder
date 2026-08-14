@@ -54,6 +54,8 @@ library tricorder-internal
       Tricorder.Daemon.GhciSession
       Tricorder.Daemon.GhciSession.GhciParser
       Tricorder.Daemon.GhciSession.GhciProcess
+      Tricorder.Daemon.Hpack
+      Tricorder.Daemon.Hpack.Effect
       Tricorder.Daemon.Main
       Tricorder.Daemon.TestRunner
       Tricorder.Daemon.Watch
@@ -64,6 +66,7 @@ library tricorder-internal
       Tricorder.Session.CabalFile
       Tricorder.Session.Command
       Tricorder.Session.Config
+      Tricorder.Session.GenerateWithHpack
       Tricorder.Session.ReplBuildDir
       Tricorder.Session.Target
       Tricorder.Session.TestTarget

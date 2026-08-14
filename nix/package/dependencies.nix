@@ -5,7 +5,6 @@ let
   };
   depList = map dep;
   constraints = {
-    base = ">=4.18 && < 4.23";
     Cabal = ">=3.12 && <3.19";
     Cabal-syntax = ">=3.12 && <3.19";
     aeson = ">=2.2 && <2.4";
@@ -13,6 +12,7 @@ let
     atelier-db = ">=0.1 && <0.4";
     atelier-monitoring = ">=0.1 && <0.2";
     atelier-prelude = ">=0.1 && <0.3";
+    base = ">=4.18 && < 4.23";
     base64-bytestring = ">=1.2 && <1.3";
     brick = ">=2.10 && <2.14";
     bytestring = ">=0.11 && <0.13";

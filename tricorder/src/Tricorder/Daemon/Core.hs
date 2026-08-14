@@ -52,12 +52,14 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , LoadedModule (..)
     , resolveKnownTargets
     )
+import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..))
+import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout)
 import Tricorder.Waiters (Waiters)
@@ -68,6 +70,7 @@ import Tricorder.Build.Test qualified as Test
 import Tricorder.Config qualified as Config
 import Tricorder.Daemon.Builder qualified as Builder
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
+import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
 import Tricorder.Waiters qualified as Waiters
@@ -90,6 +93,7 @@ main
        , FileSystem :> es
        , FileWatcher :> es
        , GhciSession :> es
+       , Hpack :> es
        , Input LoadedConfig :> es
        , Input [CabalFile] :> es
        , Log :> es
@@ -122,6 +126,9 @@ main = runPubSub @ReloadSession
                 Pub.publish RestartBuilder
         Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
             Pub.publish $ ReloadBuilder fp event
+
+        when session.generateWithHpack.getGenerateWithHpack do
+            void $ Conc.fork Hpack.main
 
         State.evalState emptyBuilderState $ withSession session
   where
