@@ -7,6 +7,14 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Major version bump for the following dependencies' upper version bounds:
+  - `aeson`
+  - `atelier-core`
+  - `hasql-pool`
+  - `time`
+
 ## [0.2.0.0] - 2026-08-13
 
 ### Changed
