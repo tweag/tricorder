@@ -1,7 +1,6 @@
 module Tricorder.CLI.UI.View (mkAttrMap, view) where
 
 import Atelier.Effects.Clock (TimeZone)
-import Atelier.Time (Millisecond, toMicroseconds)
 import Brick
     ( AttrMap
     , AttrName
@@ -35,6 +34,7 @@ import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 
 import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic, Severity (..))
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.CLI.UI.Keys (KeyEvent, keybindForRoute, viewKeybindings)
 import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
 import Tricorder.CLI.UI.Route (Route)
@@ -384,7 +384,7 @@ severityToAttrName SError = attrName "error"
 severityToAttrName SWarning = attrName "warning"
 
 
-viewDuration :: Millisecond -> Widget n
+viewDuration :: Duration -> Widget n
 viewDuration d = txt $ "(" <> formatDuration d <> ")"
 
 
@@ -432,14 +432,14 @@ viewTimestamp :: TimeZone -> UTCTime -> Widget n
 viewTimestamp tz t = txt $ "— " <> toText (formatTime defaultTimeLocale "%H:%M:%S" $ utcToLocalTime tz t)
 
 
-viewBuildSummary :: Int -> Millisecond -> Widget n
+viewBuildSummary :: Int -> Duration -> Widget n
 viewBuildSummary moduleCount duration =
     txt $ "(" <> show moduleCount <> " modules, " <> formatDuration duration <> ")"
 
 
-formatDuration :: Millisecond -> Text
-formatDuration d =
-    let ms = toMicroseconds d `div` 1000
+formatDuration :: Duration -> Text
+formatDuration (Duration d) =
+    let ms = toInteger d
     in  if ms < 1000 then
             show ms <> "ms"
         else

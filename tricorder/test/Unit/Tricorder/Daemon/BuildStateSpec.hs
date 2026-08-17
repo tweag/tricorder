@@ -12,6 +12,7 @@ import Tricorder.Build
     , PostBuild (..)
     , Severity (..)
     )
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 
 import Tricorder.Build qualified as Build
@@ -89,7 +90,7 @@ mkBuildState msgs =
             Build.Finished
                 ( BuildResult
                     { completedAt = epoch
-                    , duration = 0
+                    , duration = Duration 0
                     , moduleCount = 0
                     , diagnostics = msgs
                     }

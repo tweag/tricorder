@@ -13,7 +13,7 @@ import Atelier.Effects.Clock (Clock, UTCTime)
 import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Publishing.Pub (Pub)
-import Atelier.Time (Millisecond, nominalDiffTime)
+import Atelier.Time (nominalDiffTime)
 import Data.Time (diffUTCTime)
 import Effectful (Effect, inject)
 import Effectful.Dispatch.Dynamic (reinterpretWith_)
@@ -31,6 +31,7 @@ import Data.Set qualified as Set
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId (..), BuildProgress, BuildResult (..), Diagnostic (..))
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.Dispatch
     ( BuilderState (..)
     , DiagnosticMap
@@ -178,7 +179,7 @@ compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadRes
     buildResult =
         BuildResult
             { completedAt = endTime
-            , duration = nominalDiffTime (diffUTCTime endTime startTime) :: Millisecond
+            , duration = Duration $ nominalDiffTime (diffUTCTime endTime startTime)
             , moduleCount = loadResult.moduleCount
             , diagnostics = sortOn (\d -> (d.severity, d.file, d.line, d.col)) $ concat $ Map.elems merged
             }

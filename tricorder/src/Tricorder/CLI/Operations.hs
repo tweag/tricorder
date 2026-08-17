@@ -23,6 +23,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Build (BuildState (..), Severity (..))
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Arguments
     ( EvalCommentsOptions (..)
@@ -145,7 +146,7 @@ showStatus opts = do
         let errs = length $ filter ((== SError) . (.severity)) r.diagnostics
             warns = length $ filter ((== SWarning) . (.severity)) r.diagnostics
             ts = toText $ "— " <> formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz r.completedAt)
-            stats = toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration <> ")"
+            stats = toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration.getDuration <> ")"
         in  if null r.diagnostics then
                 "All good. " <> stats <> " " <> ts
             else
@@ -153,7 +154,7 @@ showStatus opts = do
 
 
 completionSummary :: Test.SuiteCompletion -> Text
-completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d <> ")") c.duration
+completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d.getDuration <> ")") c.duration
   where
     statusText
         | null c.testCases = if c.passed then "passed" else "failed"

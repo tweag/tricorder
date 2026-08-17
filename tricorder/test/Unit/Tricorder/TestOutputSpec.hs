@@ -2,6 +2,7 @@ module Unit.Tricorder.TestOutputSpec (spec_TestOutput) where
 
 import Test.Hspec
 
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput, stripGhciNoise)
 
 import Tricorder.Build.Test qualified as Test
@@ -98,11 +99,11 @@ spec_TestOutput = do
 
         it "parses duration from passing summary line" do
             parseHspecDuration "All 177 tests passed (0.05s)\n"
-                `shouldBe` Just 50
+                `shouldBe` Just (Duration 50)
 
         it "parses duration from failing summary line" do
             parseHspecDuration "1 out of 177 tests failed (0.06s)\n"
-                `shouldBe` Just 60
+                `shouldBe` Just (Duration 60)
 
         it "does not match indented individual test timing lines" do
             parseHspecDuration "      entry is evicted after cleanup thread fires past TTL:  OK (0.05s)\n"
@@ -115,7 +116,7 @@ spec_TestOutput = do
                         <> "    slow test:                                       OK (0.05s)\n"
                         <> "\n"
                         <> "All 2 tests passed (0.5s)\n"
-            parseHspecDuration output `shouldBe` Just 500
+            parseHspecDuration output `shouldBe` Just (Duration 500)
 
     describe "stripGhciNoise" do
         it "passes through empty list" do

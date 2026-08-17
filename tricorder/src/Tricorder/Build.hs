@@ -10,10 +10,10 @@ module Tricorder.Build
     ) where
 
 import Atelier.Effects.Clock (UTCTime)
-import Atelier.Time (Millisecond)
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import GHC.Generics (Generically (..))
 
+import Tricorder.Build.Duration (Duration)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Session.TestTarget (TestTarget)
 
@@ -55,7 +55,7 @@ data BuildProgress = BuildProgress
 
 data BuildResult = BuildResult
     { completedAt :: UTCTime
-    , duration :: Millisecond
+    , duration :: Duration
     , moduleCount :: Int
     , diagnostics :: [Diagnostic]
     }
