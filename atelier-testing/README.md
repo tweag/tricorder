@@ -4,11 +4,10 @@ Test utilities for database-backed tests using [tmp-postgres](https://github.com
 
 ## Overview
 
-`atelier-testing` spins up a throwaway PostgreSQL instance for integration tests, so suites that exercise [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) can run against a real database without external setup.
-
-| Module | Purpose |
-|---|---|
-| `Atelier.Testing.Database` | Provision and tear down a temporary PostgreSQL database for tests |
+`atelier-testing` spins up a throwaway PostgreSQL instance for integration
+tests, so suites that exercise
+[`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) can run
+against a real database without external setup.
 
 ## Part of atelier
 
@@ -16,6 +15,7 @@ Test utilities for database-backed tests using [tmp-postgres](https://github.com
 - [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — foundational effects and utilities
 - [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
 - [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — this package
+- [`atelier-monitoring`](https://github.com/tweag/tricorder/tree/main/atelier-monitoring) - observability and monitoring effects and utilities
 
 ## License
 
