@@ -40,7 +40,7 @@ let
     http-types = ">=0.12 && <0.13";
     ki = ">=1.0 && <1.1";
     list-t = ">=1.0 && <1.1";
-    megaparsec = ">=9.7 && <9.8";
+    megaparsec = ">=9.7 && <9.9";
     mtl = ">=2.3 && <2.4";
     network = ">=3.2 && <3.3";
     optparse-applicative = ">=0.19 && <0.20";
