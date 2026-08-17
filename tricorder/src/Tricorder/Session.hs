@@ -14,6 +14,7 @@ import Effectful.Reader.Static (Reader, ask)
 import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
 
+import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..), resolveCommand)
@@ -26,11 +27,14 @@ import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs)
 import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..), resolveWatchExclusionPatterns)
 
+import Tricorder.Build.ByteSize qualified as ByteSize
+
 
 data Session = Session
     { command :: Command
     , targets :: [Target]
     , testTargets :: [TestTarget]
+    , testMemoryLimit :: Maybe ByteSize
     , watchDirs :: WatchDirs
     , watchExclusionPatterns :: WatchExclusionPatterns
     , replBuildDir :: ReplBuildDir
@@ -46,6 +50,7 @@ instance Default Session where
             { command = def
             , targets = []
             , testTargets = []
+            , testMemoryLimit = Nothing
             , watchDirs = def
             , watchExclusionPatterns = def
             , replBuildDir = def
@@ -71,6 +76,15 @@ loadSession = do
         effectiveTargets = resolveTargets projectFiles cfgFile.targets
         testTargets = resolveTestTargets cfgFile effectiveTargets
         watchDirs = resolveWatchDirs projectRoot projectFiles cfgFile effectiveTargets
+
+    testMemoryLimit <- case cfgFile.testMemoryLimit of
+        Nothing -> pure Nothing
+        Just limit -> case ByteSize.fromText limit of
+            Nothing -> do
+                Log.err $ "Unable to parse test_memory_limit: " <> limit
+                pure Nothing
+            Just parsedLimit ->
+                pure $ Just parsedLimit
 
     watchExclusionPatterns <-
         case resolveWatchExclusionPatterns cfgFile.watchExclusionPatterns of
@@ -101,6 +115,7 @@ loadSession = do
             , command
             , watchDirs
             , watchExclusionPatterns
+            , testMemoryLimit
             , testTargets
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout

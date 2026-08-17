@@ -31,6 +31,7 @@ import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..), Severity (..))
+import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
@@ -370,7 +371,11 @@ runTests
     => Session -> BuildResult -> Eff es Test.Suites
 runTests session buildResult
     | hasTargets session.testTargets && noErrors buildResult.diagnostics =
-        runTestsForTargets session.command session.testTimeout session.testTargets
+        runTestsForTargets
+            session.command
+            session.testMemoryLimit
+            session.testTimeout
+            session.testTargets
     | otherwise = pure mempty
   where
     hasTargets = not . null
@@ -383,10 +388,11 @@ runTestsForTargets
        , TestRunner :> es
        )
     => Command
+    -> Maybe ByteSize
     -> TestTimeout
     -> [TestTarget]
     -> Eff es Test.Suites
-runTestsForTargets command testTimeout testTargets = do
+runTestsForTargets command memoryLimit testTimeout testTargets = do
     Pub.publish $ Test.Suites initial
     Log.info $ "Running " <> show (length testTargets) <> " test suite(s)"
     fmap Test.Suites . State.execState initial $ traverse_ go testTargets
@@ -400,6 +406,7 @@ runTestsForTargets command testTimeout testTargets = do
                     updated <- State.state $ dup . Map.insert target suite
                     Pub.publish $ Test.Suites updated
                 )
+                memoryLimit
                 command.repl
                 testTimeout
                 target

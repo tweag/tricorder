@@ -35,17 +35,19 @@ import Atelier.Effects.Log qualified as Log
 import Data.List qualified as List
 import Data.Text qualified as T
 
+import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Daemon.GhciSession.GhciProcess
     ( execGhci
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..), Repl)
+import Tricorder.Session.Command (Command (..), Repl (..))
 import Tricorder.Session.TestTarget (TestTarget, getTestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
+import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Build.Test qualified as Test
 
 
@@ -55,6 +57,8 @@ data TestRunner :: Effect where
     RunTestSuite
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
+        -> Maybe ByteSize
+        -- ^ Memory limit for test suite
         -> Repl
         -> TestTimeout
         -> TestTarget
@@ -79,14 +83,39 @@ run
     => Eff (TestRunner : es) a -> Eff es a
 run act = do
     interpretWith act \env -> \case
-        RunTestSuite progressHandler repl testTimeout target ->
+        RunTestSuite progressHandler mMemoryLimit repl testTimeout target ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
                     noProgress _ = pure ()
                     noReady _ = pure ()
+                    memoryLimitArg =
+                        maybe
+                            []
+                            ( \limit ->
+                                let
+                                    stack =
+                                        [ "--ghc-options"
+                                        , "+RTS -M"
+                                            <> ByteSize.toRTSSize limit
+                                            <> " -RTS"
+                                        ]
+                                    cabal =
+                                        [ "--repl-options"
+                                        , "+RTS -M"
+                                            <> ByteSize.toRTSSize limit
+                                            <> " -RTS"
+                                        ]
+                                in
+                                    case repl of
+                                        Stack -> stack
+                                        StackMulti -> stack
+                                        Cabal -> cabal
+                                        Unknown -> cabal
+                            )
+                            mMemoryLimit
                 ProjectRoot projectRoot <- ask
                 result <- trySync
-                    $ withGhciProcess def (Command repl [] [getTestTarget target]) projectRoot onProgress noReady \ghci _ ->
+                    $ withGhciProcess def (Command repl memoryLimitArg [getTestTarget target]) projectRoot onProgress noReady \ghci _ ->
                         case testTimeout of
                             TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
                             TestTimeout secs ->
@@ -141,7 +170,7 @@ runScripted
 runScripted results =
     reinterpret_
         (evalState results)
-        (\(RunTestSuite _ _ _ _) -> popResult)
+        (\(RunTestSuite _ _ _ _ _) -> popResult)
   where
     popResult :: Eff (State [Either SomeException Test.Suite] : es) Test.Suite
     popResult =
