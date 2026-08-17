@@ -15,6 +15,7 @@ data Config = Config
     , replBuildDir :: FilePath
     , testTimeout :: Int
     , generateWithHpack :: Bool
+    , testMemoryLimit :: Maybe Text
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via WithDefaults (QuietSnake Config)
@@ -31,4 +32,5 @@ instance Default Config where
             , replBuildDir = "dist-newstyle/tricorder"
             , testTimeout = 10
             , generateWithHpack = True
+            , testMemoryLimit = Nothing
             }

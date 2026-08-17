@@ -27,6 +27,7 @@ source-repository head
 library tricorder-internal
   exposed-modules:
       Tricorder.Build
+      Tricorder.Build.ByteSize
       Tricorder.Build.Changes
       Tricorder.Build.Duration
       Tricorder.Build.EvalComment
@@ -234,6 +235,7 @@ test-suite tricorder-test
   type: exitcode-stdio-1.0
   main-is: Driver.hs
   other-modules:
+      Unit.Tricorder.Build.ByteSizeSpec
       Unit.Tricorder.Build.EvalCommentSpec
       Unit.Tricorder.CLI.RenderSpec
       Unit.Tricorder.Daemon.BuilderSpec

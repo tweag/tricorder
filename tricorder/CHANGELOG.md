@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Use the `test_memory_limit` configuration value to specify the maximum memory
+  a test suite is allowed to consume. This is enforced through GHC's `-M` RTS
+  option.
+
 ## 0.2.1.0 - 2026-08-17
 
 ### Added
