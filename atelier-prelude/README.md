@@ -10,10 +10,10 @@ In `package.yaml` (hpack):
 
 ```yaml
 dependencies:
-- name: base
-  mixin:
-  - hiding (Prelude)
-- atelier-prelude
+  - name: base
+    mixin:
+      - hiding (Prelude)
+  - atelier-prelude
 ```
 
 or in a `.cabal` file:
@@ -41,6 +41,7 @@ Use the corresponding `atelier-core` effects instead — e.g. `Atelier.Effects.E
 - [`atelier-core`](https://github.com/tweag/tricorder/tree/main/atelier-core) — foundational effects and utilities
 - [`atelier-db`](https://github.com/tweag/tricorder/tree/main/atelier-db) — relational database effect (Hasql/Rel8)
 - [`atelier-testing`](https://github.com/tweag/tricorder/tree/main/atelier-testing) — database-backed test utilities
+- [`atelier-monitoring`](https://github.com/tweag/tricorder/tree/main/atelier-monitoring) - observability and monitoring effects and utilities
 
 ## License
 
