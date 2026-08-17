@@ -7,6 +7,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (BuildResult (..), Diagnostic (..), Severity (..))
+import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult (..)
@@ -49,7 +50,7 @@ testCompileBuildResults = do
                                 , diagnostics = []
                                 }
                         }
-        r.duration `shouldBe` 10_000
+        r.duration `shouldBe` Duration 10_000
     it "merges with existing results" do
         let (m, _) =
                 compileBuildResults root watchDirs (Map.fromList [(errMsg.file, [errMsg])])
@@ -89,7 +90,7 @@ testCompileBuildResults = do
             expected =
                 BuildResult
                     { completedAt = addUTCTime 10 epoch
-                    , duration = 10_000
+                    , duration = Duration 10_000
                     , moduleCount = 2
                     , diagnostics = [warnMsg]
                     }

@@ -7,6 +7,15 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `Atelier.Time`: Remove orphan `FromJSON` and `ToJSON` instances, and instead
+  introduce `AsRawUnit` and `AsJsonMicrosecond` `newtype`s for `FromJSON` and
+  `ToJSON` instance deriving. This fixes the issue where the time units'
+  `FromJSON` and `ToJSON` instances did not match, meaning
+  `decode (encode (10 :: Hour)) == Nothing` held true. Now you have to be more
+  explicit about how the units will be represented in JSON.
+
 ## [0.4.0.1] - 2026-08-14
 
 ### Removed

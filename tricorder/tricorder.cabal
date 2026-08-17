@@ -28,6 +28,7 @@ library tricorder-internal
   exposed-modules:
       Tricorder.Build
       Tricorder.Build.Changes
+      Tricorder.Build.Duration
       Tricorder.Build.EvalComment
       Tricorder.Build.Test
       Tricorder.CLI.App

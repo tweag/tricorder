@@ -14,12 +14,12 @@ module Tricorder.Build.Test
     , SuiteError (..)
     ) where
 
-import Atelier.Time (Millisecond)
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generically (..))
 
 import Data.Map.Strict qualified as Map
 
+import Tricorder.Build.Duration (Duration)
 import Tricorder.Session.TestTarget (TestTarget)
 
 
@@ -105,7 +105,7 @@ data SuiteCompletion = SuiteCompletion
     { passed :: Bool
     , output :: Text
     , testCases :: [Case]
-    , duration :: Maybe Millisecond
+    , duration :: Maybe Duration
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via (Generically SuiteCompletion)

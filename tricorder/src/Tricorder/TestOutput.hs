@@ -1,9 +1,11 @@
 module Tricorder.TestOutput (parseHspecOutput, parseHspecDuration, stripGhciNoise) where
 
-import Atelier.Time (Millisecond, fromMicroseconds)
+import Atelier.Time (fromMicroseconds)
 import Data.Char (isDigit)
 
 import Data.Text qualified as T
+
+import Tricorder.Build.Duration (Duration (..))
 
 import Tricorder.Build.Test qualified as Test
 
@@ -61,7 +63,7 @@ stripTimingAnnotation t
 -- | Extract the test suite duration from hspec summary output.
 -- Matches non-indented summary lines ending with @"(Xs)"@,
 -- e.g. @"All 160 tests passed (0.33s)"@ or @"1 out of 177 tests failed (0.06s)"@.
-parseHspecDuration :: Text -> Maybe Millisecond
+parseHspecDuration :: Text -> Maybe Duration
 parseHspecDuration output =
     listToMaybe $ mapMaybe extractMs (T.lines output)
   where
@@ -70,7 +72,7 @@ parseHspecDuration output =
         guard $ T.isSuffixOf "s)" line
         let numStr = T.takeWhileEnd (/= '(') (T.dropEnd 2 line)
         secs <- readMaybe (T.unpack numStr) :: Maybe Double
-        pure $ fromMicroseconds (round (secs * 1_000_000))
+        pure $ Duration $ fromMicroseconds (round (secs * 1_000_000))
 
 
 -- | Strip GHCi/cabal startup and shutdown noise from captured output lines.
