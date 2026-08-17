@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## 0.2.1.0 - 2026-08-17
+
 ### Added
 
 - Tricorder now respects all forms of `cabal.project` files, like
