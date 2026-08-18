@@ -24,7 +24,8 @@ module Atelier.Effects.FileSystem
     , runFileSystemIO
     , runFileSystemNoOp
     , runFileSystemState
-    ) where
+    )
+where
 
 import Control.Exception (bracket)
 import Effectful (Effect, IOE)

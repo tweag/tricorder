@@ -5,7 +5,8 @@ module Tricorder.CLI.UI.BrickChan
     , writeBChan
     , readBChan
     , runBrickChan
-    ) where
+    )
+where
 
 import Brick.BChan (BChan)
 import Effectful (Effect, IOE)

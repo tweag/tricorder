@@ -4,7 +4,8 @@ module Tricorder.Build.ByteSize
     , asBytes
     , toRTSSize
     , fromText
-    ) where
+    )
+where
 
 import Text.Megaparsec (Parsec, eof, parseMaybe)
 import Text.Megaparsec.Char (space, string')

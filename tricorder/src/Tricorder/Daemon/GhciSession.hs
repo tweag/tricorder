@@ -13,7 +13,8 @@ module Tricorder.Daemon.GhciSession
       -- * Interpreters
     , runGhciSession
     , runGhciSessionScripted
-    ) where
+    )
+where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)

@@ -10,7 +10,8 @@
 -- @
 module Atelier.Types.Base64
     ( Base64 (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 

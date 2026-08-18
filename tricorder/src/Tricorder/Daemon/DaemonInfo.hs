@@ -2,7 +2,8 @@ module Tricorder.Daemon.DaemonInfo
     ( DaemonInfo (..)
     , load
     , runInput
-    ) where
+    )
+where
 
 import Atelier.Effects.Input (Input, input, runInputEff)
 import Data.Aeson (FromJSON (..), ToJSON (..))

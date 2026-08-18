@@ -2,7 +2,8 @@ module Tricorder.Session
     ( Session (..)
     , loadSession
     , inputSession
-    ) where
+    )
+where
 
 import Atelier.Config (LoadedConfig, extractConfig)
 import Atelier.Effects.FileSystem (FileSystem)

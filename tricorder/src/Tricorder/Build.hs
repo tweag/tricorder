@@ -7,7 +7,8 @@ module Tricorder.Build
     , PostBuild (..)
     , Diagnostic (..)
     , Severity (..)
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (UTCTime)
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)

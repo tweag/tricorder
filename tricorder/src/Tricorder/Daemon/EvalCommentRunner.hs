@@ -6,7 +6,8 @@ module Tricorder.Daemon.EvalCommentRunner
 
       -- * Interpreters
     , run
-    ) where
+    )
+where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)

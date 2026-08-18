@@ -8,7 +8,8 @@ module Unit.Tricorder.Session.Helpers
     , gpdFixture
     , cabalFixture
     , gpd
-    ) where
+    )
+where
 
 import Distribution.PackageDescription (GenericPackageDescription)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)

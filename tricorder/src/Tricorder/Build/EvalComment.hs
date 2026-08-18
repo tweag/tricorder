@@ -12,7 +12,8 @@ module Tricorder.Build.EvalComment
     , blockCommentEvalP
     , State (..)
     , JsonOutput (..)
-    ) where
+    )
+where
 
 import Atelier.Types.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withObject, (.:))

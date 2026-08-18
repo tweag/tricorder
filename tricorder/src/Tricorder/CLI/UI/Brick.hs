@@ -3,7 +3,8 @@ module Tricorder.CLI.UI.Brick
       Brick
     , runBrickApp
     , runBrick
-    ) where
+    )
+where
 
 import Brick.Main (App, customMain)
 import Effectful (Effect, IOE)

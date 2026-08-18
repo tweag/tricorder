@@ -10,7 +10,8 @@ module Tricorder.CLI.Arguments
     , WaitMode (..)
     , parseArguments
     , runArguments
-    ) where
+    )
+where
 
 import Atelier.Effects.Arguments (Arguments, execParser)
 import Effectful.Reader.Static (Reader, runReader)

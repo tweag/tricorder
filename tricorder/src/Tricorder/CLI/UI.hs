@@ -1,6 +1,7 @@
 module Tricorder.CLI.UI
     ( viewUi
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)

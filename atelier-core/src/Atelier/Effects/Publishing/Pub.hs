@@ -9,7 +9,8 @@ module Atelier.Effects.Publishing.Pub
     , map
     , mapM
     , consume
-    ) where
+    )
+where
 
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)

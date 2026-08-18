@@ -33,7 +33,8 @@ module Atelier.Effects.Tally
       -- * Interpreters
     , runTally
     , runTallyConst
-    ) where
+    )
+where
 
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)

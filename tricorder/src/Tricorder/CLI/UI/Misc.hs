@@ -6,7 +6,8 @@ module Tricorder.CLI.UI.Misc
     , subtle
     , hBoxSpaced
     , vBoxSpaced
-    ) where
+    )
+where
 
 import Brick
     ( Padding (..)

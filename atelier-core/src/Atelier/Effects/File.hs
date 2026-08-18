@@ -22,7 +22,8 @@ module Atelier.Effects.File
     , hIsEOF
     , hSetBuffering
     , runFile
-    ) where
+    )
+where
 
 import Effectful (Dispatch (..), DispatchOf, Effect, IOE)
 import Effectful.Dispatch.Static
@@ -45,6 +46,8 @@ data File :: Effect
 
 
 type instance DispatchOf File = Static WithSideEffects
+
+
 data instance StaticRep File = File
 
 

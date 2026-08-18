@@ -3,7 +3,8 @@ module Tricorder.SourceLookup.PackageStore
     , add
     , getPath
     , run
-    ) where
+    )
+where
 
 import Atelier.Effects.Env (Env, getEnvironment)
 import Atelier.Effects.FileSystem (FileSystem)

@@ -2,7 +2,8 @@ module Tricorder.Session.CabalFile
     ( CabalFile (..)
     , inputCabalFiles
     , discoverCabalFiles
-    ) where
+    )
+where
 
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, readFileBs)

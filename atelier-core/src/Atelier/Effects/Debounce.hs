@@ -38,7 +38,8 @@ module Atelier.Effects.Debounce
     , ensureEntry
     , ensureCallback
     , Entry (..)
-    ) where
+    )
+where
 
 import Data.Dynamic (Dynamic, fromDynamic, toDyn)
 import Effectful (Effect, Limit (..), Persistence (..), UnliftStrategy (..))

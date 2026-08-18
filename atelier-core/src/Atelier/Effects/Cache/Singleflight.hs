@@ -11,7 +11,8 @@ module Atelier.Effects.Cache.Singleflight
     , updateCache
     , removeFromCache
     , runSingleflight
-    ) where
+    )
+where
 
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)

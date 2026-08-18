@@ -3,7 +3,8 @@ module Tricorder.Session.Command
     , Repl (..)
     , render
     , resolveCommand
-    ) where
+    )
+where
 
 import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (Default (..))

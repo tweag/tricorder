@@ -5,7 +5,8 @@ module Tricorder.CLI.Render
     , diagnosticBlock
     , formatDuration
     , renderSourceResults
-    ) where
+    )
+where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Time (Millisecond, toMicroseconds)

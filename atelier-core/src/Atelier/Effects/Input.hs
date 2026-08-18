@@ -10,7 +10,8 @@ module Atelier.Effects.Input
     , runInputConst
     , toReader
     , fromState
-    ) where
+    )
+where
 
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret_)

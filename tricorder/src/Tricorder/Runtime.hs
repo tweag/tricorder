@@ -10,7 +10,8 @@ module Tricorder.Runtime
     , runSocketPath
     , LogPath (..)
     , runLogPath
-    ) where
+    )
+where
 
 import Atelier.Effects.FileSystem
     ( FileSystem

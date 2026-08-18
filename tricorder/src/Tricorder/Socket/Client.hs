@@ -8,7 +8,8 @@ module Tricorder.Socket.Client
     , requestShutdown
     , isDaemonRunning
     , isDaemonReady
-    ) where
+    )
+where
 
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.File (File, Handle)

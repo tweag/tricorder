@@ -11,7 +11,8 @@ module Atelier.Exception
     , trySyncIO
     , catchSyncIO
     , isSyncException
-    ) where
+    )
+where
 
 import Effectful.Exception (SomeAsyncException, isSyncException)
 

@@ -16,7 +16,8 @@ module Atelier.Effects.Await
       -- * Interpreters
     , eachAwait
     , awaitYield
-    ) where
+    )
+where
 
 import Atelier.Effects.Internal.Coroutine
     ( Await

@@ -9,7 +9,8 @@ module Tricorder.Daemon.Dispatch
     , filterToWatchDirs
     , mergeDiagnostics
     , preserveFailureVisibility
-    ) where
+    )
+where
 
 import Atelier.Effects.FileWatcher (FileEvent (..))
 import System.FilePath (isAbsolute, normalise, splitDirectories, takeExtension, (</>))

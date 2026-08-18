@@ -12,7 +12,8 @@ module Atelier.Effects.Cache.Singleflight.Traced
     , updateCache
     , removeFromCache
     , runSingleflight
-    ) where
+    )
+where
 
 import Atelier.Effects.Cache.Singleflight
     ( Singleflight (..)

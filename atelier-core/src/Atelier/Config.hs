@@ -45,7 +45,8 @@ module Atelier.Config
     , extractNestedConfig
     , LoadedConfig (..)
     , runConfig
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), Value (..))
 import Data.Default (Default (..))

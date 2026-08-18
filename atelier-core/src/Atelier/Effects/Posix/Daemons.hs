@@ -10,7 +10,8 @@ module Atelier.Effects.Posix.Daemons
     , isRunning
     , forceKillAndWait
     , runDaemons
-    ) where
+    )
+where
 
 import Data.Default (def)
 import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..))

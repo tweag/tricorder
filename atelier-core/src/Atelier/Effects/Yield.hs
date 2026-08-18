@@ -28,7 +28,8 @@ module Atelier.Effects.Yield
     , catMaybes
     , changes
     , filter
-    ) where
+    )
+where
 
 import Effectful.Dispatch.Dynamic (impose_, interpose_)
 import Effectful.State.Static.Shared (evalState, get)

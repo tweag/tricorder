@@ -5,7 +5,8 @@ module Atelier.Effects.Monitoring.Tracing.Provider
     ( TracingState (..)
     , initTracingState
     , shutdownTracingState
-    ) where
+    )
+where
 
 import System.Environment (setEnv)
 

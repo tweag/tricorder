@@ -4,7 +4,8 @@ module Tricorder.Session.TestTarget
     , parseTestTargets
     , resolveTestTargets
     , projectTestTargets
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 

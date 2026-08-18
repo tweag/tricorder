@@ -39,7 +39,8 @@ module Atelier.Effects.Monitoring.Tracing
       -- * Re-exports
     , SpanStatus (..)
     , SpanContext
-    ) where
+    )
+where
 
 import Atelier.Effects.Timeout (Timeout, timeout)
 import Atelier.Time (Second)

@@ -8,7 +8,8 @@ module Atelier.Effects.Env
     , lookupEnv
     , runEnv
     , runEnvConst
-    ) where
+    )
+where
 
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)

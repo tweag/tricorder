@@ -5,7 +5,8 @@
 -- operations may target the wrong group. Production code should not import this.
 module Atelier.Effects.Process.Internal
     ( RunningProcess (..)
-    ) where
+    )
+where
 
 import System.Process.Typed qualified as TP
 

@@ -14,7 +14,8 @@ module Atelier.Effects.Cache
     , runCacheTtl
     , runCacheTtlWithWait
     , runCacheForever
-    ) where
+    )
+where
 
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime)
 import Effectful (Effect)

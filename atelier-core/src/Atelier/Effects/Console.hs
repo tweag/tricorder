@@ -15,7 +15,8 @@ module Atelier.Effects.Console
     , runConsoleHandle
     , runConsole
     , runConsoleToList
-    ) where
+    )
+where
 
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)

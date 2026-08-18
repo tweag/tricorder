@@ -12,7 +12,8 @@ module Atelier.Effects.Exit
       -- * Interpreters
     , runExit
     , runExitNoOp
-    ) where
+    )
+where
 
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)

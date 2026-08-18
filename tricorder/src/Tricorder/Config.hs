@@ -3,7 +3,8 @@ module Tricorder.Config
     , runLoadedConfig
     , inputLoadedConfig
     , configFileName
-    ) where
+    )
+where
 
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (FileSystem)

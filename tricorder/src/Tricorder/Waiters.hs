@@ -4,7 +4,8 @@ module Tricorder.Waiters
     , without
     , wait
     , run
-    ) where
+    )
+where
 
 import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)

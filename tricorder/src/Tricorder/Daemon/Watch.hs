@@ -4,7 +4,8 @@ module Tricorder.Daemon.Watch
     , publishChange
     , specs
     , isCabalFile
-    ) where
+    )
+where
 
 import Atelier.Effects.Debounce (Debounce)
 import Atelier.Effects.FileWatcher

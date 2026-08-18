@@ -8,7 +8,8 @@ module Tricorder.CLI.UI.State
     , viewToViewport
     , cycleTestFilter
     , navigate
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (Clock, TimeZone)
 import Prelude hiding (init)

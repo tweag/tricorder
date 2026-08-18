@@ -39,7 +39,8 @@ module Atelier.Effects.Monitoring.Metrics
       -- * Interpreters
     , runMetrics
     , runMetricsNoOp
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (Clock, currentTime)
 import Data.Time.Clock (diffUTCTime)

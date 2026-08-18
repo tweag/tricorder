@@ -14,7 +14,8 @@ module Tricorder.Daemon.GhciSession.GhciProcess
     , reloadGhci
     , addGhci
     , unaddGhci
-    ) where
+    )
+where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (BufferMode (..), File, Handle)

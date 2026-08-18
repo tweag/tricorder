@@ -2,7 +2,8 @@ module Tricorder.Session.WatchExclusionPatterns
     ( WatchExclusionPatterns (..)
     , Pattern
     , resolveWatchExclusionPatterns
-    ) where
+    )
+where
 
 import Data.Default (Default (..))
 import Text.Regex.TDFA.ReadRegex (parseRegex)
