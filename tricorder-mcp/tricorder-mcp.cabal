@@ -1,0 +1,154 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.38.3.
+--
+-- see: https://github.com/sol/hpack
+
+name:           tricorder-mcp
+version:        0.1.0.0
+synopsis:       MCP server for Tricorder
+description:    Model Context Protocol server for Tricorder.
+category:       AI,
+                Development
+homepage:       https://github.com/tweag/tricorder#readme
+bug-reports:    https://github.com/tweag/tricorder/issues
+author:         Victor Nascimento Bakke
+maintainer:     victor.bakke@tweag.io
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-doc-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/tweag/tricorder
+
+library tricorder-mcp-internal
+  exposed-modules:
+      Tricorder.MCP.Main
+      Tricorder.MCP.Tools
+  other-modules:
+      Paths_tricorder_mcp
+  autogen-modules:
+      Paths_tricorder_mcp
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      atelier-core >=0.3 && <0.5
+    , atelier-prelude >=0.1 && <0.3
+    , base >=4.18 && <4.23
+    , bytestring >=0.11 && <0.13
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , mcp-server ==0.2.*
+    , process ==1.6.*
+    , typed-process ==0.2.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
+
+executable tricorder-mcp
+  main-is: Main.hs
+  other-modules:
+      Paths_tricorder_mcp
+  autogen-modules:
+      Paths_tricorder_mcp
+  hs-source-dirs:
+      app
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
+  build-depends:
+      atelier-prelude >=0.1 && <0.3
+    , base >=4.18 && <4.23
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , tricorder-mcp-internal
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
+
+test-suite tricorder-mcp-test
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  other-modules:
+      Unit.Tricorder.MCP.ToolsSpec
+      Paths_tricorder_mcp
+  autogen-modules:
+      Paths_tricorder_mcp
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded -Wno-prepositive-qualified-module
+  build-tool-depends:
+      tasty-discover:tasty-discover
+  build-depends:
+      atelier-core >=0.3 && <0.5
+    , atelier-prelude >=0.1 && <0.3
+    , base >=4.18 && <4.23
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , hspec ==2.11.*
+    , tasty ==1.5.*
+    , tasty-hspec ==1.2.*
+    , tricorder-mcp-internal
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations

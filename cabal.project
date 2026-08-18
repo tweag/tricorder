@@ -5,6 +5,7 @@ packages:
   atelier-testing
   atelier-monitoring
   tricorder
+  tricorder-mcp
 
 tests: True
 

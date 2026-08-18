@@ -43,7 +43,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Incorrect repl command used for eval comments. This caused eval comments not
   to be able to use a module's top-level definitions in its expression.
 - Auto-resolved targets are not compatible with `stack ghci` (and its alias
-  `stack ghci`). Targets are now automatically resolved with package name,
+  `stack repl`). Targets are now automatically resolved with package name,
   `pkg:kind:name` for multi-package repos and just `name` for single-package
   repos, instead of just with the component name and kind `kind:name`. `stack
 ghci` is not compatible with the form `kind:name` (but `cabal repl` is), but
