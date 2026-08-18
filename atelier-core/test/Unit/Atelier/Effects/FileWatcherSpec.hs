@@ -12,7 +12,17 @@ import Test.Hspec.Hedgehog (hedgehog)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Atelier.Effects.FileWatcher (FileEvent (..), FileWatcher, Watch, deduplicateDirs, dir, dirWhere, matchesAny, runFileWatcherScripted, watchFilePaths)
+import Atelier.Effects.FileWatcher
+    ( FileEvent (..)
+    , FileWatcher
+    , Watch
+    , deduplicateDirs
+    , dir
+    , dirWhere
+    , matchesAny
+    , runFileWatcherScripted
+    , watchFilePaths
+    )
 
 
 spec_FileWatcher :: Spec

@@ -135,13 +135,19 @@ commandParser =
     hsubparser
         ( command "start" (info (pure Start) (progDesc "Start the daemon (no-op if already running)"))
             <> command "stop" (info stopParser (progDesc "Stop the daemon"))
-            <> command "status" (info statusParser (progDesc "Print build diagnostics (--json for machine-readable output)"))
+            <> command
+                "status"
+                (info statusParser (progDesc "Print build diagnostics (--json for machine-readable output)"))
             <> command "test-results" (info testParser (progDesc "Show output from the latest test run"))
             <> command "ui" (info (pure UI) (progDesc "Auto-refreshing terminal display"))
             <> command "log" (info logParser (progDesc "Show daemon log output"))
-            <> command "source" (info sourceParser (progDesc "Print the Haskell source of one or more installed modules"))
+            <> command
+                "source"
+                (info sourceParser (progDesc "Print the Haskell source of one or more installed modules"))
             <> command "restart" (info restartParser (progDesc "Restart the daemon"))
-            <> command "eval-comments" (info evalCommentsParser (progDesc "Show eval comments from the latest build"))
+            <> command
+                "eval-comments"
+                (info evalCommentsParser (progDesc "Show eval comments from the latest build"))
         )
 
 
@@ -206,7 +212,8 @@ testParser =
 
 sourceParser :: Parser Command
 sourceParser =
-    Source <$> some (argument queryReader (metavar "MODULE[#FUNCTION]" <> help "Module or Module#function"))
+    Source
+        <$> some (argument queryReader (metavar "MODULE[#FUNCTION]" <> help "Module or Module#function"))
 
 
 stopParser :: Parser Command

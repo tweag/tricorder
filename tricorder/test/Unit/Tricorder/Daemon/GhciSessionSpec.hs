@@ -128,7 +128,15 @@ warnMsg =
 
 -- | Convenience constructor: a scripted result with no compiled-file info.
 simpleResult :: [Diagnostic] -> Either SomeException LoadResult
-simpleResult msgs = Right LoadResult {moduleCount = 0, compiledFiles = Set.empty, loadedModules = Map.empty, targetNames = [], diagnostics = msgs}
+simpleResult msgs =
+    Right
+        LoadResult
+            { moduleCount = 0
+            , compiledFiles = Set.empty
+            , loadedModules = Map.empty
+            , targetNames = []
+            , diagnostics = msgs
+            }
 
 
 runScripted

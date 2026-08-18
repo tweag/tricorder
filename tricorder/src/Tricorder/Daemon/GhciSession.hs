@@ -49,7 +49,14 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , LoadResult (..)
     , LoadedModule (..)
     )
-import Tricorder.Daemon.GhciSession.GhciProcess (addGhci, collectGhciResult, interruptGhci, reloadGhci, unaddGhci, withGhciProcess)
+import Tricorder.Daemon.GhciSession.GhciProcess
+    ( addGhci
+    , collectGhciResult
+    , interruptGhci
+    , reloadGhci
+    , unaddGhci
+    , withGhciProcess
+    )
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command (Command)
 
@@ -104,7 +111,8 @@ withGhci cmd root handler = do
 -- Each call to 'startGhci' or 'reloadGhci' pops the next result from the
 -- pre-loaded list. 'Left' results are re-thrown as exceptions, simulating
 -- GHCi crashes. 'stopGhci' is always a no-op.
-runGhciSessionScripted :: forall es a. [Either SomeException LoadResult] -> Eff (GhciSession : es) a -> Eff es a
+runGhciSessionScripted
+    :: forall es a. [Either SomeException LoadResult] -> Eff (GhciSession : es) a -> Eff es a
 runGhciSessionScripted results = reinterpret (evalState results) $ \env ->
     let popResult :: Eff (State [Either SomeException LoadResult] : es) LoadResult
         popResult = do

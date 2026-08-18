@@ -204,7 +204,8 @@ runFileWatcherIO eff = interpretWith eff \env -> \case
 -- Delivers all scripted events to the callback in order, then blocks
 -- indefinitely — matching the blocking semantics of 'runFileWatcherIO'.
 -- The 'Watch' specification is ignored; the caller controls what events are fed in.
-runFileWatcherScripted :: (Concurrent :> es) => [(FilePath, FileEvent)] -> Eff (FileWatcher : es) a -> Eff es a
+runFileWatcherScripted
+    :: (Concurrent :> es) => [(FilePath, FileEvent)] -> Eff (FileWatcher : es) a -> Eff es a
 runFileWatcherScripted events = reinterpret (evalState events) \env -> \case
     WatchFilePaths _ callback ->
         localSeqUnlift env \unlift -> do

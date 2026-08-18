@@ -17,7 +17,16 @@ module Atelier.Types.QuietSnake
     ( QuietSnake (..)
     ) where
 
-import Data.Aeson (FromJSON (..), GFromJSON, GToJSON, Options, ToJSON (..), Zero, genericParseJSON, genericToJSON)
+import Data.Aeson
+    ( FromJSON (..)
+    , GFromJSON
+    , GToJSON
+    , Options
+    , ToJSON (..)
+    , Zero
+    , genericParseJSON
+    , genericToJSON
+    )
 import Data.Aeson.Types (defaultOptions, fieldLabelModifier)
 import Data.Default (Default (..))
 import GHC.Generics (Rep)

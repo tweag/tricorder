@@ -14,7 +14,14 @@ import Effectful.Concurrent.STM qualified as STM
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Atelier.Effects.Cache (Config (..), cacheDelete, cacheInsert, cacheLookup, cacheModify, runCacheTtlWithWait)
+import Atelier.Effects.Cache
+    ( Config (..)
+    , cacheDelete
+    , cacheInsert
+    , cacheLookup
+    , cacheModify
+    , runCacheTtlWithWait
+    )
 import Atelier.Effects.Clock (runClockState)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)

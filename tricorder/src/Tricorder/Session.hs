@@ -25,7 +25,10 @@ import Tricorder.Session.Target (Target, definesCustomPrelude, resolveTargets)
 import Tricorder.Session.TestTarget (TestTarget, resolveTestTargets)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs)
-import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..), resolveWatchExclusionPatterns)
+import Tricorder.Session.WatchExclusionPatterns
+    ( WatchExclusionPatterns (..)
+    , resolveWatchExclusionPatterns
+    )
 
 import Tricorder.Build.ByteSize qualified as ByteSize
 

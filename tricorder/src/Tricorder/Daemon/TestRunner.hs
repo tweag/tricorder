@@ -115,13 +115,19 @@ run act = do
                             mMemoryLimit
                 ProjectRoot projectRoot <- ask
                 result <- trySync
-                    $ withGhciProcess def (Command repl memoryLimitArg [getTestTarget target]) projectRoot onProgress noReady \ghci _ ->
-                        case testTimeout of
-                            TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
-                            TestTimeout secs ->
-                                let duration = fromIntegral secs :: Second
-                                in  maybeToRight secs
-                                        <$> timeout duration (execGhci ghci ":main" noProgress)
+                    $ withGhciProcess
+                        def
+                        (Command repl memoryLimitArg [getTestTarget target])
+                        projectRoot
+                        onProgress
+                        noReady
+                        \ghci _ ->
+                            case testTimeout of
+                                TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
+                                TestTimeout secs ->
+                                    let duration = fromIntegral secs :: Second
+                                    in  maybeToRight secs
+                                            <$> timeout duration (execGhci ghci ":main" noProgress)
                 case result of
                     Left ex ->
                         pure

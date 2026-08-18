@@ -534,7 +534,8 @@ unattributedFailure =
         , endLine = 0
         , endCol = 0
         , title = "GHCi reported a failed load with no located error"
-        , text = "GHCi reported a failed load with no located error.\nRun `tricorder log` to see the full GHCi output.\n"
+        , text =
+            "GHCi reported a failed load with no located error.\nRun `tricorder log` to see the full GHCi output.\n"
         }
 
 
