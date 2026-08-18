@@ -48,7 +48,13 @@ import Atelier.Types.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
 import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..))
-import Effectful.Dispatch.Dynamic (interposeWith, interpret, interpretWith, localSeqUnlift, localUnlift)
+import Effectful.Dispatch.Dynamic
+    ( interposeWith
+    , interpret
+    , interpretWith
+    , localSeqUnlift
+    , localUnlift
+    )
 import Effectful.Exception (bracket, onException)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)

@@ -344,7 +344,8 @@ runEvalComments
     => Session -> LoadResult -> Eff es Eval.Phase
 runEvalComments session loadResult = do
     builderState <- State.get @BuilderState
-    evalComments <- findEvalCommentsInModules $ resolveKnownTargets builderState.loadedModules loadResult
+    evalComments <-
+        findEvalCommentsInModules $ resolveKnownTargets builderState.loadedModules loadResult
 
     case nonEmpty evalComments of
         Nothing -> pure Eval.NoneFound

@@ -20,7 +20,10 @@ data Event
     | FailedBuild Text
 
 
-handleEvent :: KeyDispatcher KeyEvent (EventM Viewports State) -> BrickEvent Viewports Event -> EventM Viewports State ()
+handleEvent
+    :: KeyDispatcher KeyEvent (EventM Viewports State)
+    -> BrickEvent Viewports Event
+    -> EventM Viewports State ()
 handleEvent _ (AppEvent ev) = handleAppEvent ev
 handleEvent d (VtyEvent (Vty.EvKey key modifiers)) = void $ handleKey d key modifiers
 handleEvent _ (MouseDown vp Vty.BScrollUp _ _) = vScrollBy (viewportScroll vp) (-1)

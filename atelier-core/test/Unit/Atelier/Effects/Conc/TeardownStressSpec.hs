@@ -37,11 +37,15 @@ import Atelier.Effects.Publishing.Pub qualified as Pub
 
 spec_ConcTeardownStress :: Spec
 spec_ConcTeardownStress = do
-    iterations <- runIO (fromMaybe defaultIterations . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_N")
-    timeoutSecs <- runIO (fromMaybe defaultTimeoutSecs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_TIMEOUT_S")
+    iterations <-
+        runIO (fromMaybe defaultIterations . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_N")
+    timeoutSecs <-
+        runIO (fromMaybe defaultTimeoutSecs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_TIMEOUT_S")
     runSpin <- runIO (isJust <$> lookupEnv "ATELIER_CONC_SPIN")
 
-    publishDelayUs <- runIO (fromMaybe defaultPublishDelayUs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_DELAY_US")
+    publishDelayUs <-
+        runIO
+            (fromMaybe defaultPublishDelayUs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_DELAY_US")
 
     let testTimeoutMicros = timeoutSecs * 1_000_000
 

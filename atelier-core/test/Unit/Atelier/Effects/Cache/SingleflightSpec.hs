@@ -197,7 +197,8 @@ spec_Singleflight = do
             it "propagates exception to all concurrent waiters" $ do
                 let action = runSingleflightTest $ do
                         sem <- Sem.new
-                        a1 <- Conc.fork $ withCache @Int @Int 1 (slowCompute sem 42 >> throwIO (TestException "concurrent-boom"))
+                        a1 <-
+                            Conc.fork $ withCache @Int @Int 1 (slowCompute sem 42 >> throwIO (TestException "concurrent-boom"))
                         Delay.wait (1 :: Millisecond)
                         a2 <- Conc.fork $ withCache @Int @Int 1 (compute 99)
                         Sem.signal sem

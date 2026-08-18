@@ -146,7 +146,8 @@ showStatus opts = do
         let errs = length $ filter ((== SError) . (.severity)) r.diagnostics
             warns = length $ filter ((== SWarning) . (.severity)) r.diagnostics
             ts = toText $ "— " <> formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz r.completedAt)
-            stats = toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration.getDuration <> ")"
+            stats =
+                toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration.getDuration <> ")"
         in  if null r.diagnostics then
                 "All good. " <> stats <> " " <> ts
             else

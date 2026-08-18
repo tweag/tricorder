@@ -155,7 +155,8 @@ extractConfig (LoadedConfig root) =
 -- @
 -- extractNestedConfig \@"foo.bar" \@Text cfg == "test"
 -- @
-extractNestedConfig :: forall (key :: Symbol) r. (Default r, FromJSON r, KnownSymbol key) => LoadedConfig -> r
+extractNestedConfig
+    :: forall (key :: Symbol) r. (Default r, FromJSON r, KnownSymbol key) => LoadedConfig -> r
 extractNestedConfig (LoadedConfig root) = go props root
   where
     props = T.splitOn "." $ toText $ symbolVal $ Proxy @key

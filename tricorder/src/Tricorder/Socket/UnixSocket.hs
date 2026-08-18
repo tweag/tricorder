@@ -124,7 +124,8 @@ data SocketScript
 -- line buffering on it. 'removeSocketFile' is always a no-op.
 -- 'socketFileExists' pops the next 'NextFileCheck' entry.
 -- 'withConnection' pops the next 'NextConnect' entry and passes it to the callback.
-runUnixSocketScripted :: (File :> es, IOE :> es) => [SocketScript] -> Eff (UnixSocket : es) a -> Eff es a
+runUnixSocketScripted
+    :: (File :> es, IOE :> es) => [SocketScript] -> Eff (UnixSocket : es) a -> Eff es a
 runUnixSocketScripted script = reinterpret (evalState script) \env -> \case
     BindSocket _ ->
         liftIO $ Net.socket AF_UNIX Stream defaultProtocol

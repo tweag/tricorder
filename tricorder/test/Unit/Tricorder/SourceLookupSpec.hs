@@ -64,7 +64,10 @@ spec_SourceLookup = describe "lookupModuleSource" do
 
     it "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
         result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty (pure (Success (BSL.toStrict tarballBytes)))
+            runTest
+                [NextFindModule (Just "aeson-2.2.5.0")]
+                Map.empty
+                (pure (Success (BSL.toStrict tarballBytes)))
                 $ lookupModuleSource (wholeModule "Data.Aeson")
         result `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
 

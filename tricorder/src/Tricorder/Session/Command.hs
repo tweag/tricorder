@@ -59,7 +59,8 @@ instance Default Command where
 -- The @testTargets@ are the discovered @test:@ components; they are appended to
 -- the auto-detected @all@ target (see 'detectCommand'). They are ignored when
 -- the user has pinned an explicit @command@ or explicit @targets@ in config.
-resolveCommand :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [TestTarget] -> Eff es Command
+resolveCommand
+    :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [TestTarget] -> Eff es Command
 resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
     case cfg.command of
         Just cmd -> case words cmd of
@@ -80,7 +81,8 @@ resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
         pure $ Command repl args []
 
 
-detectCommand :: (FileSystem :> es) => [Target] -> [TestTarget] -> FilePath -> ProjectRoot -> Eff es Command
+detectCommand
+    :: (FileSystem :> es) => [Target] -> [TestTarget] -> FilePath -> ProjectRoot -> Eff es Command
 detectCommand targets testTargets replBuildDir projectRoot = do
     cmd <-
         fmap (fromMaybe (fallback replBuildDir) . rightToMaybe)

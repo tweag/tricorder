@@ -32,7 +32,8 @@ spec_BuildState = do
                         , endLine = 2
                         , endCol = 8
                         , title = "Found \8216qualified\8217 in prepositive position"
-                        , text = "Found \8216qualified\8217 in prepositive position\n    Suggested fixes:\n      \8226 Place \8216qualified\8217 after the module name."
+                        , text =
+                            "Found \8216qualified\8217 in prepositive position\n    Suggested fixes:\n      \8226 Place \8216qualified\8217 after the module name."
                         }
                 bs = mkBuildState [msg]
             eitherDecode (encode bs) `shouldBe` Right bs

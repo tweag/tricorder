@@ -11,9 +11,26 @@ module Atelier.Testing.Database
     )
 where
 
-import Atelier.Effects.DB.Config (DBConfig (..), DBPools (..), PoolConfig (..), acquireDatabasePool, acquireDatabasePools)
+import Atelier.Effects.DB.Config
+    ( DBConfig (..)
+    , DBPools (..)
+    , PoolConfig (..)
+    , acquireDatabasePool
+    , acquireDatabasePools
+    )
 import Atelier.Exception (trySyncIO)
-import Control.Concurrent (MVar, forkIO, modifyMVar, newEmptyMVar, newMVar, putMVar, takeMVar, threadDelay, tryPutMVar, withMVar)
+import Control.Concurrent
+    ( MVar
+    , forkIO
+    , modifyMVar
+    , newEmptyMVar
+    , newMVar
+    , putMVar
+    , takeMVar
+    , threadDelay
+    , tryPutMVar
+    , withMVar
+    )
 import Database.PostgreSQL.Simple.Options (Options (..))
 import Hasql.Session (Session, statement)
 import Hasql.Statement (Statement (..))

@@ -79,7 +79,9 @@ run = interpret_ \case
                     | statusCode == 404 ->
                         pure NotFound
                     | otherwise -> do
-                        pure $ Failure $ show (responseStatusCode response) <> ": " <> decodeUtf8 (responseStatusMessage response)
+                        pure
+                            $ Failure
+                            $ show (responseStatusCode response) <> ": " <> decodeUtf8 (responseStatusMessage response)
 
 
 packageUrl :: PackageId -> Url 'Https

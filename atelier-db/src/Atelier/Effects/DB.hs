@@ -18,7 +18,13 @@ module Atelier.Effects.DB
 where
 
 import Atelier.Effects.Monitoring.Metrics (Metrics, counterInc, withHistogramTiming)
-import Atelier.Effects.Monitoring.Tracing (SpanStatus (..), Tracing, addAttribute, setStatus, withSpan)
+import Atelier.Effects.Monitoring.Tracing
+    ( SpanStatus (..)
+    , Tracing
+    , addAttribute
+    , setStatus
+    , withSpan
+    )
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Error.Static (Error, throwError)
