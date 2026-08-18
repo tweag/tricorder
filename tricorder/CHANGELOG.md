@@ -12,6 +12,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Use the `test_memory_limit` configuration value to specify the maximum memory
   a test suite is allowed to consume. This is enforced through GHC's `-M` RTS
   option.
+- Hooks for running arbitrary shell scripts at certain points in time in the
+  build process. See [Configuring Tricorder](/docs/configuring-tricorder.md)
+  for more information.
 
 ## 0.2.1.0 - 2026-08-17
 

@@ -9,6 +9,7 @@ import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
+import Atelier.Effects.Process (Process)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Publishing.Pub (Pub)
 import Atelier.Effects.Publishing.Sub (Sub)
@@ -76,6 +77,7 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
+import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Waiters qualified as Waiters
 
 
@@ -104,6 +106,7 @@ main
        , Input LoadedConfig :> es
        , Input [CabalFile] :> es
        , Log :> es
+       , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -195,6 +198,7 @@ withSession
        , EvalCommentRunner :> es
        , GhciSession :> es
        , Log :> es
+       , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
@@ -219,6 +223,7 @@ runSession
        , EvalCommentRunner :> es
        , GhciSession :> es
        , Log.Log :> es
+       , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
@@ -230,9 +235,11 @@ runSession
 runSession buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
+    whenJust (session.hooks.start >>= (.before)) Hooks.runHook
     startupError <- fmap (either id absurd)
         $ Pub.map (Build.Building session.testTargets)
         $ Builder.with buildId session.command session.watchDirs \_ initialLoad -> do
+            whenJust (session.hooks.start >>= (.after)) Hooks.runHook
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
             newestReloadEvent <- atomically newEmptyTMVar
@@ -260,6 +267,7 @@ waitForReload
        , Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
+       , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
@@ -285,6 +293,7 @@ processSource
        , Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
+       , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
@@ -294,7 +303,9 @@ processSource
     -> DispatchAction
     -> Eff es ()
 processSource session action = do
+    whenJust (session.hooks.reload >>= (.before)) Hooks.runHook
     res <- Builder.build action
+    whenJust (session.hooks.reload >>= (.after)) Hooks.runHook
     Log.debug "Finished build"
     processPostBuild session res
 

@@ -69,6 +69,7 @@ library tricorder-internal
       Tricorder.Session.Command
       Tricorder.Session.Config
       Tricorder.Session.GenerateWithHpack
+      Tricorder.Session.Hooks
       Tricorder.Session.ReplBuildDir
       Tricorder.Session.Target
       Tricorder.Session.TestTarget

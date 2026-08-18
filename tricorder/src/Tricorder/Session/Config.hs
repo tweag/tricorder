@@ -5,6 +5,8 @@ import Atelier.Types.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
 
+import Tricorder.Session.Hooks (Hooks)
+
 
 data Config = Config
     { command :: Maybe Text
@@ -16,6 +18,7 @@ data Config = Config
     , testTimeout :: Int
     , generateWithHpack :: Bool
     , testMemoryLimit :: Maybe Text
+    , hooks :: Maybe Hooks
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via WithDefaults (QuietSnake Config)
@@ -33,4 +36,5 @@ instance Default Config where
             , testTimeout = 10
             , generateWithHpack = True
             , testMemoryLimit = Nothing
+            , hooks = Nothing
             }

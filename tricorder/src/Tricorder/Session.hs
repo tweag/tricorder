@@ -21,6 +21,7 @@ import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..), resolveCommand)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
+import Tricorder.Session.Hooks (Hooks)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Target (Target, definesCustomPrelude, resolveTargets)
 import Tricorder.Session.TestTarget (TestTarget, resolveTestTargets)
@@ -44,6 +45,7 @@ data Session = Session
     , replBuildDir :: ReplBuildDir
     , testTimeout :: TestTimeout
     , generateWithHpack :: GenerateWithHpack
+    , hooks :: Hooks
     }
     deriving stock (Eq)
 
@@ -60,6 +62,7 @@ instance Default Session where
             , replBuildDir = def
             , testTimeout = def
             , generateWithHpack = def
+            , hooks = def
             }
 
 
@@ -80,6 +83,7 @@ loadSession = do
         effectiveTargets = resolveTargets projectFiles cfgFile.targets
         testTargets = resolveTestTargets cfgFile effectiveTargets
         watchDirs = resolveWatchDirs projectRoot projectFiles cfgFile effectiveTargets
+        hooks = fromMaybe def cfgFile.hooks
 
     testMemoryLimit <- case cfgFile.testMemoryLimit of
         Nothing -> pure Nothing
@@ -124,6 +128,7 @@ loadSession = do
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
             , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
+            , hooks
             }
 
 
