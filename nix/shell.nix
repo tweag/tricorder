@@ -6,6 +6,7 @@
 }:
 let
   inherit (project.args) compiler-nix-name;
+  common = import ./package/common.nix;
 
   # System tools not tied to GHC version
   systemTools =
@@ -25,13 +26,7 @@ project.shellFor {
   # Listing only tricorder leaves out deps unique to atelier-db (rel8,
   # tmp-postgres) and atelier-testing (hedgehog, hspec-hedgehog), forcing
   # `cabal build all` to compile them from source.
-  packages = ps: [
-    ps.atelier-prelude
-    ps.atelier-core
-    ps.atelier-db
-    ps.atelier-testing
-    ps.tricorder
-  ];
+  packages = ps: map (p: ps.${p}) common.packageNames;
 
   # Enable Hoogle documentation
   withHoogle = true;
