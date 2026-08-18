@@ -217,12 +217,13 @@ diagHeaderP = do
     a <- takeWhile1P Nothing (/= ':')
     _ <- char ':'
     filePart <-
-        if T.length a == 1 && isAlpha (T.head a) then do
-            pathRest <- takeWhile1P Nothing (/= ':')
-            _ <- char ':'
-            pure (a <> ":" <> pathRest)
-        else
-            pure a
+        if T.length a == 1 && isAlpha (T.head a)
+            then do
+                pathRest <- takeWhile1P Nothing (/= ':')
+                _ <- char ':'
+                pure (a <> ":" <> pathRest)
+            else
+                pure a
     (sp, ep) <- positionP
     afterPos <- getInput
     pure (filePart, sp, ep, afterPos)
@@ -339,11 +340,12 @@ reloadItem =
 parseProgressLine :: Text -> Maybe GhciLoading
 parseProgressLine line =
     let stripped = stripAnsi line
-    in  if "[" `T.isPrefixOf` stripped then case runTP loadingLineP stripped of
-            Just (GLoading l) -> Just l
-            _ -> Nothing
-        else
-            Nothing
+    in  if "[" `T.isPrefixOf` stripped
+            then case runTP loadingLineP stripped of
+                Just (GLoading l) -> Just l
+                _ -> Nothing
+            else
+                Nothing
 
 
 -- | Parse a "[N of M] Compiling Mod ( file, ... )" loading line.
@@ -516,10 +518,11 @@ collectResult projectRoot reloadLines modules targets =
     let loads = parseReload reloadLines
         base = collectResultCustom projectRoot loads modules targets
         hasError = any (\d -> d.severity == SError) base.diagnostics
-    in  if reloadFailed loads && not hasError then
-            base {diagnostics = base.diagnostics ++ [unattributedFailure]}
-        else
-            base
+    in  if reloadFailed loads && not hasError
+            then
+                base {diagnostics = base.diagnostics ++ [unattributedFailure]}
+            else
+                base
 
 
 -- | Synthetic diagnostic for a failed load with no located error. Without a

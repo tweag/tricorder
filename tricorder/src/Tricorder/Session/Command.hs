@@ -75,10 +75,11 @@ resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
     detectStackKind args = do
         hasCabalFileInRoot <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory root
         let repl =
-                if hasCabalFileInRoot then
-                    Stack
-                else
-                    StackMulti
+                if hasCabalFileInRoot
+                    then
+                        Stack
+                    else
+                        StackMulti
         pure $ Command repl args []
 
 
@@ -93,35 +94,38 @@ detectCommand targets testTargets replBuildDir projectRoot = do
     pure
         $ cmd
             { targets =
-                if not (null targets) then
-                    targets
-                else
-                    Bare "all" : (getTestTarget <$> testTargets)
+                if not (null targets)
+                    then
+                        targets
+                    else
+                        Bare "all" : (getTestTarget <$> testTargets)
             }
 
 
 useStack :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> Eff es Command
 useStack (ProjectRoot projectRoot) = do
     hasStack <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
-    if hasStack then
-        pure $ Command Stack [] []
-    else
-        emptyEff
+    if hasStack
+        then
+            pure $ Command Stack [] []
+        else
+            emptyEff
 
 
 useMultiCabal :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> FilePath -> Eff es Command
 useMultiCabal (ProjectRoot projectRoot) replBuildDir = do
     hasCabalProject <- FileSystem.doesFileExist $ projectRoot </> "cabal.project"
     hasCabalFiles <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory projectRoot
-    if hasCabalFiles || hasCabalProject then
-        pure
-            $ Command
-                { repl = Cabal
-                , arguments = ["--enable-multi-repl"] <> buildDirFlag replBuildDir
-                , targets = []
-                }
-    else
-        emptyEff
+    if hasCabalFiles || hasCabalProject
+        then
+            pure
+                $ Command
+                    { repl = Cabal
+                    , arguments = ["--enable-multi-repl"] <> buildDirFlag replBuildDir
+                    , targets = []
+                    }
+        else
+            emptyEff
 
 
 fallback :: FilePath -> Command

@@ -128,10 +128,11 @@ main = runPubSub @ReloadSession
 
         Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) -> do
             needsSessionReload <- shouldReloadSession session
-            if needsSessionReload then
-                Pub.publish ReloadSession
-            else
-                Pub.publish RestartBuilder
+            if needsSessionReload
+                then
+                    Pub.publish ReloadSession
+                else
+                    Pub.publish RestartBuilder
 
         Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
             Pub.publish $ ReloadBuilder fp event

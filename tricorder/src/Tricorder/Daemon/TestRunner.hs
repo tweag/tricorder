@@ -222,13 +222,15 @@ detectOutcome output =
                 Nothing -> GhciPassed
                 Just rest ->
                     let r = T.strip rest
-                    in  if r == "ExitSuccess" then
-                            GhciPassed
-                        else
-                            if "ExitFailure" `T.isPrefixOf` r then
-                                GhciFailed
+                    in  if r == "ExitSuccess"
+                            then
+                                GhciPassed
                             else
-                                GhciCrashed r
+                                if "ExitFailure" `T.isPrefixOf` r
+                                    then
+                                        GhciFailed
+                                    else
+                                        GhciCrashed r
         Nothing -> case List.find isCompileErrorLine outputLines of
             Just errLine -> GhciCrashed (T.strip errLine)
             Nothing -> GhciPassed

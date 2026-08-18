@@ -150,10 +150,11 @@ evictExpiredEntries
 evictExpiredEntries store ttl now =
     ListT.fold
         ( \count (k, v) ->
-            if now >= addUTCTime ttl v.createdAt then
-                Map.delete k store $> count + 1
-            else
-                pure count
+            if now >= addUTCTime ttl v.createdAt
+                then
+                    Map.delete k store $> count + 1
+                else
+                    pure count
         )
         0
         $ Map.listT store

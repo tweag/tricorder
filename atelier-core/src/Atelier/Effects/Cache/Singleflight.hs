@@ -89,24 +89,25 @@ runSingleflight action = do
                     -- Use tryPutTMVar in case updateCache already filled it
                     filled <- STM.atomically $ STM.tryPutTMVar mvar result
 
-                    if filled then do
-                        -- We successfully filled the TMVar with our result
-                        -- If it was an exception, remove from cache so future requests can retry
-                        case result of
-                            Left _exception -> do
-                                STM.atomically $ Map.delete key cache
-                            Right _ -> pure ()
+                    if filled
+                        then do
+                            -- We successfully filled the TMVar with our result
+                            -- If it was an exception, remove from cache so future requests can retry
+                            case result of
+                                Left _exception -> do
+                                    STM.atomically $ Map.delete key cache
+                                Right _ -> pure ()
 
-                        -- Return the result or re-throw the exception
-                        case result of
-                            Left exception -> throwIO exception
-                            Right value -> pure value
-                    else do
-                        -- updateCache filled it before us - read and use that value
-                        finalResult <- STM.atomically $ STM.readTMVar mvar
-                        case finalResult of
-                            Left exception -> throwIO exception
-                            Right value -> pure value
+                            -- Return the result or re-throw the exception
+                            case result of
+                                Left exception -> throwIO exception
+                                Right value -> pure value
+                        else do
+                            -- updateCache filled it before us - read and use that value
+                            finalResult <- STM.atomically $ STM.readTMVar mvar
+                            case finalResult of
+                                Left exception -> throwIO exception
+                                Right value -> pure value
                 (False, Nothing) -> do
                     result <-
                         STM.atomically

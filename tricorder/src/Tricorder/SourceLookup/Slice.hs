@@ -28,10 +28,11 @@ sliceSymbol symbol source
     | T.null symbol = Nothing
     | otherwise =
         let ls = T.lines source
-        in  if isTypeSymbol symbol then
-                sliceType symbol ls <|> sliceConstructor symbol ls
-            else
-                sliceValue symbol ls
+        in  if isTypeSymbol symbol
+                then
+                    sliceType symbol ls <|> sliceConstructor symbol ls
+                else
+                    sliceValue symbol ls
 
 
 -- | Evaluate whether the symbol references a type-level entity.

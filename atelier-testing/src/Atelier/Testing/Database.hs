@@ -246,12 +246,13 @@ cleanDatabase cfg pools =
             True
 
     exclusions =
-        if null cfg.excludedTables then
-            ""
-        else
-            " AND tablename NOT IN ("
-                <> Text.intercalate "," (map (\t -> "'" <> t <> "'") cfg.excludedTables)
-                <> ")"
+        if null cfg.excludedTables
+            then
+                ""
+            else
+                " AND tablename NOT IN ("
+                    <> Text.intercalate "," (map (\t -> "'" <> t <> "'") cfg.excludedTables)
+                    <> ")"
 
     truncateTables :: Text -> Session ()
     truncateTables tableNames =

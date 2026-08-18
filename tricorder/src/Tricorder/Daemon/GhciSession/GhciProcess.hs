@@ -449,11 +449,12 @@ waitForBannerStdout h captureLine = go
         case result of
             Left ex -> throwIO ex
             Right line ->
-                if isVersionLine line then
-                    pure ()
-                else do
-                    captureLine line
-                    go
+                if isVersionLine line
+                    then
+                        pure ()
+                    else do
+                        captureLine line
+                        go
 
 
 drainUntilEof :: (File :> es) => Handle -> (Text -> Eff es ()) -> Eff es ()

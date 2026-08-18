@@ -57,7 +57,8 @@ run = interpret_ \case
                             | "generated with a newer version" `B8.isInfixOf` stdout -> WasGeneratedWithNewerHpack
                             | "was modified manually" `B8.isInfixOf` stdout -> WasEditedManually
                             | otherwise -> UnknownSuccess $ decodeUtf8 stdout
-                if exitCode == ExitSuccess then
-                    pure $ Right $ infoMsg
-                else
-                    pure $ Left $ decodeUtf8 stderr
+                if exitCode == ExitSuccess
+                    then
+                        pure $ Right $ infoMsg
+                    else
+                        pure $ Left $ decodeUtf8 stderr

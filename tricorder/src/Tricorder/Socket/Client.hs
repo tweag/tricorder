@@ -145,10 +145,11 @@ requestShutdown
 requestShutdown force sockPath = withConnection sockPath \h -> do
     sendQuery h $ Quit waiters
     line <- File.hGetLine h
-    if eitherDecode (BSL.fromStrict (encodeUtf8 line)) == Right True then
-        pure $ Right ()
-    else
-        pure $ Left "Failed to request shutdown"
+    if eitherDecode (BSL.fromStrict (encodeUtf8 line)) == Right True
+        then
+            pure $ Right ()
+        else
+            pure $ Left "Failed to request shutdown"
   where
     waiters = case force of
         Force -> IgnoreWaiters
