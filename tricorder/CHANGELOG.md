@@ -16,7 +16,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   build process. See [Configuring Tricorder](/docs/configuring-tricorder.md)
   for more information.
 
-## 0.2.1.0 - 2026-08-17
+## [0.2.1.0] - 2026-08-17
 
 ### Added
 
