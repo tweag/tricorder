@@ -23,6 +23,13 @@ session:
   test_timeout: 10
   generate_with_hpack: true
   test_memory_limit: 10mb
+  hooks:
+    start:
+      before: echo "starting" >> log.txt
+      after: echo "started" >> log.txt
+    reload:
+      before: echo "reloading" >> log.txt
+      after: echo "reloaded" >> log.txt
 ```
 
 - `command`: Build command to use to enter the cabal repl. If not specified,
@@ -58,6 +65,14 @@ session:
   units: `kb`, `mb`, `gb`, `tb` and `pb`, as well their binary variants `kib`,
   `mib`, `gib`, `tib` and `pib`. The unit `B` is equivalent to no unit, and
   signifies a raw byte count.
+- `hooks`: Shell scripts to run for certain events. Each property marks an
+  event that will take place. Each hooks may have a `before` and an `after`
+  script to run. The `before` script is run just before the event takes place,
+  while the `after` hook is run right after the event has taken place.
+
+  Currently, these events are supported:
+  - `start`: Whenever the GHCi session is started.
+  - `reload`: Whenever the GHCi session is reloaded.
 
 ## CLI configuration
 
