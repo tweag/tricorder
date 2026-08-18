@@ -44,10 +44,11 @@ run act = do
         GetPath packageId -> do
             let path = packagePath packageDir packageId
             exists <- FileSystem.doesPathExist path
-            if exists then
-                pure $ Just path
-            else
-                pure Nothing
+            if exists
+                then
+                    pure $ Just path
+                else
+                    pure Nothing
 
 
 packagePath :: FilePath -> PackageId -> FilePath
@@ -134,7 +135,8 @@ tempFallback = "/tmp/tricorder/packages"
 getDir :: (FileSystem :> es, NonDet :> es) => FilePath -> Eff es FilePath
 getDir fp = do
     exists <- FileSystem.doesDirectoryExist fp
-    if exists then
-        pure fp
-    else
-        emptyEff
+    if exists
+        then
+            pure fp
+        else
+            emptyEff

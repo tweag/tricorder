@@ -71,11 +71,12 @@ stopDaemon force = do
     requestStop sockPath pidFile = do
         timeout1second (requestShutdown force sockPath) >>= \_ -> do
             didStop <- fmap isJust $ timeout timeoutDelay $ waitForStop pidFile
-            if didStop then
-                pure "Daemon stopped."
-            else do
-                tell ["Daemon did not stop as requested."]
-                emptyEff
+            if didStop
+                then
+                    pure "Daemon stopped."
+                else do
+                    tell ["Daemon did not stop as requested."]
+                    emptyEff
 
     sendKill pidFile = do
         timeout1second (Daemons.forceKillAndWait pidFile) >>= \case
@@ -89,11 +90,12 @@ stopDaemon force = do
     waitForStop :: forall es'. (Daemons :> es', Delay :> es') => PidFile -> Eff es' ()
     waitForStop pidFile = fix \rec -> do
         running <- Daemons.isRunning pidFile
-        if running then do
-            Delay.wait (500 :: Millisecond)
-            rec
-        else
-            pure ()
+        if running
+            then do
+                Delay.wait (500 :: Millisecond)
+                rec
+            else
+                pure ()
 
 
 -- | Restart the daemon: stop it (if running) and then start a fresh instance.
@@ -142,8 +144,9 @@ waitForDaemon = do
     go _ 0 = pure False
     go sockPath n = do
         ready <- isDaemonReady sockPath
-        if ready then
-            pure True
-        else do
-            Delay.wait (200 :: Millisecond)
-            go sockPath (n - 1)
+        if ready
+            then
+                pure True
+            else do
+                Delay.wait (200 :: Millisecond)
+                go sockPath (n - 1)

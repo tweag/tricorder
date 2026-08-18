@@ -71,15 +71,17 @@ run =
     ask >>= \case
         Start -> do
             running <- isDaemonRunning
-            if running then
-                Console.putStrLn "Daemon already running."
-            else do
-                startDaemon
-                ready <- waitForDaemon
-                if ready then
-                    Console.putStrLn "Daemon started."
-                else
-                    Console.putStrLn "Daemon started, but the socket is not responding yet."
+            if running
+                then
+                    Console.putStrLn "Daemon already running."
+                else do
+                    startDaemon
+                    ready <- waitForDaemon
+                    if ready
+                        then
+                            Console.putStrLn "Daemon started."
+                        else
+                            Console.putStrLn "Daemon started, but the socket is not responding yet."
         Stop force -> do
             running <- isDaemonRunning
             when running
@@ -92,28 +94,31 @@ run =
                         Console.putTextLn result
         Status opts -> do
             running <- isDaemonRunning
-            if not running then
-                Console.putStrLn "Stopped."
-            else
-                showStatus opts
+            if not running
+                then
+                    Console.putStrLn "Stopped."
+                else
+                    showStatus opts
         Test opts -> do
             running <- isDaemonRunning
-            if not running then
-                Console.putStrLn "Stopped."
-            else
-                showTests opts
+            if not running
+                then
+                    Console.putStrLn "Stopped."
+                else
+                    showTests opts
         Log logMode -> do
             running <- isDaemonRunning
             logFile <-
-                if running then do
-                    SocketPath sp <- ask
-                    result <- queryStatus sp
-                    LogPath fallback <- ask
-                    pure $ case result of
-                        Right state -> state.daemonInfo.logFile
-                        Left _ -> fallback
-                else
-                    asks @LogPath (.getLogPath)
+                if running
+                    then do
+                        SocketPath sp <- ask
+                        result <- queryStatus sp
+                        LogPath fallback <- ask
+                        pure $ case result of
+                            Right state -> state.daemonInfo.logFile
+                            Left _ -> fallback
+                    else
+                        asks @LogPath (.getLogPath)
             case logMode of
                 ShowLog followMode -> showLog logFile followMode
                 ShowLogPath -> Console.putTextLn (toText logFile)

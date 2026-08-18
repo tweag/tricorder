@@ -183,30 +183,34 @@ dispatcher requestRestart cfg =
             cfg
             [ onEvent ToggleDaemonInfoView "Toggle daemon info view" do
                 modify \s ->
-                    if currentRoute s == Route.DaemonInfo then
-                        navigate Route.Main s
-                    else
-                        navigate Route.DaemonInfo s
+                    if currentRoute s == Route.DaemonInfo
+                        then
+                            navigate Route.Main s
+                        else
+                            navigate Route.DaemonInfo s
             , onEvent ToggleHelp "Toggle help" do
                 modify \s ->
-                    if currentRoute s == Route.Help then
-                        navigate Route.Main s
-                    else
-                        navigate Route.Help s
+                    if currentRoute s == Route.Help
+                        then
+                            navigate Route.Main s
+                        else
+                            navigate Route.Help s
             , onEvent CycleTestView "Cycle test results view" do
                 modify \s -> case currentRoute s of
                     Route.Tests ->
-                        if s.testFilter == maxBound then
-                            navigate Route.Main s {testFilter = minBound}
-                        else
-                            s {testFilter = cycleTestFilter s.testFilter}
+                        if s.testFilter == maxBound
+                            then
+                                navigate Route.Main s {testFilter = minBound}
+                            else
+                                s {testFilter = cycleTestFilter s.testFilter}
                     _ -> navigate Route.Tests s
             , onEvent ToggleEvalComments "Toggle eval comments view" do
                 modify \s ->
-                    if currentRoute s == Route.Evals then
-                        navigate Route.Main s
-                    else
-                        navigate Route.Evals s
+                    if currentRoute s == Route.Evals
+                        then
+                            navigate Route.Main s
+                        else
+                            navigate Route.Evals s
             , onEvent RestartDaemon "Restart the daemon" do
                 liftIO requestRestart
                 modify \s -> s {buildState = Waiting}

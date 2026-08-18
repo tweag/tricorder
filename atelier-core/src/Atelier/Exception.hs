@@ -38,7 +38,8 @@ trySyncIO f = withFrozenCallStack catchSyncIO (fmap Right f) (pure . Left)
 catchSyncIO :: (HasCallStack) => IO a -> (SomeException -> IO a) -> IO a
 catchSyncIO f g =
     f `E.catch` \e ->
-        if isSyncException e then
-            g e
-        else
-            E.throwIO e
+        if isSyncException e
+            then
+                g e
+            else
+                E.throwIO e

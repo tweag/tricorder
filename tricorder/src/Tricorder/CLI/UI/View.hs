@@ -253,10 +253,11 @@ viewTargets targets =
     hBoxSpaced
         1
         [ emphasis $ txt "Targets:"
-        , if null targets then
-            txt "(all)"
-          else
-            vBox $ (map (txt . renderTarget) targets)
+        , if null targets
+            then
+                txt "(all)"
+            else
+                vBox $ (map (txt . renderTarget) targets)
         ]
 
 
@@ -352,10 +353,11 @@ viewBuildResult tz result
             errCount = length $ filter (\m -> m.severity == SError) msgs
             warnCount = length $ filter (\m -> m.severity == SWarning) msgs
             header =
-                if errCount > 0 then
-                    err $ txt $ show errCount <> " error(s), " <> show warnCount <> " warning(s)"
-                else
-                    warn $ txt $ show warnCount <> " warning(s)"
+                if errCount > 0
+                    then
+                        err $ txt $ show errCount <> " error(s), " <> show warnCount <> " warning(s)"
+                    else
+                        warn $ txt $ show warnCount <> " warning(s)"
         in  vBoxSpaced
                 1
                 [ hBoxSpaced
@@ -428,10 +430,11 @@ viewCompletionStatus c = case c.duration of
         | otherwise =
             let total = length c.testCases
                 failed = length $ filter Test.caseFailed c.testCases
-            in  if failed == 0 then
-                    ok $ txt $ "passed (" <> show total <> ")"
-                else
-                    err $ txt $ show failed <> "/" <> show total <> " failed"
+            in  if failed == 0
+                    then
+                        ok $ txt $ "passed (" <> show total <> ")"
+                    else
+                        err $ txt $ show failed <> "/" <> show total <> " failed"
 
 
 viewTimestamp :: TimeZone -> UTCTime -> Widget n
@@ -446,10 +449,11 @@ viewBuildSummary moduleCount duration =
 formatDuration :: Duration -> Text
 formatDuration (Duration d) =
     let ms = toInteger d
-    in  if ms < 1000 then
-            show ms <> "ms"
-        else
-            show (ms `div` 1000) <> "." <> show ((ms `mod` 1000) `div` 100) <> "s"
+    in  if ms < 1000
+            then
+                show ms <> "ms"
+            else
+                show (ms `div` 1000) <> "." <> show ((ms `mod` 1000) `div` 100) <> "s"
 
 
 -- | Single-line build status with no scrollable diagnostics list, used as a
@@ -481,10 +485,11 @@ viewBuildResultLine tz result
         let errCount = length $ filter (\m -> m.severity == SError) result.diagnostics
             warnCount = length $ filter (\m -> m.severity == SWarning) result.diagnostics
             header =
-                if errCount > 0 then
-                    err $ txt $ show errCount <> " error(s), " <> show warnCount <> " warning(s)"
-                else
-                    warn $ txt $ show warnCount <> " warning(s)"
+                if errCount > 0
+                    then
+                        err $ txt $ show errCount <> " error(s), " <> show warnCount <> " warning(s)"
+                    else
+                        warn $ txt $ show warnCount <> " warning(s)"
         in  hBoxSpaced 1 [header, viewDuration result.duration, viewTimestamp tz result.completedAt]
 
 

@@ -41,7 +41,7 @@ let-style: auto
 in-style: left-align
 
 # Styling of if-statements (choices: indented or hanging)
-if-style: hanging
+if-style: indented
 
 # Whether to put parentheses around a single constraint (choices: auto, always, or never)
 single-constraint-parens: always

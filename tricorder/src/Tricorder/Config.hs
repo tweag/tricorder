@@ -25,13 +25,14 @@ import Tricorder.Runtime (ProjectRoot (..))
 loadTricorderConfig :: (FileSystem :> es) => FilePath -> Eff es LoadedConfig
 loadTricorderConfig projectRoot = do
     exists <- FileSystem.doesFileExist yamlPath
-    if not exists then
-        pure $ LoadedConfig (Aeson.Object KM.empty)
-    else do
-        bs <- FileSystem.readFileBs yamlPath
-        pure . LoadedConfig $ case Yaml.decodeEither' @Aeson.Value bs of
-            Left _ -> Aeson.Object KM.empty
-            Right v -> v
+    if not exists
+        then
+            pure $ LoadedConfig (Aeson.Object KM.empty)
+        else do
+            bs <- FileSystem.readFileBs yamlPath
+            pure . LoadedConfig $ case Yaml.decodeEither' @Aeson.Value bs of
+                Left _ -> Aeson.Object KM.empty
+                Right v -> v
   where
     yamlPath = projectRoot </> configFileName
 

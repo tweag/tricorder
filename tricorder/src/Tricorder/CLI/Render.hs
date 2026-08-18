@@ -21,10 +21,11 @@ import Tricorder.SourceLookup (ModuleSourceResult (..), SourceQuery (..))
 formatDuration :: Millisecond -> Text
 formatDuration d =
     let ms = toMicroseconds d `div` 1000
-    in  if ms < 1000 then
-            show ms <> "ms"
-        else
-            show (ms `div` 1000) <> "." <> show ((ms `mod` 1000) `div` 100) <> "s"
+    in  if ms < 1000
+            then
+                show ms <> "ms"
+            else
+                show (ms `div` 1000) <> "." <> show ((ms `mod` 1000) `div` 100) <> "s"
 
 
 -- | Single-line diagnostic for plain-text / shell output.

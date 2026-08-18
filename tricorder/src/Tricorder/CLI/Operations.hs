@@ -149,10 +149,11 @@ showStatus opts = do
             ts = toText $ "— " <> formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz r.completedAt)
             stats =
                 toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration.getDuration <> ")"
-        in  if null r.diagnostics then
-                "All good. " <> stats <> " " <> ts
-            else
-                show errs <> " error(s), " <> show warns <> " warning(s) " <> stats <> " " <> ts
+        in  if null r.diagnostics
+                then
+                    "All good. " <> stats <> " " <> ts
+                else
+                    show errs <> " error(s), " <> show warns <> " warning(s) " <> stats <> " " <> ts
 
 
 completionSummary :: Test.SuiteCompletion -> Text
@@ -163,10 +164,11 @@ completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d.get
         | otherwise =
             let total = length c.testCases
                 failedCount = length $ filter isFailedCase c.testCases
-            in  if failedCount == 0 then
-                    "passed (" <> show total <> ")"
-                else
-                    show failedCount <> "/" <> show total <> " failed"
+            in  if failedCount == 0
+                    then
+                        "passed (" <> show total <> ")"
+                    else
+                        show failedCount <> "/" <> show total <> " failed"
     isFailedCase (Test.Case _ (Test.Failed _)) = True
     isFailedCase _ = False
 
@@ -179,11 +181,12 @@ showLog
     => FilePath -> FollowMode -> Eff es ()
 showLog path followMode = do
     exists <- doesFileExist path
-    if not exists then
-        Console.putTextLn $ "Log file does not exist yet: " <> toText path
-    else case followMode of
-        Follow -> followFile path Console.putStr
-        NoFollow -> readFileLbs path >>= Console.putStr . BSL.toStrict
+    if not exists
+        then
+            Console.putTextLn $ "Log file does not exist yet: " <> toText path
+        else case followMode of
+            Follow -> followFile path Console.putStr
+            NoFollow -> readFileLbs path >>= Console.putStr . BSL.toStrict
 
 
 showTests
@@ -216,10 +219,11 @@ showTests opts = do
             when (any Test.isFailedRun filteredSuites) exitFailure
       where
         filteredSuites =
-            if opts.failedOnly then
-                Map.filter Test.isFailedRun suites
-            else
-                suites
+            if opts.failedOnly
+                then
+                    Map.filter Test.isFailedRun suites
+                else
+                    suites
 
     printTestOutput tgt tr = case tr of
         Test.SuiteRunning Nothing ->
@@ -230,14 +234,16 @@ showTests opts = do
             Console.putTextLn $ t <> "error: " <> e.message
         Test.SuiteCompleted c -> do
             Console.putTextLn $ t <> completionSummary c
-            if opts.failedOnly then
-                if null c.testCases then do
-                    Console.putTextLn "  (unrecognised test runner format — showing full output)"
-                    mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
+            if opts.failedOnly
+                then
+                    if null c.testCases
+                        then do
+                            Console.putTextLn "  (unrecognised test runner format — showing full output)"
+                            mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
+                        else
+                            mapM_ printFailedCase (filter Test.caseFailed c.testCases)
                 else
-                    mapM_ printFailedCase (filter Test.caseFailed c.testCases)
-            else
-                mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
+                    mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
       where
         t = renderTestTarget tgt <> "  "
 

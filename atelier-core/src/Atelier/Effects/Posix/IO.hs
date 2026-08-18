@@ -56,10 +56,11 @@ readFdAll fd = Builder.toLazyByteString <$> go mempty
         chunk <- allocaBytes chunkSize \ptr -> do
             n <- Posix.fdReadBuf fd (castPtr ptr) (fromIntegral chunkSize)
             BS.packCStringLen (castPtr ptr, fromIntegral n)
-        if BS.null chunk then
-            return acc
-        else
-            go (acc <> Builder.byteString chunk)
+        if BS.null chunk
+            then
+                return acc
+            else
+                go (acc <> Builder.byteString chunk)
 
 
 -- | Seek to @offset@ and read the remainder of a file descriptor into a lazy
