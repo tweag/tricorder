@@ -76,4 +76,12 @@ in
     "TemplateHaskell"
     "TypeFamilies"
   ];
+
+  packageNames = [
+    "atelier-core"
+    "atelier-db"
+    "atelier-prelude"
+    "atelier-testing"
+    "tricorder"
+  ];
 }
