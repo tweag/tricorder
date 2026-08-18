@@ -23,7 +23,8 @@ module Atelier.Time
       -- * Utility newtypes for converting time to and from JSON
     , AsJsonMicrosecond (..)
     , AsRawUnit (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Time (NominalDiffTime)

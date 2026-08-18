@@ -6,7 +6,8 @@ module Tricorder.CLI.UI.Keys
     , viewKeybindings
     , mkKeyConfig
     , keybindForRoute
-    ) where
+    )
+where
 
 import Atelier.Effects.Console (Console)
 import Brick

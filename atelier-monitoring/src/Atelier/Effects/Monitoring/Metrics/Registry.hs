@@ -10,7 +10,8 @@ module Atelier.Effects.Monitoring.Metrics.Registry
     , incCounter
     , addCounter
     , observeHistogram
-    ) where
+    )
+where
 
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 

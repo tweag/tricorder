@@ -16,7 +16,8 @@ module Atelier.Component
       -- * Running
     , runComponent
     , runSystem
-    ) where
+    )
+where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Log (Log)

@@ -9,7 +9,8 @@ module Atelier.Effects.UUID
     , gen
     , runGenUUID
     , runGenUUIDConst
-    ) where
+    )
+where
 
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)

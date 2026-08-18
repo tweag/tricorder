@@ -2,7 +2,8 @@ module Tricorder.Build.Changes
     ( ChangeKind (..)
     , CabalChangeDetected (..)
     , SourceChangeDetected (..)
-    ) where
+    )
+where
 
 import Atelier.Effects.FileWatcher (FileEvent)
 
@@ -15,5 +16,7 @@ data ChangeKind = SourceChange | CabalChange deriving stock (Eq, Ord, Show)
 
 data CabalChangeDetected = CabalChangeDetected FilePath FileEvent
     deriving stock (Eq, Show)
+
+
 data SourceChangeDetected = SourceChangeDetected FilePath FileEvent
     deriving stock (Eq, Show)

@@ -16,7 +16,8 @@ module Atelier.Effects.Timeout
     , timeout
     , timeout_
     , runTimeout
-    ) where
+    )
+where
 
 import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (..))
 import Effectful.Dispatch.Dynamic (interpret, localUnliftIO)

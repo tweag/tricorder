@@ -10,7 +10,8 @@ module Atelier.Effects.Iterator
     , fromEvents
     , filter
     , changes
-    ) where
+    )
+where
 
 import Effectful.Concurrent (Concurrent)
 import Prelude hiding (filter)

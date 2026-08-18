@@ -8,7 +8,8 @@
 -- throws.
 module Tricorder.SourceLookup.Slice
     ( sliceSymbol
-    ) where
+    )
+where
 
 import Data.Char (isAlphaNum, isSpace, isUpper)
 

@@ -11,7 +11,8 @@ module Tricorder.SourceLookup.Tarball
     , cabalPackagesDirs
     , matchesModule
     , extractModule
-    ) where
+    )
+where
 
 import Atelier.Effects.FileSystem (FileSystem, readFileLbs)
 import Atelier.Effects.Log (Log)

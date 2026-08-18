@@ -13,7 +13,8 @@ module Atelier.Effects.Clock
     , runClockConst
     , runClockState
     , runClockList
-    ) where
+    )
+where
 
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeZone, getCurrentTimeZone, utc)

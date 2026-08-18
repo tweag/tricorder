@@ -65,7 +65,7 @@ trailing-section-operators: false
 unicode: never
 
 # Give the programmer more choice on where to insert blank lines
-respectful: true
+respectful: false
 
 # Fixity information for operators
 fixities: []

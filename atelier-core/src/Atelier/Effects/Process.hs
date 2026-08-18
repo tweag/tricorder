@@ -39,7 +39,8 @@ module Atelier.Effects.Process
 
       -- * Interpreters
     , runProcessIO
-    ) where
+    )
+where
 
 import Control.Exception (IOException, catch)
 import Effectful (Effect, IOE)

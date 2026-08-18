@@ -12,7 +12,8 @@ module Tricorder.Build.Test
     , caseFailed
     , SuiteCompletion (..)
     , SuiteError (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generically (..))

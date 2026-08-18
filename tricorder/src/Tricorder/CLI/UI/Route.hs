@@ -1,7 +1,8 @@
 module Tricorder.CLI.UI.Route
     ( Route (..)
     , name
-    ) where
+    )
+where
 
 
 data Route

@@ -10,7 +10,8 @@ module Atelier.Types.Semaphore
     , set
     , peek
     , withSemaphore
-    ) where
+    )
+where
 
 import Effectful.Concurrent.STM (Concurrent, atomically)
 

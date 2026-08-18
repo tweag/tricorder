@@ -1,7 +1,8 @@
 module Tricorder.CLI.UI.Event
     ( Event (..)
     , handleEvent
-    ) where
+    )
+where
 
 import Brick (BrickEvent (..), EventM, vScrollBy, viewportScroll)
 import Brick.Keybindings (KeyDispatcher, handleKey)

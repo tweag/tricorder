@@ -5,7 +5,8 @@ module Tricorder.SourceLookup
 
       -- * Lookup
     , lookupModuleSource
-    ) where
+    )
+where
 
 import Atelier.Effects.Cache (Cache, cacheInsert, cacheLookup)
 import Atelier.Effects.FileSystem (FileSystem)

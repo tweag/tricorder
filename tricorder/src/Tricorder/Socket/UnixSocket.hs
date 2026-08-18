@@ -14,7 +14,8 @@ module Tricorder.Socket.UnixSocket
     , runUnixSocketIO
     , runUnixSocketScripted
     , SocketScript (..)
-    ) where
+    )
+where
 
 import Atelier.Effects.File (BufferMode (..), File, Handle)
 import Atelier.Exception (trySyncIO)

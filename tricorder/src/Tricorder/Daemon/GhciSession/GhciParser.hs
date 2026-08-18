@@ -22,7 +22,8 @@ module Tricorder.Daemon.GhciSession.GhciParser
     , toAbsolute
     , toRelative
     , unattributedFailure
-    ) where
+    )
+where
 
 import Data.Char (isAlpha, isDigit, isSpace, toLower)
 import System.FilePath (dropExtension, isAbsolute, makeRelative, normalise, splitDirectories, (</>))

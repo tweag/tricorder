@@ -41,7 +41,8 @@ module Atelier.Effects.Log
     , runLogNoOp
     , runLogToHandle
     , runLogWriter
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))

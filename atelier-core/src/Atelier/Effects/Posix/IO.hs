@@ -19,7 +19,8 @@
 module Atelier.Effects.Posix.IO
     ( readFdAll
     , readFdFrom
-    ) where
+    )
+where
 
 import Foreign.Marshal.Alloc (allocaBytes)
 import Foreign.Ptr (castPtr)

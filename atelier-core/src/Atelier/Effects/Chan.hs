@@ -40,7 +40,8 @@ module Atelier.Effects.Chan
     , InChan
     , OutChan
     , readChanBatched
-    ) where
+    )
+where
 
 import Control.Concurrent.Chan.Unagi (InChan, OutChan)
 import Data.Time.Units (TimeUnit, toMicroseconds)
@@ -57,6 +58,8 @@ data Chan :: Effect
 
 
 type instance DispatchOf Chan = Static WithSideEffects
+
+
 data instance StaticRep Chan = Chan
 
 

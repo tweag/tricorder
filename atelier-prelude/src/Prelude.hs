@@ -38,7 +38,8 @@ module Prelude
     , module Relude.Nub
     , module Relude.Numeric
     , module Relude.String
-    ) where
+    )
+where
 
 import Effectful (Eff, MonadIO (liftIO), (:>))
 import Effectful.Error.Static

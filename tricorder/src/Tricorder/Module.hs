@@ -2,7 +2,8 @@ module Tricorder.Module
     ( ModuleName (..)
     , PackageId (..)
     , splitPackageId
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 

@@ -17,7 +17,8 @@
 -- Parsing @{\"verbose\": true}@ then yields @Config { retries = 3, verbose = True }@.
 module Atelier.Types.WithDefaults
     ( WithDefaults (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import Data.Default (Default (..))

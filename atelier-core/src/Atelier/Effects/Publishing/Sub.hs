@@ -12,7 +12,8 @@ module Atelier.Effects.Publishing.Sub
     , listenUntilM_
     , forkListener
     , forkListener_
-    ) where
+    )
+where
 
 import Data.Time (UTCTime)
 import Effectful (Effect, inject)
@@ -149,4 +150,6 @@ listenOnce_ = snd <$> listenOnce
 
 
 data OnceEx ev = OnceEx ev
+
+
 instance Show (OnceEx ev) where show _ = "OnceEx"

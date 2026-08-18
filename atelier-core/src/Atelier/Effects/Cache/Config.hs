@@ -5,7 +5,8 @@
 -- "Atelier.Effects.Tally".
 module Atelier.Effects.Cache.Config
     ( Config (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON)
 import Data.Default (Default (..))

@@ -2,7 +2,8 @@ module Tricorder.Session.WatchDirs
     ( WatchDirs (..)
     , resolveWatchDirs
     , sourceDirsForTarget
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Default (Default (..))

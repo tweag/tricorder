@@ -4,7 +4,8 @@ module Tricorder.CLI.Operations
     , showStatus
     , showTests
     , showEvalComments
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)

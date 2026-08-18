@@ -7,7 +7,8 @@ module Tricorder.Daemon.Builder
     , consider
     , with
     , compileBuildResults
-    ) where
+    )
+where
 
 import Atelier.Effects.Clock (Clock, UTCTime)
 import Atelier.Effects.FileWatcher (FileEvent)

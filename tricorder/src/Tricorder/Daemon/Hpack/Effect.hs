@@ -4,7 +4,8 @@ module Tricorder.Daemon.Hpack.Effect
     , hpackIsInPath
     , hpack
     , run
-    ) where
+    )
+where
 
 import Atelier.Effects.Process (Process, readProcess, runProcess, setWorkingDir, shell)
 import Effectful (Effect)

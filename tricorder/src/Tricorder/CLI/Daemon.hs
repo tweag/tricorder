@@ -3,7 +3,8 @@ module Tricorder.CLI.Daemon
     , stopDaemon
     , restartDaemon
     , waitForDaemon
-    ) where
+    )
+where
 
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.File (File)

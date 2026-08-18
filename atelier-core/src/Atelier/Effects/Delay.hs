@@ -18,7 +18,8 @@ module Atelier.Effects.Delay
     , every
     , runDelay
     , runDelayNoOp
-    ) where
+    )
+where
 
 import Data.Time.Units (TimeUnit, toMicroseconds)
 import Effectful (Effect)

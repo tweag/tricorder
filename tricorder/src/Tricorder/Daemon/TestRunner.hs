@@ -13,7 +13,8 @@ module Tricorder.Daemon.TestRunner
 
       -- * Internal helpers (exported for testing)
     , loadingToProgress
-    ) where
+    )
+where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)

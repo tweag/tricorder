@@ -4,7 +4,8 @@ module Tricorder.SourceLookup.GhcPkg
     , runGhcPkgIO
     , runGhcPkgScripted
     , GhcPkgScript (..)
-    ) where
+    )
+where
 
 import Atelier.Effects.Process (Process, readProcessSafe)
 import Effectful (Effect)

@@ -65,7 +65,8 @@ module Atelier.Effects.FileWatcher
       -- * Internals (exported for testing)
     , deduplicateDirs
     , matchesAny
-    ) where
+    )
+where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (retry)

@@ -14,7 +14,8 @@ module Atelier.Effects.Arguments
 
       -- * Interpreters
     , runArgumentsIO
-    ) where
+    )
+where
 
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)

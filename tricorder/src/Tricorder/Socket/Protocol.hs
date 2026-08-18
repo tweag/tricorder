@@ -6,7 +6,8 @@ module Tricorder.Socket.Protocol
     , ErrorResponse (..)
     , ClientMessage (..)
     , Waiters (..)
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 

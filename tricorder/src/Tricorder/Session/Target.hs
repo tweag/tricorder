@@ -8,7 +8,8 @@ module Tricorder.Session.Target
     , definesCustomPrelude
     , compareTargets
     , allComponentTargets
-    ) where
+    )
+where
 
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Distribution.Types.CondTree (condTreeData)
@@ -60,6 +61,8 @@ instance FromJSON Target where
 
 
 instance ToJSONKey Target
+
+
 instance FromJSONKey Target
 
 

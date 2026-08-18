@@ -3,7 +3,8 @@ module Tricorder.SourceLookup.Hackage
     , Result (..)
     , fetchPackage
     , run
-    ) where
+    )
+where
 
 import Atelier.Effects.Log (Log)
 import Effectful (Effect, IOE)

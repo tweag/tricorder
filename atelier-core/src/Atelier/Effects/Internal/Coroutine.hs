@@ -42,7 +42,8 @@ module Atelier.Effects.Internal.Coroutine
 
       -- ** Interpreters
     , awaitYield
-    ) where
+    )
+where
 
 import Effectful (Effect, UnliftStrategy (..), inject, raiseWith)
 import Effectful.Dispatch.Dynamic (interpretWith_, interpret_, reinterpretWith_, reinterpret_)
