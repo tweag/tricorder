@@ -67,3 +67,12 @@ jobs:
     if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: tricorder
+
+  release-hackage-tricorder-mcp:
+    uses: ./.github/workflows/release-hackage-package.yml
+    needs:
+      - checks
+      - release-hackage-tricorder
+    if: ${{ !failure() && needs.checks.result == 'success' }}
+    with:
+      package-name: tricorder-mcp

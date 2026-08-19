@@ -11,24 +11,27 @@ on:
         type: string
         default: ""
 jobs:
-  version:
-    name: Version
+  meta:
+    name: Metadata
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      package: ${{ steps.meta.outputs.package }}
     steps:
-      - id: version
+      - id: meta
         run: |
           tag="$(echo '${{ case(inputs.ref != '', inputs.ref, github.ref) }}' | sed 's!refs/tags/!!')"
-          version="$(echo "$tag" | sed 's/^tricorder-//')"
+          version="$(echo "$tag" | sed -E 's/^tricorder-(.+-)?//')"
+          package="$(echo "$tag" | sed -E 's/-[^-]+$//')"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "package=$package" >> $GITHUB_OUTPUT
 
   build-binaries:
     name: Build binaries
     needs:
-      - version
+      - meta
     runs-on: ${{ matrix.runs-on }}
     strategy:
       matrix:
@@ -41,15 +44,9 @@ jobs:
           - system: aarch64-darwin
             runs-on: macos-latest
     steps:
-      - id: version
-        run: |
-          tag="$(echo '${{ case(inputs.ref != '', inputs.ref, github.ref) }}' | sed 's!refs/tags/!!')"
-          version="$(echo "$tag" | sed 's/^tricorder-//')"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.meta.outputs.tag }}
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -63,21 +60,21 @@ jobs:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
       - name: Build
-        run: nix build .#tricorder
+        run: nix build '.#${{ needs.meta.outputs.package }}'
       - name: Compress
         run: |
-          compressed_name="tricorder_${{ matrix.system }}"
-          cat result/bin/tricorder | gzip > "$compressed_name.gz"
+          compressed_name="${{ needs.meta.outputs.package }}_${{ matrix.system }}"
+          cat 'result/bin/${{ needs.meta.outputs.package }}' | gzip > "$compressed_name.gz"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: tricorder_${{ matrix.system }}
-          path: tricorder_${{ matrix.system }}.gz
+          name: ${{ needs.meta.outputs.package }}_${{ matrix.system }}
+          path: ${{ needs.meta.outputs.package }}_${{ matrix.system }}.gz
           archive: false
 
   publish-github:
     name: Publish binaries to GitHub
     needs:
-      - version
+      - meta
       - build-binaries
     runs-on: ubuntu-latest
     steps:
@@ -101,7 +98,7 @@ jobs:
           set -euo pipefail
           nix run .#get-changelog-section -- \
             "${{ needs.version.outputs.version }}" \
-            tricorder/CHANGELOG.md \
+            ${{ needs.meta.outputs.package }}/CHANGELOG.md \
           | tee release-notes.md
 
           date="$(cat release-notes.md | head -1 | sed 's/^## \[[0-9.]*\] - //')"
@@ -111,19 +108,19 @@ jobs:
 
           ---
 
-          See [Tricorder's change log](./tricorder/CHANGELOG.md#$link_ref) for a full list of changes.
+          See [the change log](./${{ needs.meta.outputs.package }}/CHANGELOG.md#$link_ref) for a full list of changes.
           EOF
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          pattern: tricorder_*
+          pattern: ${{ needs.meta.outputs.package }}_*
           path: binaries
           merge-multiple: true
       - name: Publish to GitHub
         run: |
           gh release create \
-            '${{ needs.version.outputs.tag }}' \
+            '${{ needs.meta.outputs.tag }}' \
             --draft \
-            --title 'Tricorder ${{ needs.version.outputs.version }}' \
+            --title '${{ needs.meta.outputs.package }} ${{ needs.meta.outputs.version }}' \
             --notes-file release-notes.md \
             --verify-tag \
             binaries/*.gz
