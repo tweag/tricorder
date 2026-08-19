@@ -11,10 +11,13 @@
 -- in until something else triggers a rebuild.
 module Tricorder.Version (gitHash, VersionMismatch (..), checkVersion) where
 
+import Data.Version (showVersion)
 import Language.Haskell.TH (litE, runIO, stringL)
 import System.Environment (lookupEnv)
 import System.IO.Error (tryIOError)
 import System.Process (readProcess)
+
+import Paths_tricorder qualified as Pack
 
 
 -- | Short git hash of the commit this binary was built from.
@@ -28,19 +31,23 @@ import System.Process (readProcess)
 -- 3. @"unknown"@ — fallback when @git@ is unavailable.
 gitHash :: Text
 gitHash =
-    toText
-        ( $( do
-                hash <- runIO $ do
-                    override <- lookupEnv "TRICORDER_VERSION"
-                    case override of
-                        Just v -> pure v
-                        Nothing ->
-                            either (const "unknown") (filter (/= '\n'))
-                                <$> tryIOError (readProcess "git" ["rev-parse", "--short", "HEAD"] "")
-                litE (stringL hash)
-           )
-            :: String
-        )
+    "v"
+        <> toText (showVersion Pack.version)
+        <> " ("
+        <> toText
+            ( $( do
+                    hash <- runIO $ do
+                        override <- lookupEnv "TRICORDER_VERSION"
+                        case override of
+                            Just v -> pure v
+                            Nothing ->
+                                either (const "unknown") (filter (/= '\n'))
+                                    <$> tryIOError (readProcess "git" ["rev-parse", "--short", "HEAD"] "")
+                    litE (stringL hash)
+               )
+                :: String
+            )
+        <> ")"
 
 
 data VersionMismatch = VersionMismatch

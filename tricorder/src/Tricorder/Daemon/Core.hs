@@ -62,7 +62,7 @@ import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile)
-import Tricorder.Session.Command (Command (..))
+import Tricorder.Session.Command (Command (..), Repl)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout)
@@ -110,6 +110,7 @@ main
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
+       , State Repl :> es
        , TestRunner :> es
        , Waiters :> es
        )
@@ -123,6 +124,7 @@ main = runPubSub @ReloadSession
     $ Conc.restartableFork waitForReloadSession do
         root <- Reader.ask
         session <- loadSession
+        State.put session.command.repl
         Conc.fork_ $ watchConfigFile root
         conditionallyWatchStackYaml root
 

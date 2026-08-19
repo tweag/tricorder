@@ -42,6 +42,7 @@ import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
+import Tricorder.Session.Command qualified as Repl
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.SourceLookup.Hackage qualified as Hackage
@@ -85,6 +86,8 @@ main =
         . runGhciSession
         . evalState (BuildId 1)
         . Input.fromState @BuildId
+        . evalState Repl.Unknown
+        . Input.fromState @Repl.Repl
         . runPubSub @BuildPhase
         . Hpack.run
         . Hackage.run
