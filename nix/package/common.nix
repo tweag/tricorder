@@ -83,5 +83,6 @@ in
     "atelier-prelude"
     "atelier-testing"
     "tricorder"
+    "tricorder-mcp"
   ];
 }
