@@ -188,6 +188,7 @@ in
     // {
       default = tricorder;
       tricorder = tricorder;
+      tricorder-mcp = projectFlake.packages."tricorder-mcp:exe:tricorder-mcp";
       inherit nix-hpack;
       sdists = pkgs.symlinkJoin {
         name = "sdists";
