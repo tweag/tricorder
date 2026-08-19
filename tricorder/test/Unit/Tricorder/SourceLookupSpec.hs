@@ -3,6 +3,7 @@ module Unit.Tricorder.SourceLookupSpec (spec_SourceLookup) where
 import Atelier.Effects.Cache (Cache, runCacheForever)
 import Atelier.Effects.Env (Env, runEnvConst)
 import Atelier.Effects.FileSystem (FileSystem (..))
+import Atelier.Effects.Input (Input, runInputConst)
 import Atelier.Effects.Log (Log, runLogNoOp)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
@@ -21,6 +22,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Module (ModuleName, PackageId)
+import Tricorder.Session.Command (Repl (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
     , SourceQuery (..)
@@ -207,7 +209,17 @@ noFetch = pure NotFound
 runTest
     :: [GhcPkgScript]
     -> Map FilePath LByteString
-    -> Eff '[PackageStore, Env, FileSystem, State (Map FilePath LByteString), Log, Concurrent, IOE] Result
+    -> Eff
+        '[ PackageStore
+         , Env
+         , FileSystem
+         , State (Map FilePath LByteString)
+         , Input Repl
+         , Log
+         , Concurrent
+         , IOE
+         ]
+        Result
     -> Eff
         '[ Cache ModuleName PackageId
          , Cache (PackageId, SourceQuery) ModuleSourceResult
@@ -217,6 +229,7 @@ runTest
          , Env
          , FileSystem
          , State (Map FilePath LByteString)
+         , Input Repl
          , Log
          , Concurrent
          , IOE
@@ -227,6 +240,7 @@ runTest pkgScript initialFs onFetch action =
     runEff
         . runConcurrent
         . runLogNoOp
+        . runInputConst Cabal
         . evalState initialFs
         . runFileSystemFake
         . runEnvConst [("HOME", "/h")]

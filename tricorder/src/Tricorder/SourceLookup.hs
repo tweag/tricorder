@@ -10,12 +10,14 @@ where
 
 import Atelier.Effects.Cache (Cache, cacheInsert, cacheLookup)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (FromJSON, ToJSON)
 
 import Atelier.Effects.Log qualified as Log
 
 import Tricorder.Module (ModuleName (..), PackageId (..))
+import Tricorder.Session.Command (Repl)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
@@ -72,6 +74,7 @@ lookupModuleSource
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        )
@@ -92,7 +95,11 @@ lookupModuleSource query = do
 
 -- | Resolve a module to its package, consulting the module -> package cache first.
 resolvePackage
-    :: (Cache ModuleName PackageId :> es, GhcPkg :> es, Log :> es)
+    :: ( Cache ModuleName PackageId :> es
+       , GhcPkg :> es
+       , Input Repl :> es
+       , Log :> es
+       )
     => ModuleName
     -> Eff es (Maybe PackageId)
 resolvePackage modName = do
@@ -102,7 +109,8 @@ resolvePackage modName = do
             Log.debug $ "Source: " <> unModuleName modName <> " → " <> unPackageId p <> " (cached)"
             pure (Just p)
         Nothing -> do
-            result <- GhcPkg.findModule modName
+            repl <- input
+            result <- GhcPkg.findModule repl modName
             Log.debug $ "Source: find-module " <> unModuleName modName <> " → " <> show result
             whenJust result (cacheInsert @ModuleName @PackageId modName)
             pure result

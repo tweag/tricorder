@@ -23,6 +23,7 @@ import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Session.Command (Repl)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)
@@ -67,6 +68,7 @@ main
        , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        , Reader SocketPath :> es
@@ -93,6 +95,7 @@ acceptTrigger
        , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        , Reader SocketPath :> es
@@ -121,6 +124,7 @@ handleConnection
        , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        , State BuildPhase :> es
@@ -153,6 +157,7 @@ dispatch
        , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        , State BuildPhase :> es
@@ -270,6 +275,7 @@ respondSource
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , Input Repl :> es
        , Log :> es
        , PackageStore :> es
        , UnixSocket :> es
