@@ -5,7 +5,7 @@ import MCP.Server
     ( McpServerHandlers (..)
     , McpServerInfo (..)
     , noHandlers
-    , runMcpServerHttp
+    , runMcpServerStdio
     )
 import MCP.Server.Derive (deriveToolHandlerWithDescription)
 
@@ -14,7 +14,7 @@ import Tricorder.MCP.Tools (Tool, handleTool, toolDescriptions)
 
 
 main :: IO ()
-main = runMcpServerHttp serverInfo handlers
+main = runMcpServerStdio serverInfo handlers
 
 
 handlers :: McpServerHandlers
