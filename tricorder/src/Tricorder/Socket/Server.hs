@@ -12,6 +12,7 @@ import Effectful.Exception (IOException, finally)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
+import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
@@ -21,7 +22,6 @@ import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.Command (Repl)
 import Tricorder.Socket.Protocol
@@ -40,9 +40,10 @@ import Tricorder.Socket.UnixSocket
     , removeSocketFile
     , sendLine
     )
-import Tricorder.SourceLookup (ModuleSourceResult, SourceQuery (..), lookupModuleSource)
+import Tricorder.SourceLookup (ModuleSourceResult, lookupModuleSource)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 import Tricorder.Waiters (Waiters)

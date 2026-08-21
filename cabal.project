@@ -4,6 +4,7 @@ packages:
   atelier-db
   atelier-testing
   atelier-monitoring
+  tricorder-types
   tricorder
   tricorder-mcp
 

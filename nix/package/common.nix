@@ -82,6 +82,7 @@ in
     "atelier-db"
     "atelier-prelude"
     "atelier-testing"
+    "tricorder-types"
     "tricorder"
     "tricorder-mcp"
   ];

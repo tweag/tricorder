@@ -10,12 +10,13 @@ where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Time (Millisecond, toMicroseconds)
+import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Console qualified as Console
 
 import Tricorder.Build (Diagnostic (..), Severity (..))
-import Tricorder.Module (ModuleName (..), PackageId (..))
-import Tricorder.SourceLookup (ModuleSourceResult (..), SourceQuery (..))
+import Tricorder.SourceLookup (ModuleSourceResult (..))
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 
 formatDuration :: Millisecond -> Text

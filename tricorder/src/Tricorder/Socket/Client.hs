@@ -21,6 +21,7 @@ import Effectful.Exception (catchJust, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (evalState, get, modify, put)
 import System.IO.Error (isEOFError)
+import Tricorder.SourceLookup.SourceQuery (SourceQuery)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
@@ -39,7 +40,7 @@ import Tricorder.Socket.Protocol
     , Waiters (..)
     )
 import Tricorder.Socket.UnixSocket (UnixSocket, withConnection)
-import Tricorder.SourceLookup (ModuleSourceResult, SourceQuery)
+import Tricorder.SourceLookup (ModuleSourceResult)
 
 import Tricorder.Version qualified as Version
 
