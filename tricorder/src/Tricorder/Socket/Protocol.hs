@@ -10,11 +10,8 @@ module Tricorder.Socket.Protocol
 where
 
 import Data.Aeson (FromJSON, ToJSON)
-
-import Tricorder.SourceLookup (SourceQuery)
-
-
-data Force = Force | NoForce
+import Tricorder.CLI.Command (Force (..))
+import Tricorder.SourceLookup.SourceQuery (SourceQuery)
 
 
 data StatusQuery = StatusQuery {awaitDone :: Bool}

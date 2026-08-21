@@ -11,6 +11,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.State.Static.Shared (State, evalState, gets, modify)
 import System.FilePath ((</>))
 import Test.Hspec
+import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 
 import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
@@ -21,15 +22,14 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Session.Command (Repl (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
-    , SourceQuery (..)
     , lookupModuleSource
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
+import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore

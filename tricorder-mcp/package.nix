@@ -53,6 +53,7 @@ in
         "bytestring"
         "mcp-server"
         "process"
+        "tricorder-types"
         "typed-process"
       ];
     };

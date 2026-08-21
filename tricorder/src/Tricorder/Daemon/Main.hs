@@ -19,6 +19,7 @@ import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
+import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Cache.Config qualified as CacheConfig
 import Atelier.Effects.Conc qualified as Conc
@@ -29,13 +30,12 @@ import Tricorder.Build (BuildId (..), BuildPhase)
 import Tricorder.Config (inputLoadedConfig)
 import Tricorder.Daemon.GhciSession (runGhciSession)
 import Tricorder.Logging (runLogging)
-import Tricorder.Module (ModuleName, PackageId)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session (inputSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
-import Tricorder.SourceLookup (SourceQuery)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
+import Tricorder.SourceLookup.PackageId (PackageId)
 
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo

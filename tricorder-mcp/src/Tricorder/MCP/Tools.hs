@@ -20,8 +20,10 @@ import Control.Exception (IOException, try)
 import MCP.Server (ClientContext, Content (..), ToolResult, toolError, toolResult)
 import System.Exit (ExitCode (..))
 import System.Process.Typed (proc, readProcess, setWorkingDir)
+import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 
 import Data.ByteString.Lazy qualified as BSL
+import Tricorder.CLI.Command qualified as CLI
 
 
 data Tool
@@ -112,33 +114,72 @@ toolDescriptions =
 
 
 -- | The @tricorder@ invocation for a tool call: the project directory to run
--- it in, and the subcommand plus flags to pass.
+-- it in, and the subcommand plus flags to pass. Builds the shared 'CLI.Command'
+-- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
+-- "Tricorder.CLI.Arguments" instead of being duplicated here.
 toolCommand :: Tool -> (Text, [String])
-toolCommand (Start (StartOptions {directory})) = (directory, ["start"])
-toolCommand (Stop (StopOptions {directory, force = doForce})) =
-    (directory, "stop" : flagArg "--force" doForce)
-toolCommand (Restart (RestartOptions {directory, force = doForce})) =
-    (directory, "restart" : flagArg "--force" doForce)
-toolCommand (Status (StatusOptions {directory, wait, json, verbose, expand})) =
-    ( directory
-    , "status"
-        : flagArg "--wait" wait
-            <> flagArg "--json" json
-            <> flagArg "--verbose" verbose
-            <> maybe [] (\n -> ["--expand", show n]) expand
-    )
-toolCommand (TestResults (TestResultsOptions {directory, failed, wait})) =
-    (directory, "test-results" : flagArg "--failed" failed <> flagArg "--wait" wait)
-toolCommand (Source (SourceOptions {directory, modules})) =
-    (directory, "source" : map toString modules)
-toolCommand (EvalComments (EvalCommentsOptions {directory, wait, json})) =
-    (directory, "eval-comments" : flagArg "--wait" wait <> flagArg "--json" json)
-toolCommand (LogPath (LogPathOptions {directory})) = (directory, ["log", "--print-path"])
-toolCommand (LogContents (LogContentsOptions {directory})) = (directory, ["log"])
+toolCommand = \case
+    (Start (StartOptions {directory})) ->
+        ( directory
+        , CLI.commandToArgs CLI.Start
+        )
+    (Stop (StopOptions {directory, force = doForce})) ->
+        ( directory
+        , CLI.commandToArgs (CLI.Stop (toForce doForce))
+        )
+    (Restart (RestartOptions {directory, force = doForce})) ->
+        ( directory
+        , CLI.commandToArgs (CLI.Restart (toForce doForce))
+        )
+    (Status (StatusOptions {directory, wait, json, verbose, expand})) ->
+        ( directory
+        , CLI.commandToArgs
+            $ CLI.Status
+                CLI.StatusOptions
+                    { wait = toWaitMode wait
+                    , format = toFormat json
+                    , verbosity = toVerbosity verbose
+                    , expand
+                    }
+        )
+    (TestResults (TestResultsOptions {directory, failed, wait})) ->
+        ( directory
+        , CLI.commandToArgs
+            $ CLI.Test CLI.TestOptions {failedOnly = fromMaybe False failed, wait = toWaitMode wait}
+        )
+    (Source (SourceOptions {directory, modules})) ->
+        ( directory
+        , CLI.commandToArgs (CLI.Source (map parseSourceQuery modules))
+        )
+    (EvalComments (EvalCommentsOptions {directory, wait, json})) ->
+        ( directory
+        , CLI.commandToArgs
+            $ CLI.EvalComments CLI.EvalCommentsOptions {wait = toWaitMode wait, format = toFormat json}
+        )
+    (LogPath (LogPathOptions {directory})) ->
+        ( directory
+        , CLI.commandToArgs (CLI.Log CLI.ShowLogPath)
+        )
+    (LogContents (LogContentsOptions {directory})) ->
+        ( directory
+        , CLI.commandToArgs (CLI.Log (CLI.ShowLog CLI.NoFollow))
+        )
 
 
-flagArg :: String -> Maybe Bool -> [String]
-flagArg flag = maybe [] (\enabled -> [flag | enabled])
+toForce :: Maybe Bool -> CLI.Force
+toForce = maybe CLI.NoForce (\enabled -> if enabled then CLI.Force else CLI.NoForce)
+
+
+toWaitMode :: Maybe Bool -> CLI.WaitMode
+toWaitMode = maybe CLI.ShowCurrent (\enabled -> if enabled then CLI.WaitForBuild else CLI.ShowCurrent)
+
+
+toFormat :: Maybe Bool -> CLI.OutputFormat
+toFormat = maybe CLI.TextOutput (\enabled -> if enabled then CLI.JsonOutput else CLI.TextOutput)
+
+
+toVerbosity :: Maybe Bool -> CLI.Verbosity
+toVerbosity = maybe CLI.Concise (\enabled -> if enabled then CLI.Verbose else CLI.Concise)
 
 
 -- | Whether a tool's exit code reports a build/test outcome (errors present,

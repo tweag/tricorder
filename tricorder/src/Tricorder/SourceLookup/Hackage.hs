@@ -31,7 +31,7 @@ import Network.HTTP.Req
 
 import Atelier.Effects.Log qualified as Log
 
-import Tricorder.Module (PackageId, unPackageId)
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 
 data Hackage :: Effect where

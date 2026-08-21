@@ -58,12 +58,20 @@ jobs:
     with:
       package-name: atelier-testing
 
+  release-hackage-tricorder-types:
+    uses: ./.github/workflows/release-hackage-package.yml
+    needs:
+      - checks
+    with:
+      package-name: tricorder-types
+
   release-hackage-tricorder:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
+      - release-hackage-tricorder-types
     if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: tricorder
@@ -73,6 +81,7 @@ jobs:
     needs:
       - checks
       - release-hackage-tricorder
+      - release-hackage-tricorder-types
     if: ${{ !failure() && needs.checks.result == 'success' }}
     with:
       package-name: tricorder-mcp

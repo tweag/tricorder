@@ -1,9 +1,5 @@
 module Tricorder.SourceLookup
-    ( -- * Types
-      SourceQuery (..)
-    , ModuleSourceResult (..)
-
-      -- * Lookup
+    ( ModuleSourceResult (..)
     , lookupModuleSource
     )
 where
@@ -13,13 +9,15 @@ import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (FromJSON, ToJSON)
+import GHC.Generics (Generically (..))
+import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Log qualified as Log
 
-import Tricorder.Module (ModuleName (..), PackageId (..))
 import Tricorder.Session.Command (Repl)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.SourceLookup.Slice (sliceSymbol)
 import Tricorder.SourceLookup.Tarball
@@ -43,19 +41,7 @@ data ModuleSourceResult
     | -- | The module source was found but the requested symbol was not in it.
       FunctionNotFound SourceQuery
     deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, ToJSON)
-
-
--- | A query for module source: optionally scoped to a single top-level symbol.
-data SourceQuery = SourceQuery
-    { moduleName :: ModuleName
-    , function :: Maybe Text
-    -- ^ The symbol to slice: 'Nothing' is the whole module; @'Just' name@ is a
-    -- single top-level declaration — a value binding, or (by initial casing) a
-    -- type, class, or constructor.
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving anyclass (FromJSON, Hashable, ToJSON)
+    deriving (FromJSON, ToJSON) via Generically ModuleSourceResult
 
 
 -- ── Lookup logic ───────────────────────────────────────────────────────────

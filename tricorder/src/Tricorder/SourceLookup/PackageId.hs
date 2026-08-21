@@ -1,6 +1,5 @@
-module Tricorder.Module
-    ( ModuleName (..)
-    , PackageId (..)
+module Tricorder.SourceLookup.PackageId
+    ( PackageId (..)
     , splitPackageId
     )
 where
@@ -10,14 +9,10 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Text qualified as T
 
 
--- | A dotted Haskell module name, e.g. @"Data.Map.Strict"@.
-newtype ModuleName = ModuleName {unModuleName :: Text}
-    deriving newtype (Eq, FromJSON, Hashable, IsString, Ord, Show, ToJSON)
-
-
 -- | A @ghc-pkg@ package identifier, e.g. @"containers-0.6.8"@.
 newtype PackageId = PackageId {unPackageId :: Text}
-    deriving newtype (Eq, FromJSON, Hashable, IsString, Ord, Show, ToJSON)
+    deriving stock (Eq, Ord, Show)
+    deriving (FromJSON, Hashable, IsString, ToJSON) via Text
 
 
 -- | Split a 'PackageId' into its package name and version. The version is the
