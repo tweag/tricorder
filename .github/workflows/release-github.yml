@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.meta.outputs.tag }}
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -97,12 +97,12 @@ jobs:
         run: |
           set -euo pipefail
           nix run .#get-changelog-section -- \
-            "${{ needs.version.outputs.version }}" \
-            ${{ needs.meta.outputs.package }}/CHANGELOG.md \
+            '${{ needs.meta.outputs.version }}' \
+            '${{ needs.meta.outputs.package }}/CHANGELOG.md' \
           | tee release-notes.md
 
           date="$(cat release-notes.md | head -1 | sed 's/^## \[[0-9.]*\] - //')"
-          link_ref="$(echo "${{ needs.version.outputs.version }}" | tr --delete '.')---$date"}
+          link_ref="$(echo "${{ needs.meta.outputs.version }}" | tr --delete '.')---$date"}
 
           cat >> release-notes.md <<EOF
 
