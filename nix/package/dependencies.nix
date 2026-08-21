@@ -64,6 +64,7 @@ let
     time = ">=1.12 && <1.17";
     time-units = ">=1.0 && <1.1";
     tmp-postgres = ">=1.35 && <1.36";
+    tricorder-types = ">=0.0 && <0.1";
     typed-process = ">=0.2 && <0.3";
     unagi-chan = ">=0.4 && <0.5";
     unix = ">=2.8 && <2.9";

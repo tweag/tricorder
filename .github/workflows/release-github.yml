@@ -3,6 +3,7 @@ on:
   push:
     tags:
       - "tricorder-*"
+      - "!tricorder-types-*"
   workflow_dispatch:
     inputs:
       ref:

@@ -62,6 +62,7 @@ library tricorder-mcp-internal
     , effectful-plugin >=2.0 && <2.2
     , mcp-server ==0.2.*
     , process ==1.6.*
+    , tricorder-types ==0.0.*
     , typed-process ==0.2.*
   mixins:
       base hiding (Prelude)

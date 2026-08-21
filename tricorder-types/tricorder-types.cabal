@@ -1,0 +1,71 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.38.3.
+--
+-- see: https://github.com/sol/hpack
+
+name:           tricorder-types
+version:        0.0.0.0
+synopsis:       Shared domain types for various Tricorder components
+description:    Shared domain types for various Tricorder components
+category:       Development
+homepage:       https://github.com/tweag/tricorder#readme
+bug-reports:    https://github.com/tweag/tricorder/issues
+author:         Victor Nascimento Bakke
+maintainer:     victor.bakke@tweag.io
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+tested-with:
+    GHC == 9.10.3
+  , GHC == 9.6.7
+  , GHC == 9.8.4
+  , GHC == 9.12.4
+extra-doc-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/tweag/tricorder
+
+library
+  exposed-modules:
+      Tricorder.CLI.Command
+      Tricorder.SourceLookup.SourceQuery
+  other-modules:
+      Paths_tricorder_types
+  autogen-modules:
+      Paths_tricorder_types
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
+  build-depends:
+      aeson >=2.2 && <2.4
+    , atelier-prelude >=0.1 && <0.3
+    , base >=4.18 && <4.23
+    , effectful-core ==2.6.*
+    , effectful-plugin >=2.0 && <2.2
+    , text ==2.1.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
