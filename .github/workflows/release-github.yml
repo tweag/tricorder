@@ -29,6 +29,10 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "package=$package" >> $GITHUB_OUTPUT
 
+  checks:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
   build-binaries:
     name: Build binaries
     needs:
@@ -76,6 +80,7 @@ jobs:
     name: Publish binaries to GitHub
     needs:
       - meta
+      - checks
       - build-binaries
     runs-on: ubuntu-latest
     steps:
