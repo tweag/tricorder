@@ -54,7 +54,9 @@ jobs:
       - name: Done
         if: ${{ steps.tagging.outputs.created }}
         run: |
-          echo "Published candidate to https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
+          url="https://hackage.haskell.org/package/${{ steps.tagging.outputs.name }}/candidate"
+          echo "Published candidate to $url"
+          echo "- [${{ steps.tagging.outputs.name }}]($url)" >> "$GITHUB_STEP_SUMMARY"
       - name: Clean up stray tag on failure
         if: ${{ (failure() || cancelled()) && steps.tagging.outputs.created }}
         run: |
