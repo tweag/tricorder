@@ -17,7 +17,7 @@ import System.FilePath (takeDirectory, (</>))
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Map.Strict qualified as Map
 
-import Tricorder.Module (PackageId, splitPackageId, unPackageId)
+import Tricorder.SourceLookup.PackageId (PackageId, splitPackageId, unPackageId)
 
 
 data PackageStore :: Effect where

@@ -19,6 +19,7 @@ import Atelier.Effects.Log (Log)
 import Data.Char (isUpper)
 import Effectful.Exception (trySync)
 import System.FilePath (splitDirectories, (</>))
+import Tricorder.SourceLookup.SourceQuery (ModuleName (..))
 
 import Atelier.Effects.Log qualified as Log
 import Codec.Archive.Tar qualified as Tar
@@ -27,8 +28,8 @@ import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Module (ModuleName (..), PackageId (..), splitPackageId)
 import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.SourceLookup.Hackage qualified as Hackage

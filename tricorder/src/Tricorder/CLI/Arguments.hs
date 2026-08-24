@@ -38,75 +38,21 @@ import Options.Applicative
     , progDesc
     , short
     )
-
-import Data.Text qualified as T
-
-import Tricorder.Module (ModuleName (..))
-import Tricorder.Socket.Protocol (Force (..))
-import Tricorder.SourceLookup (SourceQuery (..))
+import Tricorder.CLI.Command
+    ( Command (..)
+    , EvalCommentsOptions (..)
+    , FollowMode (..)
+    , Force (..)
+    , LogMode (..)
+    , OutputFormat (..)
+    , StatusOptions (..)
+    , TestOptions (..)
+    , Verbosity (..)
+    , WaitMode (..)
+    )
+import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
 
 import Tricorder.Version qualified as Version
-
-
-data WaitMode
-    = ShowCurrent
-    | WaitForBuild
-    deriving stock (Eq)
-
-
-data OutputFormat
-    = TextOutput
-    | JsonOutput
-    deriving stock (Eq)
-
-
-data Verbosity
-    = Concise
-    | Verbose
-    deriving stock (Eq)
-
-
-data FollowMode
-    = NoFollow
-    | Follow
-    deriving stock (Eq)
-
-
-data LogMode
-    = ShowLog FollowMode
-    | ShowLogPath
-
-
-data StatusOptions = StatusOptions
-    { wait :: WaitMode
-    , format :: OutputFormat
-    , verbosity :: Verbosity
-    , expand :: Maybe Int
-    }
-
-
-data TestOptions = TestOptions
-    { failedOnly :: Bool
-    , wait :: WaitMode
-    }
-
-
-data EvalCommentsOptions = EvalCommentsOptions
-    { wait :: WaitMode
-    , format :: OutputFormat
-    }
-
-
-data Command
-    = Start
-    | Stop Force
-    | Status StatusOptions
-    | Test TestOptions
-    | UI
-    | Log LogMode
-    | Source [SourceQuery]
-    | Restart Force
-    | EvalComments EvalCommentsOptions
 
 
 runArguments :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
@@ -261,11 +207,4 @@ jsonFormatToggleParser =
 
 
 queryReader :: ReadM SourceQuery
-queryReader = eitherReader $ \s ->
-    let t = toText s
-        (m, rest) = T.break (== '#') t
-    in  Right
-            $ SourceQuery
-                { moduleName = ModuleName m
-                , function = if T.null rest then Nothing else Just (T.tail rest)
-                }
+queryReader = eitherReader $ Right . parseSourceQuery . toText

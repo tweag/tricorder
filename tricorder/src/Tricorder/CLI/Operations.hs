@@ -17,6 +17,7 @@ import Data.Aeson (encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
+import Tricorder.SourceLookup.SourceQuery (SourceQuery)
 
 import Atelier.Effects.Console qualified as Console
 import Data.ByteString.Lazy qualified as BSL
@@ -44,7 +45,6 @@ import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Socket.Client (querySource, queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
-import Tricorder.SourceLookup (SourceQuery)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
