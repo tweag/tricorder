@@ -7,7 +7,9 @@ in
   version = "0.1.0.0";
   synopsis = "Shared domain types for various Tricorder components";
   description = ''
-    Shared domain types for various Tricorder components
+    Shared domain types for various Tricorder components like
+    [Tricorder itself](https://hackage.haskell.org/package/tricorder) and
+    [tricorder-mcp](https://hackage.haskell.org/package/tricorder-mcp).
   '';
   github = "tweag/tricorder";
   category = "Development";
