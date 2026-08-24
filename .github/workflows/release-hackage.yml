@@ -9,11 +9,13 @@ on:
 jobs:
   checks:
     uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   release-hackage-atelier-core:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
+    secrets: inherit
     with:
       package-name: atelier-core
 
@@ -23,6 +25,7 @@ jobs:
       - release-hackage-atelier-core
       - checks
     if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: atelier-prelude
 
@@ -33,6 +36,7 @@ jobs:
       - release-hackage-atelier-prelude
       - checks
     if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: atelier-monitoring
 
@@ -44,17 +48,19 @@ jobs:
       - release-hackage-atelier-prelude
       - release-hackage-atelier-monitoring
     if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: atelier-db
 
   release-hackage-atelier-testing:
+    uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
       - release-hackage-atelier-core
       - release-hackage-atelier-prelude
       - release-hackage-atelier-db
     if: ${{ !failure() && needs.checks.result == 'success' }}
-    uses: ./.github/workflows/release-hackage-package.yml
+    secrets: inherit
     with:
       package-name: atelier-testing
 
@@ -62,6 +68,8 @@ jobs:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
+    if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: tricorder-types
 
@@ -73,6 +81,7 @@ jobs:
       - release-hackage-atelier-prelude
       - release-hackage-tricorder-types
     if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: tricorder
 
@@ -83,5 +92,6 @@ jobs:
       - release-hackage-tricorder
       - release-hackage-tricorder-types
     if: ${{ !failure() && needs.checks.result == 'success' }}
+    secrets: inherit
     with:
       package-name: tricorder-mcp
