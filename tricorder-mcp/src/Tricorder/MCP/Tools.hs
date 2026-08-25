@@ -1,14 +1,11 @@
 module Tricorder.MCP.Tools
     ( Tool (..)
-    , StartOptions (..)
     , StopOptions (..)
     , RestartOptions (..)
     , StatusOptions (..)
     , TestResultsOptions (..)
     , SourceOptions (..)
     , EvalCommentsOptions (..)
-    , LogPathOptions (..)
-    , LogContentsOptions (..)
     , handleTool
     , toolCommand
     , toolDescriptions
@@ -18,44 +15,38 @@ where
 
 import Control.Exception (IOException, try)
 import MCP.Server (ClientContext, Content (..), ToolResult, toolError, toolResult)
+import System.Directory (listDirectory)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
+import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 
 import Data.ByteString.Lazy qualified as BSL
+import Data.List qualified as List
 import Tricorder.CLI.Command qualified as CLI
 
 
 data Tool
-    = Start StartOptions
+    = Start
     | Stop StopOptions
     | Restart RestartOptions
     | Status StatusOptions
     | TestResults TestResultsOptions
     | Source SourceOptions
     | EvalComments EvalCommentsOptions
-    | LogPath LogPathOptions
-    | LogContents LogContentsOptions
+    | LogPath
+    | LogContents
 
 
-newtype StartOptions = StartOptions {directory :: Text}
+newtype StopOptions = StopOptions {force :: Maybe Bool}
 
 
-data StopOptions = StopOptions
-    { directory :: Text
-    , force :: Maybe Bool
-    }
-
-
-data RestartOptions = RestartOptions
-    { directory :: Text
-    , force :: Maybe Bool
-    }
+newtype RestartOptions = RestartOptions {force :: Maybe Bool}
 
 
 data StatusOptions = StatusOptions
-    { directory :: Text
-    , wait :: Maybe Bool
+    { wait :: Maybe Bool
     , json :: Maybe Bool
     , verbose :: Maybe Bool
     , expand :: Maybe Int
@@ -63,29 +54,18 @@ data StatusOptions = StatusOptions
 
 
 data TestResultsOptions = TestResultsOptions
-    { directory :: Text
-    , failed :: Maybe Bool
+    { failed :: Maybe Bool
     , wait :: Maybe Bool
     }
 
 
-data SourceOptions = SourceOptions
-    { directory :: Text
-    , modules :: [Text]
-    }
+newtype SourceOptions = SourceOptions {modules :: [Text]}
 
 
 data EvalCommentsOptions = EvalCommentsOptions
-    { directory :: Text
-    , wait :: Maybe Bool
+    { wait :: Maybe Bool
     , json :: Maybe Bool
     }
-
-
-newtype LogPathOptions = LogPathOptions {directory :: Text}
-
-
-newtype LogContentsOptions = LogContentsOptions {directory :: Text}
 
 
 toolDescriptions :: [(String, String)]
@@ -99,10 +79,6 @@ toolDescriptions =
     , ("EvalComments", "Show eval comments and their evaluated results from the latest build")
     , ("LogPath", "Print the path to the daemon's log file")
     , ("LogContents", "Print the daemon's log output")
-    ,
-        ( "directory"
-        , "Absolute path to the project's working directory (the tricorder daemon is scoped per-directory)"
-        )
     , ("force", "Ignore pending queries instead of waiting for them to finish")
     , ("wait", "Block until the current build cycle finishes before returning")
     , ("json", "Return machine-readable JSON instead of the default text output")
@@ -117,23 +93,16 @@ toolDescriptions =
 -- it in, and the subcommand plus flags to pass. Builds the shared 'CLI.Command'
 -- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
-toolCommand :: Tool -> (Text, [String])
+toolCommand :: Tool -> [String]
 toolCommand = \case
-    (Start (StartOptions {directory})) ->
-        ( directory
-        , CLI.commandToArgs CLI.Start
-        )
-    (Stop (StopOptions {directory, force = doForce})) ->
-        ( directory
-        , CLI.commandToArgs (CLI.Stop (toForce doForce))
-        )
-    (Restart (RestartOptions {directory, force = doForce})) ->
-        ( directory
-        , CLI.commandToArgs (CLI.Restart (toForce doForce))
-        )
-    (Status (StatusOptions {directory, wait, json, verbose, expand})) ->
-        ( directory
-        , CLI.commandToArgs
+    Start ->
+        CLI.commandToArgs CLI.Start
+    (Stop (StopOptions {force = doForce})) ->
+        CLI.commandToArgs (CLI.Stop (toForce doForce))
+    (Restart (RestartOptions {force = doForce})) ->
+        CLI.commandToArgs (CLI.Restart (toForce doForce))
+    (Status (StatusOptions {wait, json, verbose, expand})) ->
+        CLI.commandToArgs
             $ CLI.Status
                 CLI.StatusOptions
                     { wait = toWaitMode wait
@@ -141,29 +110,18 @@ toolCommand = \case
                     , verbosity = toVerbosity verbose
                     , expand
                     }
-        )
-    (TestResults (TestResultsOptions {directory, failed, wait})) ->
-        ( directory
-        , CLI.commandToArgs
+    (TestResults (TestResultsOptions {failed, wait})) ->
+        CLI.commandToArgs
             $ CLI.Test CLI.TestOptions {failedOnly = fromMaybe False failed, wait = toWaitMode wait}
-        )
-    (Source (SourceOptions {directory, modules})) ->
-        ( directory
-        , CLI.commandToArgs (CLI.Source (map parseSourceQuery modules))
-        )
-    (EvalComments (EvalCommentsOptions {directory, wait, json})) ->
-        ( directory
-        , CLI.commandToArgs
+    (Source (SourceOptions {modules})) ->
+        CLI.commandToArgs (CLI.Source (map parseSourceQuery modules))
+    (EvalComments (EvalCommentsOptions {wait, json})) ->
+        CLI.commandToArgs
             $ CLI.EvalComments CLI.EvalCommentsOptions {wait = toWaitMode wait, format = toFormat json}
-        )
-    (LogPath (LogPathOptions {directory})) ->
-        ( directory
-        , CLI.commandToArgs (CLI.Log CLI.ShowLogPath)
-        )
-    (LogContents (LogContentsOptions {directory})) ->
-        ( directory
-        , CLI.commandToArgs (CLI.Log (CLI.ShowLog CLI.NoFollow))
-        )
+    LogPath ->
+        CLI.commandToArgs (CLI.Log CLI.ShowLogPath)
+    LogContents ->
+        CLI.commandToArgs (CLI.Log (CLI.ShowLog CLI.NoFollow))
 
 
 toForce :: Maybe Bool -> CLI.Force
@@ -202,12 +160,35 @@ reportsBuildOutcome _ = False
 -- request.
 handleTool :: ClientContext -> Tool -> IO ToolResult
 handleTool _ tool = do
-    let (directory, args) = toolCommand tool
-    outcome <-
-        try @IOException $ readProcess $ setWorkingDir (toString directory) $ proc "tricorder" args
-    pure $ case outcome of
-        Left ex -> toolError $ "Failed to run tricorder: " <> show ex
-        Right (ExitSuccess, out, _) -> toolResult [ContentText (decodeUtf8 out)]
-        Right (ExitFailure _, out, _) | reportsBuildOutcome tool -> toolResult [ContentText (decodeUtf8 out)]
-        Right (ExitFailure _, out, err) ->
-            toolError $ "tricorder failed: " <> decodeUtf8 (if BSL.null err then out else err)
+    mDir <- projectRoot
+    case mDir of
+        Left err ->
+            pure $ toolError $ "Failed to run tricorder: " <> err
+        Right directory -> do
+            outcome <-
+                try @IOException
+                    $ readProcess
+                    $ setWorkingDir directory
+                    $ proc "tricorder" args
+            pure $ case outcome of
+                Left ex -> toolError $ "Failed to run tricorder: " <> show ex
+                Right (ExitSuccess, out, _) -> toolResult [ContentText (decodeUtf8 out)]
+                Right (ExitFailure _, out, _) | reportsBuildOutcome tool -> toolResult [ContentText (decodeUtf8 out)]
+                Right (ExitFailure _, out, err) ->
+                    toolError $ "tricorder failed: " <> decodeUtf8 (if BSL.null err then out else err)
+  where
+    args = toolCommand tool
+
+
+projectRoot :: IO (Either Text FilePath)
+projectRoot = do
+    claudeDir <- lookupEnv "CLAUDE_PROJECT_DIR"
+    copilotDir <- lookupEnv "COPILOT_CWD"
+    workingDir <- getWorkingDirectory
+    let dir = fromMaybe workingDir $ claudeDir <|> copilotDir
+    files <- listDirectory dir
+    if not (any (\f -> ".cabal" `List.isSuffixOf` f || "cabal.project" `List.isPrefixOf` f) files)
+        then
+            pure $ Left $ "Could not find a `.cabal` file in the resolved project directory: " <> toText dir
+        else
+            pure $ Right dir
