@@ -30,7 +30,6 @@ spec_Tools = do
                     StatusOptions
                         { wait = Just True
                         , verbose = Nothing
-                        , json = Just True
                         , expand = Just 3
                         }
                 )
@@ -51,9 +50,9 @@ spec_Tools = do
 
     describe "reportsBuildOutcome" do
         it "is true for status, test_results and eval_comments" do
-            reportsBuildOutcome (Status (StatusOptions Nothing Nothing Nothing Nothing)) `shouldBe` True
+            reportsBuildOutcome (Status (StatusOptions Nothing Nothing Nothing)) `shouldBe` True
             reportsBuildOutcome (TestResults (TestResultsOptions Nothing Nothing)) `shouldBe` True
-            reportsBuildOutcome (EvalComments (EvalCommentsOptions Nothing Nothing)) `shouldBe` True
+            reportsBuildOutcome (EvalComments (EvalCommentsOptions Nothing)) `shouldBe` True
 
         it "is false for commands whose exit code reflects process failure" do
             reportsBuildOutcome Start `shouldBe` False

@@ -15,6 +15,7 @@ where
 
 import Control.Exception (IOException, try)
 import MCP.Server (ClientContext, Content (..), ToolResult, toolError, toolResult)
+import MCP.Server.Derive (DefinitionOptions (..), defaultDefinitionOptions)
 import System.Directory (listDirectory)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
@@ -47,7 +48,6 @@ newtype RestartOptions = RestartOptions {force :: Maybe Bool}
 
 data StatusOptions = StatusOptions
     { wait :: Maybe Bool
-    , json :: Maybe Bool
     , verbose :: Maybe Bool
     , expand :: Maybe Int
     }
@@ -62,30 +62,99 @@ data TestResultsOptions = TestResultsOptions
 newtype SourceOptions = SourceOptions {modules :: [Text]}
 
 
-data EvalCommentsOptions = EvalCommentsOptions
+newtype EvalCommentsOptions = EvalCommentsOptions
     { wait :: Maybe Bool
-    , json :: Maybe Bool
     }
 
 
-toolDescriptions :: [(String, String)]
+toolDescriptions :: [(String, DefinitionOptions)]
 toolDescriptions =
-    [ ("Start", "Start the tricorder daemon for a project (no-op if already running)")
-    , ("Stop", "Stop the tricorder daemon for a project")
-    , ("Restart", "Restart the tricorder daemon for a project")
-    , ("Status", "Get the current GHCi build status: diagnostics, errors and warnings")
-    , ("TestResults", "Show output from the latest test run")
-    , ("Source", "Print the Haskell source of one or more installed modules")
-    , ("EvalComments", "Show eval comments and their evaluated results from the latest build")
-    , ("LogPath", "Print the path to the daemon's log file")
-    , ("LogContents", "Print the daemon's log output")
-    , ("force", "Ignore pending queries instead of waiting for them to finish")
-    , ("wait", "Block until the current build cycle finishes before returning")
-    , ("json", "Return machine-readable JSON instead of the default text output")
-    , ("verbose", "Include the full GHC message body under each diagnostic")
-    , ("expand", "Only show the summary line and full message body for diagnostic #N")
-    , ("failed", "Only show output from failed test suites")
-    , ("modules", "Module names to look up, e.g. Data.Map.Strict or Data.Map.Strict#insert")
+    [
+        ( "Start"
+        , defaultDefinitionOptions
+            { optDescription = Just "Start the tricorder daemon (no-op if already running)."
+            , optTitle = Just "Start daemon"
+            }
+        )
+    ,
+        ( "Stop"
+        , defaultDefinitionOptions
+            { optDescription = Just "Stop the tricorder daemon."
+            , optTitle = Just "Stop daemon"
+            , optFieldDescriptions =
+                [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                ]
+            }
+        )
+    ,
+        ( "Restart"
+        , defaultDefinitionOptions
+            { optDescription = Just "Restart the tricorder daemon."
+            , optTitle = Just "Restart daemon"
+            , optFieldDescriptions =
+                [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                ]
+            }
+        )
+    ,
+        ( "Status"
+        , defaultDefinitionOptions
+            { optDescription = Just "Get the current GHCi build status: diagnostics, errors and warnings."
+            , optTitle = Just "View built status"
+            , optFieldDescriptions =
+                [ ("wait", "Block until the current build cycle finishes before returning.")
+                , ("verbose", "Include the full GHC message body under each diagnostic.")
+                , ("expand", "Only show the summary line and full message body for diagnostic #N.")
+                ]
+            }
+        )
+    ,
+        ( "TestResults"
+        , defaultDefinitionOptions
+            { optDescription = Just "Show output from the latest test suite runs."
+            , optTitle = Just "View test results"
+            , optFieldDescriptions =
+                [ ("wait", "Block until the current build cycle finishes before returning.")
+                , ("failed", "Only show output from failed test suites.")
+                ]
+            }
+        )
+    ,
+        ( "Source"
+        , defaultDefinitionOptions
+            { optDescription =
+                Just
+                    "Print the Haskell source of one or more installed modules. Prefer this over downloading tarballs."
+            , optTitle = Just "Lookup source"
+            , optFieldDescriptions =
+                [ ("modules", "Module names to look up, e.g. Data.Map.Strict or Data.Map.Strict#insert.")
+                ]
+            }
+        )
+    ,
+        ( "EvalComments"
+        , defaultDefinitionOptions
+            { optDescription = Just "Show eval comments and their evaluated results from the latest build."
+            , optTitle = Just "View eval comments"
+            , optFieldDescriptions =
+                [ ("wait", "Block until the current build cycle finishes before returning.")
+                ]
+            }
+        )
+    ,
+        ( "LogPath"
+        , defaultDefinitionOptions
+            { optDescription = Just "Print the path to the daemon's log file."
+            , optTitle = Just "View log path"
+            }
+        )
+    ,
+        ( "LogContents"
+        , defaultDefinitionOptions
+            { optDescription = Just "Print the daemon's log output."
+            , optTitle = Just "View log contents"
+            }
+        )
     ]
 
 
@@ -94,34 +163,40 @@ toolDescriptions =
 -- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
 toolCommand :: Tool -> [String]
-toolCommand = \case
-    Start ->
-        CLI.commandToArgs CLI.Start
-    (Stop (StopOptions {force = doForce})) ->
-        CLI.commandToArgs (CLI.Stop (toForce doForce))
-    (Restart (RestartOptions {force = doForce})) ->
-        CLI.commandToArgs (CLI.Restart (toForce doForce))
-    (Status (StatusOptions {wait, json, verbose, expand})) ->
-        CLI.commandToArgs
-            $ CLI.Status
+toolCommand =
+    CLI.commandToArgs . \case
+        Start ->
+            CLI.Start
+        (Stop (StopOptions {force = doForce})) ->
+            CLI.Stop $ toForce doForce
+        (Restart (RestartOptions {force = doForce})) ->
+            CLI.Restart $ toForce doForce
+        (Status (StatusOptions {wait, verbose, expand})) ->
+            CLI.Status
                 CLI.StatusOptions
                     { wait = toWaitMode wait
-                    , format = toFormat json
+                    , format = CLI.JsonOutput
                     , verbosity = toVerbosity verbose
                     , expand
                     }
-    (TestResults (TestResultsOptions {failed, wait})) ->
-        CLI.commandToArgs
-            $ CLI.Test CLI.TestOptions {failedOnly = fromMaybe False failed, wait = toWaitMode wait}
-    (Source (SourceOptions {modules})) ->
-        CLI.commandToArgs (CLI.Source (map parseSourceQuery modules))
-    (EvalComments (EvalCommentsOptions {wait, json})) ->
-        CLI.commandToArgs
-            $ CLI.EvalComments CLI.EvalCommentsOptions {wait = toWaitMode wait, format = toFormat json}
-    LogPath ->
-        CLI.commandToArgs (CLI.Log CLI.ShowLogPath)
-    LogContents ->
-        CLI.commandToArgs (CLI.Log (CLI.ShowLog CLI.NoFollow))
+        (TestResults (TestResultsOptions {failed, wait})) ->
+            CLI.Test
+                CLI.TestOptions
+                    { failedOnly = fromMaybe False failed
+                    , wait = toWaitMode wait
+                    }
+        (Source (SourceOptions {modules})) ->
+            CLI.Source $ parseSourceQuery <$> modules
+        (EvalComments (EvalCommentsOptions {wait})) ->
+            CLI.EvalComments
+                CLI.EvalCommentsOptions
+                    { wait = toWaitMode wait
+                    , format = CLI.JsonOutput
+                    }
+        LogPath ->
+            CLI.Log CLI.ShowLogPath
+        LogContents ->
+            CLI.Log $ CLI.ShowLog CLI.NoFollow
 
 
 toForce :: Maybe Bool -> CLI.Force
@@ -130,10 +205,6 @@ toForce = maybe CLI.NoForce (\enabled -> if enabled then CLI.Force else CLI.NoFo
 
 toWaitMode :: Maybe Bool -> CLI.WaitMode
 toWaitMode = maybe CLI.ShowCurrent (\enabled -> if enabled then CLI.WaitForBuild else CLI.ShowCurrent)
-
-
-toFormat :: Maybe Bool -> CLI.OutputFormat
-toFormat = maybe CLI.TextOutput (\enabled -> if enabled then CLI.JsonOutput else CLI.TextOutput)
 
 
 toVerbosity :: Maybe Bool -> CLI.Verbosity
