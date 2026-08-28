@@ -9,6 +9,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ### Added
 
+- The daemon now shuts itself down after a period of inactivity, configurable
+  with `idle_timeout_seconds` (defaults to 300 seconds; `0` disables it). Any
+  client request resets the countdown, and a `tricorder ui` client's
+  long-lived watch connection counts as continuous activity for as long as
+  it's connected. See [Configuring Tricorder](/docs/configuring-tricorder.md)
+  for more information.
 - Use the `test_memory_limit` configuration value to specify the maximum memory
   a test suite is allowed to consume. This is enforced through GHC's `-M` RTS
   option.

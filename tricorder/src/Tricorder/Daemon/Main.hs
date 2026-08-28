@@ -33,6 +33,7 @@ import Tricorder.Logging (runLogging)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session (inputSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
+import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 import Tricorder.SourceLookup.PackageId (PackageId)
@@ -41,6 +42,7 @@ import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
+import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Session.Command qualified as Repl
 import Tricorder.Socket.Server qualified as Server
@@ -88,6 +90,9 @@ main =
         . Input.fromState @BuildId
         . evalState Repl.Unknown
         . Input.fromState @Repl.Repl
+        . evalState @IdleTimeout def
+        . Input.fromState @IdleTimeout
+        . IdleTimer.quitOnTimeout
         . runPubSub @BuildPhase
         . Hpack.run
         . Hackage.run
