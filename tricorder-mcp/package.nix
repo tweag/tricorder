@@ -51,10 +51,12 @@ in
         "atelier-core"
         "atelier-prelude"
         "bytestring"
+        "directory"
         "mcp-server"
         "process"
         "tricorder-types"
         "typed-process"
+        "unix"
       ];
     };
   };
