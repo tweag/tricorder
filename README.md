@@ -1,17 +1,16 @@
 # Tricorder
 
-`tricorder` aims to empower users developing programs with Haskell and LLM
+Tricorder aims to empower users developing programs with Haskell and LLM
 coding agents. It does so by providing operations to surface the right
 information required at a given stage: documentation, build status,
 diagnostics, etc.
 
-
 > ℹ️ More information about how to use `tricorder` can be found in [this presentation](https://youtu.be/vDmyl0ZJRF8?t=4815)
-for the Haskell Foundation's "Haskell and AI Workshop".
+> for the Haskell Foundation's "Haskell and AI Workshop".
 
 Like similar tools (`ghcid`, `ghciwatch`), it builds the code continuously on
 every change, presents diagnostics, and runs the tests afterwards. However,
-`tricorder` offers other advantages:
+Tricorder offers other advantages:
 
 - **Designed for humans** - A `tricorder ui` interactive TUI mode that presents
   stats in real time for developers.
@@ -30,7 +29,7 @@ every change, presents diagnostics, and runs the tests afterwards. However,
     - Optional config includes which cabal packages to watch, which exact
       command to use to enter a GHCi session, [customizable key
       bindings](#custom-key-bindings), etc.
-- **Multi-package projects** - In a `cabal.project` workspace, `tricorder`
+- **Multi-package projects** - In a `cabal.project` workspace, Tricorder
   discovers every package's components automatically, building and running
   tests across all of them — no manual target configuration needed.
 - **Project context** - Tools like `tricorder source Some.Module` will attempt
@@ -42,36 +41,40 @@ every change, presents diagnostics, and runs the tests afterwards. However,
 For a deeper guide on the various features of Tricorder, see [Features of
 Tricorder](./docs/features-of-tricorder.md).
 
-## Installing with cabal
+## Usage
 
-`tricorder` is published on
-[Hackage](https://hackage.haskell.org/package/tricorder). With a GHC and
-`cabal` toolchain available, install the executable from source:
+With the `tricorder` CLI in your path, start the Tricorder daemon either
+explicitly with `tricorder start` or automatically by just running `tricorder
+ui`, which will start the daemon if it's not already running and show you the
+TUI.
+
+For using Tricorder with Claude Code, see [Using with Claude Code](/docs/using-with-claude-code.md).
+
+## Installation
+
+Tricorder is supported on both Linux and macOS.
+
+Tricorder is published on both on [Hackage][hackage-package] and on
+[Stackage][stackage-package] from
+[Stackage Nightly 2026-08-19][stackage-nightly-2026-08-19] and onwards, so you
+may install it using either `cabal` or `stack`, whichever is your preference:
 
 ```bash
-cabal update
 cabal install tricorder
+# Or
+stack install tricorder
 ```
 
-This builds and installs the `tricorder` binary into cabal's install directory
-(typically `~/.local/bin`, or `~/.cabal/bin` on older setups); make sure it is
-on your `PATH`.
+Tricorder is also released as [pre-built binaries on GitHub][github-releases].
 
-`tricorder` runs on both Linux and macOS.
+To install and use Tricorder in your NixOS configuration, see [Using with
+Nix](/docs/using-with-nix.md).
 
 ### GHC 9.14 support
 
 Currently, multiple of our dependencies do not support GHC 9.14, and as such we
 are not able to officially support 9.14 just yet. But stay tuned, as we are
 eager to utilize [the new multi-home features](https://www.youtube.com/watch?v=0tOciI7lMEE)!
-
-## Using with Nix
-
-See [Using with Nix](./docs/using-with-nix.md)
-
-## Using with Claude Code
-
-See [Using with Claude Code](./docs/using-with-claude-code.md)
 
 ## Configuring
 
@@ -118,3 +121,8 @@ rename it. See [`templates/canvas`](templates/canvas) for the full layout. The
 template is exercised in CI against both the released Atelier packages and this
 repo's in-development sources (`canvas-hackage` / `canvas-local` in
 `nix/template-checks.nix`).
+
+[hackage-package]: https://hackage.haskell.org/package/tricorder
+[stackage-package]: https://www.stackage.org/nightly-2026-08-31/package/tricorder-0.2.1.0
+[stackage-nightly-2026-08-19]: https://www.stackage.org/nightly-2026-08-19
+[github-releases]: https://github.com/tweag/tricorder/releases
