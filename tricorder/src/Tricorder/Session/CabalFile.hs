@@ -109,7 +109,13 @@ projectPackageEntries contents =
         Left _ -> []
         Right fields -> filter (notElem '*') $ concatMap fromField fields
   where
-    fromField (Field (Name _ name) fieldLines)
-        | name == "packages" = concatMap fromLine fieldLines
-    fromField _ = []
-    fromLine (FieldLine _ bs) = map BC.unpack (BC.words bs)
+    fromField = \case
+        (Field (Name _ name) fieldLines)
+            | name == "packages" -> concatMap fromLine fieldLines
+            | otherwise -> []
+        _ -> []
+    fromLine (FieldLine _ bs) =
+        fmap BC.unpack $ filter (not . BC.null) $ BC.words $ BC.map dropComma bs
+
+    dropComma ',' = ' '
+    dropComma c = c

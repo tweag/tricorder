@@ -2,6 +2,7 @@ module Unit.Tricorder.Session.Helpers
     ( multiCabalFiles
     , singleCabalFile
     , multiPackageFs
+    , multiPackageCabalFs
     , preludeOnlyLibCabal
     , libWithPreludeCabal
     , libTestCabal
