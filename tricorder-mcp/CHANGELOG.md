@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.1.1.0] - 2026-09-01
+
 ### Changed
 
 - `tricorder-mcp` no longer requires the agent to pass the directory of the
