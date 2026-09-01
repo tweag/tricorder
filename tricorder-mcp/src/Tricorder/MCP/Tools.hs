@@ -1,11 +1,14 @@
 module Tricorder.MCP.Tools
     ( Tool (..)
+    , StartOptions (..)
     , StopOptions (..)
     , RestartOptions (..)
     , StatusOptions (..)
     , TestResultsOptions (..)
     , SourceOptions (..)
     , EvalCommentsOptions (..)
+    , LogPathOptions (..)
+    , LogContentsOptions (..)
     , handleTool
     , toolCommand
     , toolDescriptions
@@ -22,6 +25,7 @@ import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
+import Prelude hiding (force)
 
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
@@ -29,41 +33,66 @@ import Tricorder.CLI.Command qualified as CLI
 
 
 data Tool
-    = Start
+    = Start StartOptions
     | Stop StopOptions
     | Restart RestartOptions
     | Status StatusOptions
     | TestResults TestResultsOptions
     | Source SourceOptions
     | EvalComments EvalCommentsOptions
-    | LogPath
-    | LogContents
+    | LogPath LogPathOptions
+    | LogContents LogContentsOptions
 
 
-newtype StopOptions = StopOptions {force :: Maybe Bool}
+newtype StartOptions = StartOptions {projectRoot :: Maybe Text}
 
 
-newtype RestartOptions = RestartOptions {force :: Maybe Bool}
+data StopOptions = StopOptions
+    { force :: Maybe Bool
+    , projectRoot :: Maybe Text
+    }
+
+
+data RestartOptions = RestartOptions
+    { force :: Maybe Bool
+    , projectRoot :: Maybe Text
+    }
 
 
 data StatusOptions = StatusOptions
     { wait :: Maybe Bool
     , verbose :: Maybe Bool
     , expand :: Maybe Int
+    , projectRoot :: Maybe Text
     }
 
 
 data TestResultsOptions = TestResultsOptions
     { failed :: Maybe Bool
     , wait :: Maybe Bool
+    , projectRoot :: Maybe Text
     }
 
 
-newtype SourceOptions = SourceOptions {modules :: [Text]}
+data SourceOptions = SourceOptions
+    { modules :: [Text]
+    , projectRoot :: Maybe Text
+    }
 
 
-newtype EvalCommentsOptions = EvalCommentsOptions
+data EvalCommentsOptions = EvalCommentsOptions
     { wait :: Maybe Bool
+    , projectRoot :: Maybe Text
+    }
+
+
+newtype LogPathOptions = LogPathOptions
+    { projectRoot :: Maybe Text
+    }
+
+
+newtype LogContentsOptions = LogContentsOptions
+    { projectRoot :: Maybe Text
     }
 
 
@@ -74,6 +103,7 @@ toolDescriptions =
         , defaultDefinitionOptions
             { optDescription = Just "Start the tricorder daemon (no-op if already running)."
             , optTitle = Just "Start daemon"
+            , optFieldDescriptions = [projectRootDesc]
             }
         )
     ,
@@ -83,6 +113,7 @@ toolDescriptions =
             , optTitle = Just "Stop daemon"
             , optFieldDescriptions =
                 [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                , projectRootDesc
                 ]
             }
         )
@@ -93,6 +124,7 @@ toolDescriptions =
             , optTitle = Just "Restart daemon"
             , optFieldDescriptions =
                 [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                , projectRootDesc
                 ]
             }
         )
@@ -105,6 +137,7 @@ toolDescriptions =
                 [ ("wait", "Block until the current build cycle finishes before returning.")
                 , ("verbose", "Include the full GHC message body under each diagnostic.")
                 , ("expand", "Only show the summary line and full message body for diagnostic #N.")
+                , projectRootDesc
                 ]
             }
         )
@@ -116,6 +149,7 @@ toolDescriptions =
             , optFieldDescriptions =
                 [ ("wait", "Block until the current build cycle finishes before returning.")
                 , ("failed", "Only show output from failed test suites.")
+                , projectRootDesc
                 ]
             }
         )
@@ -128,6 +162,7 @@ toolDescriptions =
             , optTitle = Just "Lookup source"
             , optFieldDescriptions =
                 [ ("modules", "Module names to look up, e.g. Data.Map.Strict or Data.Map.Strict#insert.")
+                , projectRootDesc
                 ]
             }
         )
@@ -138,6 +173,7 @@ toolDescriptions =
             , optTitle = Just "View eval comments"
             , optFieldDescriptions =
                 [ ("wait", "Block until the current build cycle finishes before returning.")
+                , projectRootDesc
                 ]
             }
         )
@@ -146,6 +182,7 @@ toolDescriptions =
         , defaultDefinitionOptions
             { optDescription = Just "Print the path to the daemon's log file."
             , optTitle = Just "View log path"
+            , optFieldDescriptions = [projectRootDesc]
             }
         )
     ,
@@ -153,50 +190,66 @@ toolDescriptions =
         , defaultDefinitionOptions
             { optDescription = Just "Print the daemon's log output."
             , optTitle = Just "View log contents"
+            , optFieldDescriptions = [projectRootDesc]
             }
         )
     ]
+  where
+    projectRootDesc =
+        ( "projectRoot"
+        , "Optional directory of the project wherein to run the Tricorder\
+          \commands. Usually where the `cabal.project`, `.cabal` file or\
+          \`package.yaml` lives. Defaults to the current working directory."
+        )
 
 
 -- | The @tricorder@ invocation for a tool call: the project directory to run
 -- it in, and the subcommand plus flags to pass. Builds the shared 'CLI.Command'
 -- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
-toolCommand :: Tool -> [String]
-toolCommand =
-    CLI.commandToArgs . \case
-        Start ->
-            CLI.Start
-        (Stop (StopOptions {force = doForce})) ->
-            CLI.Stop $ toForce doForce
-        (Restart (RestartOptions {force = doForce})) ->
-            CLI.Restart $ toForce doForce
-        (Status (StatusOptions {wait, verbose, expand})) ->
-            CLI.Status
+toolCommand :: Tool -> (Maybe Text, [String])
+toolCommand = \case
+    Start (StartOptions {projectRoot}) ->
+        (projectRoot, CLI.commandToArgs CLI.Start)
+    (Stop (StopOptions {force, projectRoot})) ->
+        (projectRoot, CLI.commandToArgs $ CLI.Stop $ toForce force)
+    (Restart (RestartOptions {force, projectRoot})) ->
+        (projectRoot, CLI.commandToArgs $ CLI.Restart $ toForce force)
+    (Status (StatusOptions {wait, verbose, expand, projectRoot})) ->
+        ( projectRoot
+        , CLI.commandToArgs
+            $ CLI.Status
                 CLI.StatusOptions
                     { wait = toWaitMode wait
                     , format = CLI.JsonOutput
                     , verbosity = toVerbosity verbose
                     , expand
                     }
-        (TestResults (TestResultsOptions {failed, wait})) ->
-            CLI.Test
+        )
+    (TestResults (TestResultsOptions {failed, wait, projectRoot})) ->
+        ( projectRoot
+        , CLI.commandToArgs
+            $ CLI.Test
                 CLI.TestOptions
                     { failedOnly = fromMaybe False failed
                     , wait = toWaitMode wait
                     }
-        (Source (SourceOptions {modules})) ->
-            CLI.Source $ parseSourceQuery <$> modules
-        (EvalComments (EvalCommentsOptions {wait})) ->
-            CLI.EvalComments
+        )
+    (Source (SourceOptions {modules, projectRoot})) ->
+        (projectRoot, CLI.commandToArgs $ CLI.Source $ parseSourceQuery <$> modules)
+    (EvalComments (EvalCommentsOptions {wait, projectRoot})) ->
+        ( projectRoot
+        , CLI.commandToArgs
+            $ CLI.EvalComments
                 CLI.EvalCommentsOptions
                     { wait = toWaitMode wait
                     , format = CLI.JsonOutput
                     }
-        LogPath ->
-            CLI.Log CLI.ShowLogPath
-        LogContents ->
-            CLI.Log $ CLI.ShowLog CLI.NoFollow
+        )
+    LogPath (LogPathOptions {projectRoot}) ->
+        (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLogPath)
+    LogContents (LogContentsOptions {projectRoot}) ->
+        (projectRoot, CLI.commandToArgs $ CLI.Log $ CLI.ShowLog CLI.NoFollow)
 
 
 toForce :: Maybe Bool -> CLI.Force
@@ -231,7 +284,9 @@ reportsBuildOutcome _ = False
 -- request.
 handleTool :: ClientContext -> Tool -> IO ToolResult
 handleTool _ tool = do
-    mDir <- projectRoot
+    mDir <- case passedDir of
+        Just dir -> pure $ Right $ toString dir
+        Nothing -> getProjectRoot
     case mDir of
         Left err ->
             pure $ toolError $ "Failed to run tricorder: " <> err
@@ -248,11 +303,11 @@ handleTool _ tool = do
                 Right (ExitFailure _, out, err) ->
                     toolError $ "tricorder failed: " <> decodeUtf8 (if BSL.null err then out else err)
   where
-    args = toolCommand tool
+    (passedDir, args) = toolCommand tool
 
 
-projectRoot :: IO (Either Text FilePath)
-projectRoot = do
+getProjectRoot :: IO (Either Text FilePath)
+getProjectRoot = do
     claudeDir <- lookupEnv "CLAUDE_PROJECT_DIR"
     copilotDir <- lookupEnv "COPILOT_CWD"
     workingDir <- getWorkingDirectory
