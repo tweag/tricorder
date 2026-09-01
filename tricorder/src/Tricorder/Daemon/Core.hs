@@ -20,6 +20,7 @@ import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
 import System.FilePath ((</>))
+import Text.Regex.TDFA.Pattern (showPattern)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem qualified as FileSystem
@@ -28,6 +29,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing.Pub qualified as Pub
 import Atelier.Effects.Publishing.Sub qualified as Sub
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
@@ -64,8 +66,11 @@ import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..), Repl)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
+import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
-import Tricorder.Session.TestTimeout (TestTimeout)
+import Tricorder.Session.TestTimeout (TestTimeout (..))
+import Tricorder.Session.WatchDirs (WatchDirs (..))
+import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..))
 import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build qualified as Build
@@ -77,7 +82,10 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
+import Tricorder.Session.Command qualified as Command
 import Tricorder.Session.Hooks qualified as Hooks
+import Tricorder.Session.Target qualified as Target
+import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
 
 
@@ -124,6 +132,8 @@ main = runPubSub @ReloadSession
     $ Conc.restartableFork waitForReloadSession do
         root <- Reader.ask
         session <- loadSession
+        logSession session
+
         State.put session.command.repl
         Conc.fork_ $ watchConfigFile root
         conditionallyWatchStackYaml root
@@ -446,3 +456,28 @@ newLoadResultToBuildResult session newLoadResult = do
                     s.diagnosticMap
                     newLoadResult
         in  (buildResult, s {diagnosticMap = newDiagnosticMap})
+
+
+logSession :: (Log :> es) => Session -> Eff es ()
+logSession session =
+    Log.info
+        $ T.intercalate
+            "\n"
+            [ "Loaded session"
+            , "Command: " <> Command.render session.command
+            , "Targets:"
+            , showList Target.renderTarget session.targets
+            , "Test targets:"
+            , showList TestTarget.renderTestTarget session.testTargets
+            , "Watch dirs:"
+            , showList toText session.watchDirs.getWatchDirs
+            , "Watch exclusion patterns:"
+            , showList (toText . showPattern . fst) session.watchExclusionPatterns.getWatchExclusionPatterns
+            , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
+            , -- TODO: Remove " seconds" when TestTimeout is converted to a proper time unit.
+              "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
+            , "Test memory limit: " <> show session.testMemoryLimit
+            , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
+            ]
+  where
+    showList f = T.intercalate "\n" . fmap (("- " <>) . f)
