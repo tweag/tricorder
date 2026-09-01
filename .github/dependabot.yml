@@ -11,6 +11,8 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
+    commit-message:
+      prefix: actions
   - package-ecosystem: "nix"
     directory: "/"
     schedule:
@@ -22,6 +24,8 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
+    commit-message:
+      prefix: nix inputs
   - package-ecosystem: "nix"
     directory: "/templates/canvas"
     schedule:
@@ -33,3 +37,5 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
+    commit-message:
+      prefix: "canvas: nix inputs"
