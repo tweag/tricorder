@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Reintroduce project root argument, but as an optional argument, defaulting to
+  using the current working directory. This allows the agent to control
+  multiple Tricorder sessions at the same time.
+
 ## [0.1.1.0] - 2026-09-01
 
 ### Changed
