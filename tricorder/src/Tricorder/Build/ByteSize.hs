@@ -12,9 +12,15 @@ import Text.Megaparsec.Char (space, string')
 import Text.Megaparsec.Char.Lexer (decimal)
 import Prelude hiding (toText)
 
+import Text.Show qualified as S
+
 
 data ByteSize = ByteSize {amount :: Integer, unit :: Unit}
-    deriving stock (Eq, Generic, Ord, Show)
+    deriving stock (Eq, Generic, Ord)
+
+
+instance Show ByteSize where
+    show ByteSize {amount, unit} = show amount <> show unit
 
 
 data Unit
