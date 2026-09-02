@@ -1,0 +1,29 @@
+{
+  "name": "tricorder",
+  "plugins": [
+    {
+      "name": "tricorder",
+      "source": {
+        "source": "local",
+        "path": "./agent-plugins/tricorder"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "development"
+    },
+    {
+      "name": "tricorder-mcp",
+      "source": {
+        "source": "local",
+        "path": "./agent-plugins/tricorder-mcp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "development"
+    }
+  ]
+}
