@@ -5,13 +5,13 @@ import Atelier.Effects.FileSystem (runFileSystemState)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList)
 
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (discoverCabalFiles)
-import Unit.Tricorder.Session.Helpers (cabalFixture, libTestCabal, multiPackageFs)
+import Unit.Tricorder.Session.Helpers (cabalFixture, multiPackageCabalFs, multiPackageFs)
 
 
 spec_CabalFile :: Spec
@@ -49,7 +49,7 @@ testDiscoverCabalFiles = do
                         [ ("/cabal.project.local", "packages: pkg-a\n")
                         , ("/cabal.project", "packages: pkg-b\n")
                         ]
-                        `Map.union` multiPackageCabalFiles
+                        `Map.union` multiPackageCabalFs
                 actual = runDiscovery fs [] discoverCabalFiles
             actual `shouldBe` ["/pkg-a/pkg-a.cabal"]
 
@@ -59,7 +59,7 @@ testDiscoverCabalFiles = do
                         [ ("/cabal.project.freeze", "packages: pkg-a\n")
                         , ("/cabal.project", "packages: pkg-b\n")
                         ]
-                        `Map.union` multiPackageCabalFiles
+                        `Map.union` multiPackageCabalFs
                 actual = runDiscovery fs [] discoverCabalFiles
             actual `shouldBe` ["/pkg-a/pkg-a.cabal"]
 
@@ -70,7 +70,7 @@ testDiscoverCabalFiles = do
                             [ ("/cabal.project.local", "tests: True\n")
                             , ("/cabal.project", "packages: pkg-b\n")
                             ]
-                            `Map.union` multiPackageCabalFiles
+                            `Map.union` multiPackageCabalFs
                     actual = runDiscovery fs [] discoverCabalFiles
                 actual `shouldBe` ["/pkg-b/pkg-b.cabal"]
 
@@ -90,7 +90,7 @@ testDiscoverCabalFiles = do
             it "uses $HOME/.cabal/config as a last-resort packages source" do
                 let fs =
                         Map.singleton "/home/user/.cabal/config" "packages: pkg-a\n"
-                            `Map.union` multiPackageCabalFiles
+                            `Map.union` multiPackageCabalFs
                     actual = runDiscovery fs [("HOME", "/home/user")] discoverCabalFiles
                 actual `shouldBe` ["/pkg-a/pkg-a.cabal"]
 
@@ -103,13 +103,17 @@ testDiscoverCabalFiles = do
                             ]
                     actual = runDiscovery fs [("HOME", "/home/user")] discoverCabalFiles
                 actual `shouldBe` ["/myapp.cabal"]
+
+    describe "packages: single-line list" do
+        describe "when package list is comma-separated" do
+            it "parses package names correctly" do
+                let fs =
+                        Map.singleton "/cabal.project" "packages: pkg-a, pkg-b\n"
+                            `Map.union` multiPackageCabalFs
+                    actual = runDiscovery fs [] discoverCabalFiles
+                actual `shouldMatchList` ["/pkg-a/pkg-a.cabal", "/pkg-b/pkg-b.cabal"]
   where
     pr = ProjectRoot "/"
-    multiPackageCabalFiles =
-        Map.fromList
-            [ ("/pkg-a/pkg-a.cabal", libTestCabal "pkg-a")
-            , ("/pkg-b/pkg-b.cabal", libTestCabal "pkg-b")
-            ]
     runDiscovery fs env =
         runPureEff
             . runEnvConst env
