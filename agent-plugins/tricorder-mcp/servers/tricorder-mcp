@@ -3,15 +3,17 @@
 # Wrapper that downloads and caches the tricorder-mcp binary from GitHub
 # releases (https://github.com/tweag/tricorder/releases), then execs it.
 #
-# The binary is cached under ${CLAUDE_PLUGIN_DATA}/servers so it survives
-# plugin updates. Once a day it checks GitHub for a newer tricorder-mcp
-# release and re-downloads if one is available; on any network failure it
-# falls back to the cached binary, if there is one.
+# The binary is cached under ${CLAUDE_PLUGIN_DATA}/servers (or
+# ${PLUGIN_DATA}/servers, for agent harnesses that use the generic
+# agent-plugins.org variable name instead) so it survives plugin updates.
+# Once a day it checks GitHub for a newer tricorder-mcp release and
+# re-downloads if one is available; on any network failure it falls back to
+# the cached binary, if there is one.
 
 set -uo pipefail
 
 REPO="tweag/tricorder"
-DATA_DIR="${CLAUDE_PLUGIN_DATA:?CLAUDE_PLUGIN_DATA is not set}/servers"
+DATA_DIR="${CLAUDE_PLUGIN_DATA:-${PLUGIN_DATA:?Neither CLAUDE_PLUGIN_DATA nor PLUGIN_DATA is set}}/servers"
 BIN_PATH="$DATA_DIR/tricorder-mcp"
 VERSION_FILE="$DATA_DIR/tricorder-mcp.version"
 LAST_CHECK_FILE="$DATA_DIR/tricorder-mcp.last-check"

@@ -48,7 +48,8 @@ explicitly with `tricorder start` or automatically by just running `tricorder
 ui`, which will start the daemon if it's not already running and show you the
 TUI.
 
-For using Tricorder with Claude Code, see [Using with Claude Code](/docs/using-with-claude-code.md).
+For using Tricorder with Claude Code, Copilot, or another coding agent, see
+[Using with coding agents](/docs/using-with-coding-agents.md).
 
 ## Installation
 

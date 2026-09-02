@@ -1,0 +1,8 @@
+{
+  "name": "tricorder-mcp",
+  "description": "Daemon-based GHCi build status monitor for Haskell projects, using an MCP server",
+  "version": "0.1.0",
+  "keywords": ["haskell", "ghci", "build", "diagnostics"],
+  "skills": "./skills/",
+  "mcpServers": "./.codex-plugin/mcp.json"
+}
