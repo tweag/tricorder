@@ -54,7 +54,6 @@ jobs:
         with:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
-            allow-unfree = true
             experimental-features = nix-command flakes
             accept-flake-config = true
             extra-substituters = https://cache.iog.io
@@ -63,7 +62,7 @@ jobs:
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
-      - run: nix build '.#legacyChecks.${{ matrix.system }}.${{ matrix.ghc-version }}.all' -L
+      - run: NIXPKGS_ALLOW_UNFREE=1 nix build --impure '.#legacyChecks.${{ matrix.system }}.${{ matrix.ghc-version }}.all' -L
 
   results:
     name: Results
