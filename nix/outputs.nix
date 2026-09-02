@@ -35,12 +35,6 @@ let
 
   inherit (pkgs) lib;
 
-  # Observability stack (Prometheus, Grafana, Tempo, Loki, Node Exporter)
-  observability = import ./observability {
-    inherit pkgs lib;
-    config = "config/tricorder.yaml";
-  };
-
   # The cabal executable is named `tricorder`, so it can be consumed directly.
   tricorder = projectFlake.packages."tricorder:exe:tricorder";
 
@@ -207,7 +201,7 @@ in
   };
 
   # Custom apps
-  apps = observability.apps // {
+  apps = {
     tricorder = {
       type = "app";
       program = "${tricorder}/bin/tricorder";
