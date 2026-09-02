@@ -2,6 +2,5 @@
   "name": "tricorder",
   "description": "Daemon-based GHCi build status monitor for Haskell projects",
   "version": "0.1.0",
-  "keywords": ["haskell", "ghci", "build", "diagnostics"],
-  "skills": "./skills/"
+  "keywords": ["haskell", "ghci", "build", "diagnostics"]
 }
