@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+#
+# Wrapper that downloads and caches the tricorder-mcp binary from GitHub
+# releases (https://github.com/tweag/tricorder/releases), then execs it.
+#
+# The binary is cached under ${CLAUDE_PLUGIN_DATA}/servers so it survives
+# plugin updates. Once a day it checks GitHub for a newer tricorder-mcp
+# release and re-downloads if one is available; on any network failure it
+# falls back to the cached binary, if there is one.
+
+set -uo pipefail
+
+REPO="tweag/tricorder"
+DATA_DIR="${CLAUDE_PLUGIN_DATA:?CLAUDE_PLUGIN_DATA is not set}/servers"
+BIN_PATH="$DATA_DIR/tricorder-mcp"
+VERSION_FILE="$DATA_DIR/tricorder-mcp.version"
+LAST_CHECK_FILE="$DATA_DIR/tricorder-mcp.last-check"
+CHECK_INTERVAL_SECS=$((24 * 60 * 60))
+
+mkdir -p "$DATA_DIR"
+
+have() {
+  command -v "$1" > /dev/null 2>&1
+}
+
+can_self_update() {
+  have curl && have gunzip
+}
+
+detect_asset() {
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) echo "x86_64-linux" ;;
+    Darwin-arm64 | Darwin-aarch64) echo "aarch64-darwin" ;;
+    *)
+      echo "tricorder-mcp: unsupported platform '$(uname -s)-$(uname -m)'; no prebuilt binary is published for it." >&2
+      echo "Build tricorder-mcp from source (https://github.com/$REPO) and point the tricorder MCP server's command at the built binary." >&2
+      return 1
+      ;;
+  esac
+}
+
+latest_version() {
+  curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null \
+    | grep -m1 -oE '"tag_name": *"tricorder-mcp-[^"]+"' \
+    | sed -E 's/.*"tricorder-mcp-([^"]+)"/\1/'
+}
+
+download() {
+  local version="$1" asset="$2" tmp
+  tmp="$(mktemp "$DATA_DIR/tricorder-mcp.XXXXXX")" || return 1
+  if curl -fsSL "https://github.com/$REPO/releases/download/tricorder-mcp-$version/tricorder-mcp_$asset.gz" | gunzip -c > "$tmp"; then
+    chmod +x "$tmp"
+    mv "$tmp" "$BIN_PATH"
+    echo "$version" > "$VERSION_FILE"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+should_check_for_update() {
+  [ ! -x "$BIN_PATH" ] && return 0
+  [ ! -f "$LAST_CHECK_FILE" ] && return 0
+  local last now
+  last="$(cat "$LAST_CHECK_FILE" 2> /dev/null || echo 0)"
+  now="$(date +%s)"
+  [ $((now - last)) -ge "$CHECK_INTERVAL_SECS" ]
+}
+
+asset="$(detect_asset)" || exit 1
+
+if can_self_update; then
+  if should_check_for_update; then
+    latest="$(latest_version)"
+    if [ -n "$latest" ]; then
+      date +%s > "$LAST_CHECK_FILE"
+      current="$(cat "$VERSION_FILE" 2> /dev/null || echo "")"
+      if [ "$latest" != "$current" ] || [ ! -x "$BIN_PATH" ]; then
+        echo "tricorder-mcp: installing version $latest..." >&2
+        download "$latest" "$asset" || echo "tricorder-mcp: failed to download version $latest; using cached binary if available" >&2
+      fi
+    elif [ ! -x "$BIN_PATH" ]; then
+      echo "tricorder-mcp: could not reach GitHub to fetch tricorder-mcp and no cached binary is available" >&2
+    fi
+  fi
+elif [ ! -x "$BIN_PATH" ]; then
+  echo "tricorder-mcp: curl and gunzip are required to download tricorder-mcp, but were not found in PATH." >&2
+  echo "Install curl and gzip (which provides gunzip), or build tricorder-mcp from source (https://github.com/$REPO) and place the executable at $BIN_PATH." >&2
+  exit 1
+else
+  echo "tricorder-mcp: curl and/or gunzip not found in PATH; skipping update check and using the cached binary." >&2
+fi
+
+if [ ! -x "$BIN_PATH" ]; then
+  echo "tricorder-mcp: no binary available" >&2
+  exit 1
+fi
+
+exec "$BIN_PATH" "$@"

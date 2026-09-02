@@ -1,17 +1,21 @@
 {
-  "name": "atelier",
+  "name": "tricorder",
   "metadata": {
-    "description": "Atelier plugin marketplace"
+    "description": "Tricorder plugin marketplace"
   },
   "owner": {
-    "name": "atelier"
+    "name": "tweag"
   },
   "plugins": [
     {
       "name": "tricorder",
       "source": "./.claude-plugin/tricorder",
-      "description": "Daemon-based GHCi build status monitor for Haskell projects",
-      "version": "0.1.0"
+      "description": "Daemon-based GHCi build status monitor for Haskell projects"
+    },
+    {
+      "name": "tricorder-mcp",
+      "source": "./.claude-plugin/tricorder-mcp",
+      "description": "Daemon-based GHCi build status monitor for Haskell projects, using an MCP server"
     }
   ]
 }

@@ -3,26 +3,22 @@
 Tricorder ships a [Claude Code](https://claude.ai/code) plugin that gives
 agents real-time GHCi build status via a skill.
 
-## Install the plugin
+## Install the plugins
 
-Add the `atelier` marketplace to your Claude Code `settings.json` (either
-project-level `.claude/settings.json` or user-level `~/.claude/settings.json`):
+Add the `tricorder` marketplace with in a `claude` session, and install the
+plugins from there:
 
-```json
-{
-  "extraKnownMarketplaces": {
-    "atelier": {
-      "source": {
-        "source": "github",
-        "repo": "tweag/tricorder"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "tricorder@atelier": true
-  }
-}
+```bash
+/plugin marketplace add tweag/tricorder
+# For the skill-based approach to using Tricorder
+/plugin install tricorder@tricorder
+# For the MCP-based approach to using Tricorder
+/plugin install tricorder-mcp@tricorder
 ```
+
+If you have both plugins installed, your Claude agent will prefer to use the
+MCP server, if it is available and functional. Otherwise, it falls back to the
+purely skill-based approach.
 
 ## (Optional) Allow tricorder commands
 
