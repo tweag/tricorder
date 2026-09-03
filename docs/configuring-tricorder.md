@@ -23,6 +23,7 @@ session:
   test_timeout: 10
   generate_with_hpack: true
   test_memory_limit: 10mb
+  idle_timeout_seconds: 300
   hooks:
     start:
       before: echo "starting" >> log.txt
@@ -65,6 +66,12 @@ session:
   units: `kb`, `mb`, `gb`, `tb` and `pb`, as well their binary variants `kib`,
   `mib`, `gib`, `tib` and `pib`. The unit `B` is equivalent to no unit, and
   signifies a raw byte count.
+- `idle_timeout_seconds`: Number of seconds the daemon will stay running with
+  no client activity before it shuts itself down. Defaults to `300` seconds.
+  Set to `0` to disable, and let the daemon run indefinitely. Every request
+  from a client resets the countdown. A `tricorder ui` client's long-lived
+  watch connection counts as continuous activity for as long as it stays
+  connected, so the daemon won't shut down while it's being watched.
 - `hooks`: Shell scripts to run for certain events. Each property marks an
   event that will take place. Each hooks may have a `before` and an `after`
   script to run. The `before` script is run just before the event takes place,

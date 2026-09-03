@@ -66,6 +66,7 @@ import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Command (Command (..), Repl)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
+import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
@@ -118,6 +119,7 @@ main
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
+       , State IdleTimeout :> es
        , State Repl :> es
        , TestRunner :> es
        , Waiters :> es
@@ -135,6 +137,7 @@ main = runPubSub @ReloadSession
         logSession session
 
         State.put session.command.repl
+        State.put session.idleTimeout
         Conc.fork_ $ watchConfigFile root
         conditionallyWatchStackYaml root
 

@@ -22,6 +22,7 @@ import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
+import Tricorder.Daemon.IdleTimer (IdleTimer)
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.Command (Repl)
 import Tricorder.Socket.Protocol
@@ -51,6 +52,7 @@ import Tricorder.Waiters (Waiters)
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
+import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Socket.Protocol qualified as Protocol
 import Tricorder.Waiters qualified as Waiters
 
@@ -67,6 +69,7 @@ main
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Input Repl :> es
@@ -94,6 +97,7 @@ acceptTrigger
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Input Repl :> es
@@ -123,6 +127,7 @@ handleConnection
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
        , Input Repl :> es
@@ -135,7 +140,7 @@ handleConnection
        )
     => Handle
     -> Eff es ()
-handleConnection h = do
+handleConnection h = IdleTimer.withActivity do
     line <- readLine h
     case decode (BSL.fromStrict (encodeUtf8 line)) of
         Nothing -> sendJson h (ErrorResponse "invalid request")

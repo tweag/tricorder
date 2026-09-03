@@ -22,6 +22,7 @@ import Tricorder.Session.Command (Command (..), resolveCommand)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.Hooks (Hooks)
+import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Target (Target, definesCustomPrelude, resolveTargets)
 import Tricorder.Session.TestTarget (TestTarget, resolveTestTargets)
@@ -46,6 +47,7 @@ data Session = Session
     , testTimeout :: TestTimeout
     , generateWithHpack :: GenerateWithHpack
     , hooks :: Hooks
+    , idleTimeout :: IdleTimeout
     }
     deriving stock (Eq)
 
@@ -63,6 +65,7 @@ instance Default Session where
             , testTimeout = def
             , generateWithHpack = def
             , hooks = def
+            , idleTimeout = def
             }
 
 
@@ -129,6 +132,7 @@ loadSession = do
             , testTimeout = TestTimeout cfgFile.testTimeout
             , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
             , hooks
+            , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
             }
 
 

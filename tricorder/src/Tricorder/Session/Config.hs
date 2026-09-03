@@ -19,6 +19,7 @@ data Config = Config
     , generateWithHpack :: Bool
     , testMemoryLimit :: Maybe Text
     , hooks :: Maybe Hooks
+    , idleTimeoutSeconds :: Int
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON) via WithDefaults (QuietSnake Config)
@@ -37,4 +38,5 @@ instance Default Config where
             , generateWithHpack = True
             , testMemoryLimit = Nothing
             , hooks = Nothing
+            , idleTimeoutSeconds = 300
             }

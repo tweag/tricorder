@@ -58,6 +58,7 @@ library tricorder-internal
       Tricorder.Daemon.GhciSession.GhciProcess
       Tricorder.Daemon.Hpack
       Tricorder.Daemon.Hpack.Effect
+      Tricorder.Daemon.IdleTimer
       Tricorder.Daemon.Main
       Tricorder.Daemon.TestRunner
       Tricorder.Daemon.Watch
@@ -69,6 +70,7 @@ library tricorder-internal
       Tricorder.Session.Config
       Tricorder.Session.GenerateWithHpack
       Tricorder.Session.Hooks
+      Tricorder.Session.IdleTimeout
       Tricorder.Session.ReplBuildDir
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
