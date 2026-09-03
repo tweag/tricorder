@@ -41,51 +41,47 @@ let
   # Git hooks check (defined once, used in both checks and shell)
   gitHooks = inputs.git-hooks.lib.${system}.run {
     src = ../.;
-    hooks = lib.pipe tools [
-      (lib.mapAttrs (
-        name: package: {
-          inherit package;
-          enable = true;
-        }
-      ))
-      (
-        x:
-        x
-        // {
-          nixfmt = {
-            enable = true;
-            package = tools.nixfmt;
-          };
-          nix-hpack = {
-            enable = true;
-            # Run whenever anything that feeds .cabal generation changes:
-            #   - *.hs / *.lhs / *.hs-boot : hpack auto-discovers modules from the
-            #     source tree, so adding/removing one changes the generated .cabal
-            #   - *.cabal                  : catches hand-edits — nix-hpack rewrites
-            #     the file from package.nix, so the commit fails if a checked-in
-            #     .cabal drifted from its source
-            #   - package.nix              : the per-package hpack source
-            #   - nix/package/*.nix        : shared constraints / common options
-            # pre-commit only runs a hook when a *staged* file matches `files`, so
-            # the old package.nix-only pattern let direct .cabal edits (and module
-            # additions) through locally; CI runs every hook unconditionally and
-            # caught them. This widens the local trigger to match CI.
-            files = "(\\.l?hs(-boot)?$)|(\\.cabal$)|((^|/)package\\.nix$)|((^|/)nix/package/.*\\.nix$)";
-            entry = "${nix-hpack}/bin/nix-hpack";
-            pass_filenames = false;
-            # The template has no package.nix and isn't part of this cabal
-            # project; keep nix-hpack from triggering on its files.
-            excludes = [ "^templates/" ];
-          };
-          # Validate tagref cross-references (no dangling refs / duplicate tags).
-          tagref = {
-            enable = true;
-            entry = "${pkgs.tagref}/bin/tagref check";
-            pass_filenames = false;
-          };
-        }
-      )
-    ];
+    hooks = {
+      fourmolu = {
+        enable = true;
+        package = tools.fourmolu;
+      };
+      hlint = {
+        enable = true;
+        package = tools.hlint;
+      };
+      nixfmt = {
+        enable = true;
+        package = tools.nixfmt;
+      };
+      nix-hpack = {
+        enable = true;
+        # Run whenever anything that feeds .cabal generation changes:
+        #   - *.hs / *.lhs / *.hs-boot : hpack auto-discovers modules from the
+        #     source tree, so adding/removing one changes the generated .cabal
+        #   - *.cabal                  : catches hand-edits — nix-hpack rewrites
+        #     the file from package.nix, so the commit fails if a checked-in
+        #     .cabal drifted from its source
+        #   - package.nix              : the per-package hpack source
+        #   - nix/package/*.nix        : shared constraints / common options
+        # pre-commit only runs a hook when a *staged* file matches `files`, so
+        # the old package.nix-only pattern let direct .cabal edits (and module
+        # additions) through locally; CI runs every hook unconditionally and
+        # caught them. This widens the local trigger to match CI.
+        files = "(\\.l?hs(-boot)?$)|(\\.cabal$)|((^|/)package\\.nix$)|((^|/)nix/package/.*\\.nix$)";
+        entry = "${nix-hpack}/bin/nix-hpack";
+        pass_filenames = false;
+        # The template has no package.nix and isn't part of this cabal
+        # project; keep nix-hpack from triggering on its files.
+        excludes = [ "^templates/" ];
+      };
+      # Validate tagref cross-references (no dangling refs / duplicate tags).
+      tagref = {
+        enable = true;
+        entry = "${pkgs.tagref}/bin/tagref check";
+        pass_filenames = false;
+      };
+    };
   };
   nix-hpack = pkgs.callPackage ./package/nix-hpack.nix { };
 
