@@ -65,7 +65,7 @@ jobs:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
       - name: Build
-        run: NIXPKGS_ALLOW_UNFREE=1 nix build --impure '.#${{ needs.meta.outputs.package }}'
+        run: nix build '.#${{ needs.meta.outputs.package }}'
       - name: Compress
         run: |
           compressed_name="${{ needs.meta.outputs.package }}_${{ matrix.system }}"

@@ -16,19 +16,7 @@
   inputs = {
     nixpkgs.follows = "haskell-nix/nixpkgs";
     nixpkgs-nixos-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
-
-    haskell-nix = {
-      url = "github:input-output-hk/haskell.nix";
-      inputs = {
-        hackage.follows = "hackage";
-      };
-    };
-
-    hackage = {
-      url = "github:input-output-hk/hackage.nix";
-      flake = false;
-    };
-
+    haskell-nix.url = "github:input-output-hk/haskell.nix";
     flake-utils.url = "github:numtide/flake-utils";
 
     git-hooks = {

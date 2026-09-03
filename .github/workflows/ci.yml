@@ -62,7 +62,7 @@ jobs:
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
-      - run: NIXPKGS_ALLOW_UNFREE=1 nix build --impure '.#legacyChecks.${{ matrix.system }}.${{ matrix.ghc-version }}.all' -L
+      - run: nix build '.#legacyChecks.${{ matrix.system }}.${{ matrix.ghc-version }}.all' -L
 
   results:
     name: Results

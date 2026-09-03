@@ -32,13 +32,13 @@ jobs:
       - name: Pack
         if: ${{ steps.tagging.outputs.created }}
         run: |
-          NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#${{ inputs.package-name }}-sdist
+          nix build .#${{ inputs.package-name }}-sdist
           mkdir -p ${{ runner.temp }}/release/packages
           cp result/*.tar.gz ${{ runner.temp }}/release/packages
       - name: Build docs
         if: ${{ steps.tagging.outputs.created }}
         run: |
-          NIXPKGS_ALLOW_UNFREE=1 nix build --impure .#${{ inputs.package-name }}-docs
+          nix build .#${{ inputs.package-name }}-docs
           if test -f result-doc/*.tar.gz; then
             mkdir -p ${{ runner.temp }}/release/docs
             cp result-doc/*.tar.gz ${{ runner.temp }}/release/docs
