@@ -45,6 +45,8 @@ let
       fourmolu = {
         enable = true;
         package = tools.fourmolu;
+        # Uses a different fourmolu config
+        excludes = [ "templates/canvas" ];
       };
       hlint = {
         enable = true;
