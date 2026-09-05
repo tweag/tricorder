@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.2.2.0] - 2026-09-05
+
 ### Added
 
 - The daemon now shuts itself down after a period of inactivity, configurable
