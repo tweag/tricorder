@@ -108,7 +108,7 @@ jobs:
           | tee release-notes.md
 
           date="$(cat release-notes.md | head -1 | sed 's/^## \[[0-9.]*\] - //')"
-          link_ref="$(echo "${{ needs.meta.outputs.version }}" | tr --delete '.')---$date"}
+          link_ref="$(echo "${{ needs.meta.outputs.version }}" | tr --delete '.')---$date"
 
           cat >> release-notes.md <<EOF
 
