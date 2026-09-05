@@ -1,22 +1,14 @@
 let
-  inherit (import ../nix/package/dependencies.nix) depList constraints;
-  common = import ../nix/package/common.nix;
+  inherit (import ../../nix/package/dependencies.nix) depList constraints;
+  common = import ../../nix/package/common.nix;
 in
 {
-  name = "atelier-monitoring";
-  version = "0.1.0.0";
-  synopsis = "Effectful-based monitoring suite";
-  description = ''
-    Moitoring, metrics, and tracing effects and utilities for Effectful-based
-    applications —  part of the atelier toolkit.
-  '';
+  name = "atelier-core";
+  version = "0.4.0.1";
+  synopsis = "Foundational Effectful-based effects and utilities";
+  description = "Core effects and utilities for effect-based applications, built on Effectful — part of the atelier toolkit.";
   github = "tweag/tricorder";
-  category = [
-    "OpenTelemetry"
-    "Observability"
-    "Monitoring"
-    "Tracing"
-  ];
+  category = "Control";
 
   extra-doc-files = [
     "CHANGELOG.md"
@@ -53,9 +45,8 @@ in
       }
     ]
     ++ depList [
-      "aeson"
-      "atelier-core"
       "atelier-prelude"
+      "aeson"
       "base64-bytestring"
       "bytestring"
       "casing"
@@ -67,8 +58,6 @@ in
       "effectful-th"
       "filepath"
       "fsnotify"
-      "hs-opentelemetry-api"
-      "hs-opentelemetry-sdk"
       "http-api-data"
       "http-types"
       "ki"
@@ -93,7 +82,7 @@ in
   };
 
   tests = {
-    atelier-monitoring-test = {
+    atelier-test = {
       main = "Driver.hs";
       source-dirs = "test";
       ghc-options = [ "-Wno-prepositive-qualified-module" ];
@@ -108,15 +97,14 @@ in
         }
       ]
       ++ depList [
-        "aeson"
-        "atelier-monitoring"
         "atelier-prelude"
+        "atelier-core"
+        "aeson"
         "bytestring"
         "containers"
         "data-default"
         "effectful"
         "hedgehog"
-        "hs-opentelemetry-api"
         "hspec"
         "hspec-hedgehog"
         "stm"

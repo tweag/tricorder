@@ -1,25 +1,7 @@
 packages:
-  atelier-prelude
-  atelier-core
-  atelier-db
-  atelier-testing
-  atelier-monitoring
-  tricorder-types
-  tricorder
-  tricorder-mcp
+  packages/*
 
 tests: True
-
--- Keep local/dev builds fast. The published .cabal files build optimized for
--- consumers; -O0 is a dev-only choice and so lives here, not in package.yaml.
-package atelier-core
-  optimization: False
-package atelier-db
-  optimization: False
-package atelier-testing
-  optimization: False
-package atelier-monitoring
-  optimization: False
 
 constraints:
   -- See https://github.com/circuithub/rel8/issues/402

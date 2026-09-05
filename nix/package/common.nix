@@ -77,13 +77,11 @@ in
     "TypeFamilies"
   ];
 
-  packageNames = [
-    "atelier-core"
-    "atelier-db"
-    "atelier-prelude"
-    "atelier-testing"
-    "tricorder-types"
-    "tricorder"
-    "tricorder-mcp"
-  ];
+  packageNames =
+    let
+      dir = builtins.readDir ../../packages;
+      items = builtins.attrNames dir;
+      packages = builtins.filter (item: dir.${item} == "directory") items;
+    in
+    packages;
 }

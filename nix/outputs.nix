@@ -126,7 +126,7 @@ let
         ''
           for package in $packagenames; do
             echo "Checking $package" >&2
-            (cd "${../.}/$package" && cabal check)
+            (cd "${../.}/packages/$package" && cabal check)
           done
           # Ensuring $out is a directory makes this check compatible with
           # symlinkJoin.
