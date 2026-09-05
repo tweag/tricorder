@@ -1,6 +1,6 @@
 let
-  inherit (import ../nix/package/dependencies.nix) depList constraints;
-  common = import ../nix/package/common.nix;
+  inherit (import ../../nix/package/dependencies.nix) depList constraints;
+  common = import ../../nix/package/common.nix;
 in
 {
   name = "tricorder-types";

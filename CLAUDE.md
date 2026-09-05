@@ -16,7 +16,7 @@ from its source. Hand edits are reverted on the next regeneration.
 - Version bounds live in `nix/package/dependencies.nix` (the `constraints` set).
 - Each package declares which dependencies its components (internal libraries,
   executables, tests) use in that package's `package.nix`
-  (e.g. `tricorder/package.nix`).
+  (e.g. `packages/tricorder/package.nix`).
 - Modules are auto-discovered from the source tree — you do **not** list them.
 
 To add or change a dependency:

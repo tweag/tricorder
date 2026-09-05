@@ -1,6 +1,6 @@
 let
-  inherit (import ../nix/package/dependencies.nix) constraints depList;
-  common = import ../nix/package/common.nix;
+  inherit (import ../../nix/package/dependencies.nix) constraints depList;
+  common = import ../../nix/package/common.nix;
 in
 {
   name = "tricorder-mcp";
