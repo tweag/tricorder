@@ -1,5 +1,6 @@
 module Tricorder.CLI.App (run) where
 
+import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
@@ -7,12 +8,15 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Input (Input)
+import Atelier.Effects.Log (Log)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
+import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
@@ -38,8 +42,14 @@ import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (LogPath (..), PidFile (..), SocketPath (..))
+import Tricorder.Session.Command (Repl)
 import Tricorder.Socket.Client (isDaemonRunning, queryStatus)
 import Tricorder.Socket.UnixSocket (UnixSocket)
+import Tricorder.SourceLookup (ModuleSourceResult)
+import Tricorder.SourceLookup.GhcPkg (GhcPkg)
+import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageId (PackageId)
+import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.CLI.UI.Keys qualified as Keys
 
@@ -47,6 +57,8 @@ import Tricorder.CLI.UI.Keys qualified as Keys
 run
     :: ( Brick :> es
        , BrickChan :> es
+       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+       , Cache ModuleName PackageId :> es
        , Clock :> es
        , Conc :> es
        , Concurrent :> es
@@ -56,7 +68,12 @@ run
        , Exit :> es
        , File :> es
        , FileSystem :> es
+       , GhcPkg :> es
+       , Hackage :> es
        , IOE :> es
+       , Input Repl :> es
+       , Log :> es
+       , PackageStore :> es
        , Process :> es
        , Reader Command :> es
        , Reader Keys.Config :> es
@@ -129,10 +146,6 @@ run =
                 void waitForDaemon
             viewUi
         Source moduleNames -> do
-            running <- isDaemonRunning
-            unless running $ do
-                startDaemon
-                void waitForDaemon
             showSource moduleNames
         Restart force ->
             restartDaemon force >>= \case

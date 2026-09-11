@@ -7,17 +7,20 @@ module Tricorder.CLI.Operations
     )
 where
 
+import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit, exitFailure)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, followFile, readFileLbs)
+import Atelier.Effects.Input (Input)
+import Atelier.Effects.Log (Log)
 import Data.Aeson (encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
-import Tricorder.SourceLookup.SourceQuery (SourceQuery)
+import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Console qualified as Console
 import Data.ByteString.Lazy qualified as BSL
@@ -42,9 +45,15 @@ import Tricorder.CLI.Render
     , renderSourceResults
     )
 import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Session.Command (Repl)
 import Tricorder.Session.TestTarget (renderTestTarget)
-import Tricorder.Socket.Client (querySource, queryStatus, queryStatusWait)
+import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
+import Tricorder.SourceLookup (ModuleSourceResult, lookupModuleSource)
+import Tricorder.SourceLookup.GhcPkg (GhcPkg)
+import Tricorder.SourceLookup.Hackage (Hackage)
+import Tricorder.SourceLookup.PackageId (PackageId)
+import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
@@ -256,19 +265,21 @@ showTests opts = do
 
 
 showSource
-    :: ( Console :> es
-       , File :> es
-       , Reader SocketPath :> es
-       , UnixSocket :> es
+    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
+       , Cache ModuleName PackageId :> es
+       , Console :> es
+       , FileSystem :> es
+       , GhcPkg :> es
+       , Hackage :> es
+       , Input Repl :> es
+       , Log :> es
+       , PackageStore :> es
        )
     => [SourceQuery]
     -> Eff es ()
 showSource queries = do
-    SocketPath sockPath <- ask
-    result <- querySource sockPath queries
-    case result of
-        Left err -> Console.putTextLn $ "Error: " <> err
-        Right results -> renderSourceResults results
+    results <- mapM lookupModuleSource queries
+    renderSourceResults results
 
 
 showEvalComments

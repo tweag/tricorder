@@ -11,7 +11,6 @@ where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Tricorder.CLI.Command (Force (..))
-import Tricorder.SourceLookup.SourceQuery (SourceQuery)
 
 
 data StatusQuery = StatusQuery {awaitDone :: Bool}
@@ -27,7 +26,6 @@ newtype DiagnosticQuery = DiagnosticQuery {index :: Int}
 data Query
     = Status StatusQuery
     | Watch
-    | Source [SourceQuery]
     | DiagnosticAt DiagnosticQuery
     | Quit Waiters
     deriving stock (Eq, Generic, Show)

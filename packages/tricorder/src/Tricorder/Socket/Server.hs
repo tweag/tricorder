@@ -1,9 +1,7 @@
 module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
-import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Exit (Exit, exitSuccess)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Publishing.Sub (Sub)
@@ -12,7 +10,6 @@ import Effectful.Exception (IOException, finally)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
-import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
@@ -24,7 +21,6 @@ import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Daemon.IdleTimer (IdleTimer)
 import Tricorder.Runtime (SocketPath (..))
-import Tricorder.Session.Command (Repl)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)
@@ -41,11 +37,6 @@ import Tricorder.Socket.UnixSocket
     , removeSocketFile
     , sendLine
     )
-import Tricorder.SourceLookup (ModuleSourceResult, lookupModuleSource)
-import Tricorder.SourceLookup.GhcPkg (GhcPkg)
-import Tricorder.SourceLookup.Hackage (Hackage)
-import Tricorder.SourceLookup.PackageId (PackageId)
-import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 import Tricorder.Waiters (Waiters)
 
@@ -62,19 +53,12 @@ data SocketRemoved = SocketRemoved
 
 
 main
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , Conc :> es
+    :: ( Conc :> es
        , Exit :> es
-       , FileSystem :> es
-       , GhcPkg :> es
-       , Hackage :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
-       , Input Repl :> es
        , Log :> es
-       , PackageStore :> es
        , Reader SocketPath :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -90,19 +74,12 @@ main = State.evalState Build.Starting do
 
 
 acceptTrigger
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , Conc :> es
+    :: ( Conc :> es
        , Exit :> es
-       , FileSystem :> es
-       , GhcPkg :> es
-       , Hackage :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
-       , Input Repl :> es
        , Log :> es
-       , PackageStore :> es
        , Reader SocketPath :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -120,19 +97,12 @@ acceptTrigger = do
 
 
 handleConnection
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , Conc :> es
+    :: ( Conc :> es
        , Exit :> es
-       , FileSystem :> es
-       , GhcPkg :> es
-       , Hackage :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
-       , Input Repl :> es
        , Log :> es
-       , PackageStore :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -154,18 +124,11 @@ handleConnection h = IdleTimer.withActivity do
 
 
 dispatch
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , Conc :> es
+    :: ( Conc :> es
        , Exit :> es
-       , FileSystem :> es
-       , GhcPkg :> es
-       , Hackage :> es
        , Input BuildId :> es
        , Input DaemonInfo :> es
-       , Input Repl :> es
        , Log :> es
-       , PackageStore :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -178,7 +141,6 @@ dispatch query h = case query of
     Status (StatusQuery False) -> respondOnce h
     Status (StatusQuery True) -> respondWhenDone h
     Watch -> watchStream h
-    Source moduleNames -> respondSource moduleNames h
     DiagnosticAt dq -> respondDiagnostic dq.index h
     Quit waiters -> quit h waiters
 
@@ -272,26 +234,6 @@ respondDiagnostic idx h = do
             | otherwise -> sendJson h $ ErrorResponse "Build in progress"
         Build.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         _ -> sendJson h $ ErrorResponse "Build in progress"
-
-
--- | Look up source for each requested module and send the results as a JSON array.
-respondSource
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , FileSystem :> es
-       , GhcPkg :> es
-       , Hackage :> es
-       , Input Repl :> es
-       , Log :> es
-       , PackageStore :> es
-       , UnixSocket :> es
-       )
-    => [SourceQuery]
-    -> Handle
-    -> Eff es ()
-respondSource queries h = do
-    results <- mapM lookupModuleSource queries
-    sendJson h results
 
 
 sendJson :: (ToJSON a, UnixSocket :> es) => Handle -> a -> Eff es ()
