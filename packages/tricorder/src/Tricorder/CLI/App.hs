@@ -137,7 +137,7 @@ run =
                     else
                         asks @LogPath (.getLogPath)
             case logMode of
-                ShowLog followMode -> showLog logFile followMode
+                ShowLog -> showLog logFile
                 ShowLogPath -> Console.putTextLn (toText logFile)
         UI -> do
             running <- isDaemonRunning
