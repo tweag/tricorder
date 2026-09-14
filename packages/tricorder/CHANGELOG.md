@@ -11,6 +11,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - `tricorder source` no longer requires the daemon to evaluate source code.
 
+### Fixed
+
+- The daemon did not respect environment variables and configuration options
+  that specified minimum logging levels. It was hard-coded to `INFO` by mistake.
+
 ## [0.2.2.3] - 2026-09-11
 
 ### Changed

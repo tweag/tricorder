@@ -24,6 +24,8 @@ session:
   generate_with_hpack: true
   test_memory_limit: 10mb
   idle_timeout_seconds: 300
+  logging:
+    minimum_severity: DEBUG
   hooks:
     start:
       before: echo "starting" >> log.txt
@@ -72,6 +74,10 @@ session:
   from a client resets the countdown. A `tricorder ui` client's long-lived
   watch connection counts as continuous activity for as long as it stays
   connected, so the daemon won't shut down while it's being watched.
+- `logging`: Logging options.
+- `logging.minimum_severity`: Minimum severity of error messages to log to the
+  log file. Accepts the following options, sorted from "lowest" to "highest":
+  `DEBUG`, `INFO`, `WARN` and `ERROR`.
 - `hooks`: Shell scripts to run for certain events. Each property marks an
   event that will take place. Each hooks may have a `before` and an `after`
   script to run. The `before` script is run just before the event takes place,
