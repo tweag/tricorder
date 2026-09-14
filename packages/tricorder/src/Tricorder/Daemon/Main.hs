@@ -72,10 +72,10 @@ main =
         . runRuntimeDir
         . runSocketPath
         . runLogPath
-        . runLogging
-        . inputLoadedConfig
-        . runChan
         . runEnv
+        . inputLoadedConfig
+        . runLogging
+        . runChan
         . inputCabalFiles
         . inputSession
         . runReader @CacheConfig.Config def

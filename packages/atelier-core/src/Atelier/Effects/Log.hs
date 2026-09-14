@@ -41,6 +41,9 @@ module Atelier.Effects.Log
     , runLogNoOp
     , runLogToHandle
     , runLogWriter
+
+      -- * Utils
+    , minimumSeverityFromEnv
     )
 where
 
@@ -181,13 +184,7 @@ runLogNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
 runLog :: (Env :> es, IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
 runLog action = do
     config <- ask
-    env <- getEnvironment
-    let overrideLog = (>>= readMaybe) $ lookup "LOG" env
-        overrideLogging = (>>= readMaybe) $ lookup "LOGGING" env
-        overrideDebug = (>>= \x -> if x == "0" then Nothing else Just DEBUG) $ lookup "DEBUG" env
-    let severity =
-            fromMaybe config.minimumSeverity
-                $ overrideDebug <|> overrideLogging <|> overrideLog
+    severity <- fromMaybe config.minimumSeverity <$> minimumSeverityFromEnv
 
     reinterpretWith (runReader (Namespace "")) action \lenv -> \case
         LogMsg msg ->
@@ -240,6 +237,15 @@ formatMessage msg =
   where
     showNamespace (Namespace "") = ""
     showNamespace (Namespace ns) = square ns <> " "
+
+
+minimumSeverityFromEnv :: (Env :> es) => Eff es (Maybe Severity)
+minimumSeverityFromEnv = do
+    env <- getEnvironment
+    let overrideLog = (>>= readMaybe) $ lookup "LOG" env
+        overrideLogging = (>>= readMaybe) $ lookup "LOGGING" env
+        overrideDebug = (>>= \x -> if x == "0" then Nothing else Just DEBUG) $ lookup "DEBUG" env
+    pure $ overrideDebug <|> overrideLogging <|> overrideLog
 
 
 square :: Text -> Text
