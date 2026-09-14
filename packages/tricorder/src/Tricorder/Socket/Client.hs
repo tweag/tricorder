@@ -3,7 +3,6 @@ module Tricorder.Socket.Client
     , queryStatusWait
     , queryWatch
     , Restarting (..)
-    , querySource
     , queryDiagnostic
     , requestShutdown
     , isDaemonRunning
@@ -21,7 +20,6 @@ import Effectful.Exception (catchJust, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (evalState, get, modify, put)
 import System.IO.Error (isEOFError)
-import Tricorder.SourceLookup.SourceQuery (SourceQuery)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
@@ -40,7 +38,6 @@ import Tricorder.Socket.Protocol
     , Waiters (..)
     )
 import Tricorder.Socket.UnixSocket (UnixSocket, withConnection)
-import Tricorder.SourceLookup (ModuleSourceResult)
 
 import Tricorder.Version qualified as Version
 
@@ -110,20 +107,6 @@ queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
                     Just state -> do
                         put retryLimit
                         inject (handler (Right state)) >> loop h
-
-
--- | Look up the source for one or more modules via the daemon.
-querySource
-    :: (File :> es, UnixSocket :> es)
-    => FilePath
-    -> [SourceQuery]
-    -> Eff es (Either Text [ModuleSourceResult])
-querySource sockPath queries = withConnection sockPath \h -> do
-    sendQuery h (Source queries)
-    line <- File.hGetLine h
-    case eitherDecode (BSL.fromStrict (encodeUtf8 (toText line))) of
-        Left err -> pure $ Left (toText err)
-        Right results -> pure $ Right results
 
 
 -- | Fetch the full body of a single diagnostic by 1-based index.
