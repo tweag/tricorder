@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `tricorder source` no longer requires the daemon to evaluate source code.
+
 ## [0.2.2.3] - 2026-09-11
 
 ### Changed
