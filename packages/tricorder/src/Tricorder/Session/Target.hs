@@ -135,11 +135,11 @@ componentName = \case
 -- way the result is sorted with 'compareTargets' so libraries exposing a custom
 -- @Prelude@ come last [ref:lib_sort_order].
 resolveTargets :: [CabalFile] -> [Text] -> [Target]
-resolveTargets cabalFiles targets@(_ : _) =
-    sortBy (compareTargets (definesCustomPrelude cabalFiles)) $ parseTarget <$> targets
-resolveTargets cabalFiles [] =
-    sortBy (compareTargets (definesCustomPrelude cabalFiles))
-        $ foldMap (allComponentTargets . (.projectPackageDescription)) cabalFiles
+resolveTargets cabalFiles = \case
+    targets@(_ : _) -> sortTargets $ parseTarget <$> targets
+    [] -> sortTargets $ foldMap (allComponentTargets . (.projectPackageDescription)) cabalFiles
+  where
+    sortTargets = sortBy (compareTargets (definesCustomPrelude cabalFiles))
 
 
 -- | [tag:lib_sort_order] When running @cabal repl <package defining custom
