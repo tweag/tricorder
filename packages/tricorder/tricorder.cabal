@@ -118,6 +118,7 @@ library tricorder-internal
   build-depends:
       Cabal >=3.12 && <3.19
     , Cabal-syntax >=3.12 && <3.19
+    , Glob ==0.10.*
     , aeson >=2.2 && <2.4
     , atelier-core ==0.6.*
     , atelier-prelude ==0.3.*

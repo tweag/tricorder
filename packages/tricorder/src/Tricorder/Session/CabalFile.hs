@@ -7,6 +7,7 @@ where
 
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, readFileBs)
+import Atelier.Effects.FileSystem.Glob (Glob, globDir1)
 import Atelier.Effects.Input (Input, runInputEff)
 import Atelier.Effects.Log (Log)
 import Data.Traversable (for)
@@ -15,6 +16,7 @@ import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMay
 import Distribution.Types.GenericPackageDescription (GenericPackageDescription)
 import Effectful.Reader.Static (Reader, ask)
 import System.FilePath (normalise, takeExtension, (</>))
+import System.FilePath.Glob (compile)
 
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Log qualified as Log
@@ -34,6 +36,7 @@ data CabalFile = CabalFile
 inputCabalFiles
     :: ( Env :> es
        , FileSystem :> es
+       , Glob :> es
        , Log :> es
        , Reader ProjectRoot :> es
        )
@@ -53,13 +56,12 @@ inputCabalFiles = runInputEff do
     pure $ packageDescriptions
 
 
--- | Lists all `.cabal` files for packages listed in the project root's
--- `cabal.project` (or `cabal.project.local`) file. If no `cabal.project` file
--- is found, looks for a `.cabal` file in the project root, and uses that
--- instead.
+-- | Discovers `.cabal` files in all locations and formats Cabal itself
+-- supports.
 discoverCabalFiles
     :: ( Env :> es
        , FileSystem :> es
+       , Glob :> es
        , Reader ProjectRoot :> es
        )
     => Eff es [FilePath]
@@ -86,28 +88,37 @@ discoverCabalFiles = do
     projectCabalFiles projectRoot =
         (projectRoot </>) <$> ["cabal.project.local", "cabal.project.freeze", "cabal.project"]
 
-    -- A @packages:@ entry is either a direct path to a @.cabal@ file or a
-    -- directory to search for one.
     cabalFilesForEntry projectRoot entry
-        | takeExtension entry == ".cabal" = pure [projectRoot </> entry]
-        | otherwise = cabalFilesIn (normalise (projectRoot </> entry))
+        | hasWildcard entry = do
+            matches <- globDir1 (compile entry) projectRoot
+            concat <$> traverse resolveMatch matches
+        | isCabalFile entry = pure [projectRoot </> entry]
+        | otherwise = cabalFilesIn $ normalise $ projectRoot </> entry
+      where
+        resolveMatch path
+            | isCabalFile path = pure [path]
+            | otherwise = cabalFilesIn path
 
 
 -- | List the @.cabal@ files directly inside a directory.
 cabalFilesIn :: (FileSystem :> es) => FilePath -> Eff es [FilePath]
 cabalFilesIn dir = do
-    entries <- filter (\f -> takeExtension f == ".cabal") <$> listDirectory dir
-    pure $ map (dir </>) entries
+    entries <- filter isCabalFile <$> listDirectory dir
+    pure $ (dir </>) <$> entries
+
+
+-- | Does a @packages:@ entry contain a glob wildcard?
+hasWildcard :: FilePath -> Bool
+hasWildcard = elem '*'
 
 
 -- | Extract the directory/file entries from the @packages:@ field of a
--- @cabal.project@. Glob entries (containing @*@) are not expanded and are
--- skipped.
+-- @cabal.project@.
 projectPackageEntries :: ByteString -> [FilePath]
 projectPackageEntries contents =
     case readFields contents of
         Left _ -> []
-        Right fields -> filter (notElem '*') $ concatMap fromField fields
+        Right fields -> concatMap fromField fields
   where
     fromField = \case
         (Field (Name _ name) fieldLines)
@@ -119,3 +130,7 @@ projectPackageEntries contents =
 
     dropComma ',' = ' '
     dropComma c = c
+
+
+isCabalFile :: FilePath -> Bool
+isCabalFile = (== ".cabal") . takeExtension

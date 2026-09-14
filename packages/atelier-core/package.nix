@@ -45,8 +45,9 @@ in
       }
     ]
     ++ depList [
-      "atelier-prelude"
+      "Glob"
       "aeson"
+      "atelier-prelude"
       "base64-bytestring"
       "bytestring"
       "casing"
