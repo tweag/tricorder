@@ -249,7 +249,7 @@ toolCommand = \case
     LogPath (LogPathOptions {projectRoot}) ->
         (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLogPath)
     LogContents (LogContentsOptions {projectRoot}) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Log $ CLI.ShowLog CLI.NoFollow)
+        (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLog)
 
 
 toForce :: Maybe Bool -> CLI.Force

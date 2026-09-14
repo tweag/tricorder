@@ -16,6 +16,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - The daemon did not respect environment variables and configuration options
   that specified minimum logging levels. It was hard-coded to `INFO` by mistake.
 
+### Removed
+
+- `tricorder log` no longer has the `--follow` option. Use something like
+  `tricorder log --print-path | xargs tail -f` instead. There are better tools to
+  handle following a text file as it is being written to rather than including
+  an extremely simple facsimile of one in Tricorder.
+
 ## [0.2.2.3] - 2026-09-11
 
 ### Changed

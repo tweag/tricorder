@@ -1,6 +1,5 @@
 module Tricorder.CLI.Arguments
     ( Command (..)
-    , FollowMode (..)
     , LogMode (..)
     , OutputFormat (..)
     , StatusOptions (..)
@@ -24,7 +23,6 @@ import Options.Applicative
     , command
     , eitherReader
     , flag
-    , flag'
     , fullDesc
     , header
     , help
@@ -41,7 +39,6 @@ import Options.Applicative
 import Tricorder.CLI.Command
     ( Command (..)
     , EvalCommentsOptions (..)
-    , FollowMode (..)
     , Force (..)
     , LogMode (..)
     , OutputFormat (..)
@@ -100,23 +97,15 @@ commandParser =
 
 logParser :: Parser Command
 logParser =
-    Log <$> (pathFlag <|> followFlag)
+    Log <$> pathFlag
   where
     pathFlag =
-        flag'
+        flag
+            ShowLog
             ShowLogPath
             ( long "print-path"
                 <> help "Print the path to the log file instead of its contents"
             )
-    followFlag =
-        ShowLog
-            <$> flag
-                NoFollow
-                Follow
-                ( long "follow"
-                    <> short 'f'
-                    <> help "Keep streaming new log lines as they are written"
-                )
 
 
 statusParser :: Parser Command

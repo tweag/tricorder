@@ -1,7 +1,6 @@
 module Tricorder.CLI.Command
     ( Command (..)
     , EvalCommentsOptions (..)
-    , FollowMode (..)
     , Force (..)
     , LogMode (..)
     , OutputFormat (..)
@@ -37,15 +36,7 @@ data Verbosity
     deriving stock (Eq)
 
 
-data FollowMode
-    = NoFollow
-    | Follow
-    deriving stock (Eq)
-
-
-data LogMode
-    = ShowLog FollowMode
-    | ShowLogPath
+data LogMode = ShowLog | ShowLogPath
 
 
 data StatusOptions = StatusOptions
@@ -99,7 +90,7 @@ commandToArgs (Test (TestOptions {failedOnly, wait})) =
     "test-results" : failedArgs failedOnly <> waitArgs wait
 commandToArgs UI = ["ui"]
 commandToArgs (Log ShowLogPath) = ["log", "--print-path"]
-commandToArgs (Log (ShowLog follow)) = "log" : followArgs follow
+commandToArgs (Log ShowLog) = ["log"]
 commandToArgs (Source queries) = "source" : map renderSourceQuery queries
 commandToArgs (Restart doForce) = "restart" : forceArgs doForce
 commandToArgs (EvalComments (EvalCommentsOptions {wait, format})) =
@@ -124,11 +115,6 @@ formatArgs TextOutput = []
 verbosityArgs :: Verbosity -> [String]
 verbosityArgs Verbose = ["--verbose"]
 verbosityArgs Concise = []
-
-
-followArgs :: FollowMode -> [String]
-followArgs Follow = ["--follow"]
-followArgs NoFollow = []
 
 
 failedArgs :: Bool -> [String]

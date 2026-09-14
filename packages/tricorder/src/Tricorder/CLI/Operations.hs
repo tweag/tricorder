@@ -10,10 +10,9 @@ where
 import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit, exitFailure)
 import Atelier.Effects.File (File)
-import Atelier.Effects.FileSystem (FileSystem, doesFileExist, followFile, readFileLbs)
+import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (encode)
@@ -32,7 +31,6 @@ import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Arguments
     ( EvalCommentsOptions (..)
-    , FollowMode (..)
     , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
@@ -184,18 +182,14 @@ completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d.get
 
 showLog
     :: ( Console :> es
-       , Delay :> es
        , FileSystem :> es
        )
-    => FilePath -> FollowMode -> Eff es ()
-showLog path followMode = do
+    => FilePath -> Eff es ()
+showLog path = do
     exists <- doesFileExist path
     if not exists
-        then
-            Console.putTextLn $ "Log file does not exist yet: " <> toText path
-        else case followMode of
-            Follow -> followFile path Console.putStr
-            NoFollow -> readFileLbs path >>= Console.putStr . BSL.toStrict
+        then Console.putTextLn $ "Log file does not exist yet: " <> toText path
+        else readFileLbs path >>= Console.putStr . BSL.toStrict
 
 
 showTests
