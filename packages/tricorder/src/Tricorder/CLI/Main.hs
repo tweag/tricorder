@@ -23,6 +23,7 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Cache qualified as Cache
 import Atelier.Effects.Cache qualified as CacheConfig
+import Atelier.Effects.FileSystem.Glob qualified as Glob
 
 import Tricorder.CLI.Arguments (runArguments)
 import Tricorder.CLI.UI.Brick (runBrick)
@@ -57,6 +58,7 @@ main =
         . runDelay
         . runFile
         . runFileSystemIO
+        . Glob.runIO
         . runProjectRoot
         . runRuntimeDir
         . runPidFile

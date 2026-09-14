@@ -57,6 +57,7 @@ in
         "effectful"
         "effectful-th"
         "filepath"
+        "Glob"
         "hashable"
         "megaparsec"
         "mtl"

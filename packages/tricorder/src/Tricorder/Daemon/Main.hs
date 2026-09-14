@@ -23,6 +23,7 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Cache.Config qualified as CacheConfig
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 
@@ -66,6 +67,7 @@ main =
         . runDebounce @FilePath
         . runFileWatcherIO
         . runFileSystemIO
+        . Glob.runIO
         . runProjectRoot
         . runExit
         . runFile

@@ -7,6 +7,7 @@ import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldMatchList)
 
+import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
@@ -80,9 +81,24 @@ testDiscoverCabalFiles = do
                 actual = runDiscovery fs [] discoverCabalFiles
             actual `shouldBe` ["/sub/foo.cabal"]
 
-        it "skips glob entries under packages: (not expanded)" do
+        it "expands a glob entry matching .cabal files directly" do
             let fs = Map.singleton "/cabal.project" "packages: */*.cabal\n"
-                actual = runDiscovery fs [] discoverCabalFiles
+                script = [Glob.NextGlobDir1 ["/pkg-a/pkg-a.cabal", "/pkg-b/pkg-b.cabal"]]
+                actual = runDiscoveryGlob fs [] script discoverCabalFiles
+            actual `shouldMatchList` ["/pkg-a/pkg-a.cabal", "/pkg-b/pkg-b.cabal"]
+
+        it "expands a glob entry matching package directories" do
+            let fs =
+                    Map.singleton "/cabal.project" "packages: */\n"
+                        `Map.union` multiPackageCabalFs
+                script = [Glob.NextGlobDir1 ["/pkg-a", "/pkg-b"]]
+                actual = runDiscoveryGlob fs [] script discoverCabalFiles
+            actual `shouldMatchList` ["/pkg-a/pkg-a.cabal", "/pkg-b/pkg-b.cabal"]
+
+        it "returns no files when a glob entry matches nothing" do
+            let fs = Map.singleton "/cabal.project" "packages: */*.cabal\n"
+                script = [Glob.NextGlobDir1 []]
+                actual = runDiscoveryGlob fs [] script discoverCabalFiles
             actual `shouldBe` []
 
     describe "$HOME/.cabal/config fallback" do
@@ -114,9 +130,11 @@ testDiscoverCabalFiles = do
                 actual `shouldMatchList` ["/pkg-a/pkg-a.cabal", "/pkg-b/pkg-b.cabal"]
   where
     pr = ProjectRoot "/"
-    runDiscovery fs env =
+    runDiscovery fs env = runDiscoveryGlob fs env []
+    runDiscoveryGlob fs env script =
         runPureEff
             . runEnvConst env
             . evalState fs
             . runFileSystemState
+            . Glob.runScripted script
             . runReader pr

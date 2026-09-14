@@ -32,6 +32,7 @@ let
   constraints = packageVersions // {
     Cabal = ">=3.12 && <3.19";
     Cabal-syntax = ">=3.12 && <3.19";
+    Glob = ">=0.10 && <0.11";
     aeson = ">=2.2 && <2.4";
     base = ">=4.18 && < 4.23";
     base64-bytestring = ">=1.2 && <1.3";
