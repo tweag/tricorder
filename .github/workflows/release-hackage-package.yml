@@ -41,7 +41,7 @@ jobs:
         run: |
           version=$(nix eval --raw --file nix/package/common.nix --apply 'x: x.default-ghc-version')
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: haskell-actions/setup@cd0d9bdd65b20557f41bea4dbe43d0b5fbbfe553
+      - uses: haskell-actions/setup@6037f33647c3f17758a2356c80fc4a53d7e0685d
         if: ${{ steps.tagging.outputs.created }}
         with:
           ghc-version: ${{ steps.ghc-version.outputs.version }}
