@@ -1,13 +1,12 @@
 module Tricorder.Daemon.Core (main) where
 
-import Atelier.Config (LoadedConfig)
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Debounce (Debounce)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
-import Atelier.Effects.Input (Input)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Publishing (runPubSub)
@@ -62,8 +61,7 @@ import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Session (..), loadSession)
-import Tricorder.Session.CabalFile (CabalFile)
+import Tricorder.Session (Session (..))
 import Tricorder.Session.Command (Command (..), Repl)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout)
@@ -112,8 +110,7 @@ main
        , FileWatcher :> es
        , GhciSession :> es
        , Hpack :> es
-       , Input LoadedConfig :> es
-       , Input [CabalFile] :> es
+       , Input Session :> es
        , Log :> es
        , Process :> es
        , Pub BuildPhase :> es
@@ -133,7 +130,7 @@ main = runPubSub @ReloadSession
     . runPubSub @ReloadBuilder
     $ Conc.restartableFork waitForReloadSession do
         root <- Reader.ask
-        session <- loadSession
+        session <- input
         logSession session
 
         State.put session.command.repl
@@ -163,16 +160,9 @@ main = runPubSub @ReloadSession
     waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
 
 
-shouldReloadSession
-    :: ( FileSystem :> es
-       , Input LoadedConfig :> es
-       , Input [CabalFile] :> es
-       , Log :> es
-       , Reader ProjectRoot :> es
-       )
-    => Session -> Eff es Bool
+shouldReloadSession :: (Input Session :> es) => Session -> Eff es Bool
 shouldReloadSession oldSession = do
-    newSession <- loadSession
+    newSession <- input
     pure $ newSession /= oldSession
 
 
