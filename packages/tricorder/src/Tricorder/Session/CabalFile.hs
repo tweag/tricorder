@@ -68,12 +68,12 @@ discoverCabalFiles = do
     homeCabalFiles <- maybe [] (one . (</> ".cabal/config")) <$> Env.lookupEnv "HOME"
     let projectFilePaths = projectCabalFiles projectRoot <> homeCabalFiles
     projectFiles <- filterM doesFileExist projectFilePaths
-    case nonEmpty projectFiles of
-        Nothing ->
+    if null projectFiles
+        then
             cabalFilesIn projectRoot
-        Just neProjectFiles -> do
+        else do
             packages <- fmap (find (not . null))
-                $ for (toList neProjectFiles) \projectFile -> do
+                $ for projectFiles \projectFile -> do
                     contents <- readFileBs projectFile
                     concat
                         <$> traverse
