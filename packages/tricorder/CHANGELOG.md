@@ -15,6 +15,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - The daemon did not respect environment variables and configuration options
   that specified minimum logging levels. It was hard-coded to `INFO` by mistake.
+- Tricorder did not expand wildcard entries in `cabal.project`'s `packages`
+  list. So an entry like `packages/*` resulted in no packages being found.
+  Tricorder now correctly mimics Cabal's behavior, and expands wildcards
+  properly.
 
 ### Removed
 
