@@ -1,0 +1,106 @@
+name: GHC EOL Check
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ghc-versions:
+    name: Get GHC versions
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.compute.outputs.ghc-versions }}
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Compute GHC versions
+        id: compute
+        shell: bash
+        run: |
+          versions=$(nix eval --json --no-pretty --file nix/package/common.nix --apply 'x: x.ghc-versions')
+          echo "ghc-versions=$versions" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Supported GHC versions"
+            echo
+            echo "$versions" | jq -r '.[] | "- `" + . + "`"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  check-eol:
+    name: Check GHC ${{ matrix.ghc-version }} EOL status
+    runs-on: ubuntu-latest
+    needs: [ghc-versions]
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc-version: ${{ fromJson(needs.ghc-versions.outputs.versions) }}
+    steps:
+      - name: Check GHC version against endoflife.date
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ matrix.ghc-version }}
+        run: |
+          set -euo pipefail
+
+          major_minor="${VERSION%.*}"
+          eol_data=$(curl -sf "https://endoflife.date/api/v1/products/ghc")
+          release=$(echo "$eol_data" | jq -c --arg v "$major_minor" '.result.releases[] | select(.name == $v)')
+
+          if [ -z "$release" ]; then
+            {
+              echo "### GHC $major_minor"
+              echo
+              echo ":warning: No endoflife.date release entry found (pinned as \`$VERSION\`)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          is_eol=$(echo "$release" | jq -r '.isEol')
+          if [ "$is_eol" != "true" ]; then
+            {
+              echo "### GHC $major_minor"
+              echo
+              echo ":white_check_mark: Not end of life."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          label="ghc-eol-${major_minor}"
+          gh label create "$label" \
+            --color "B60205" \
+            --description "GHC $major_minor has reached end of life" \
+            --force
+
+          existing=$(gh issue list --label "$label" --state all --limit 1 --json number --jq 'length')
+          if [ "$existing" -gt 0 ]; then
+            {
+              echo "### GHC $major_minor"
+              echo
+              echo ":x: End of life. An issue already exists (label \`$label\`)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          body=$(printf '%s\n\n%s\n' \
+            "[endoflife.date](https://endoflife.date/ghc) reports that GHC $major_minor has reached end of life. We currently pin $VERSION in \`nix/package/common.nix\`." \
+            "Consider dropping support for this version or upgrading the pin.")
+
+          issue_url=$(gh issue create \
+            --title "GHC $major_minor has reached end of life" \
+            --label "$label" \
+            --body "$body")
+
+          {
+            echo "### GHC $major_minor"
+            echo
+            echo ":rotating_light: End of life. Created $issue_url"
+          } >> "$GITHUB_STEP_SUMMARY"
