@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Support for GHC 9.14.
+
 ### Changed
 
 - `tricorder source` no longer requires the daemon to evaluate source code.
