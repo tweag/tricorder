@@ -4,6 +4,7 @@ let
     "9.6.7"
     "9.8.4"
     "9.12.4"
+    "9.14.1"
   ];
   ghc-versions = [ default-ghc-version ] ++ additional-ghc-versions;
 

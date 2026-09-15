@@ -21,6 +21,7 @@ in
     license-file
     language
     default-extensions
+    tested-with
     ;
 
   inherit (common.options)
