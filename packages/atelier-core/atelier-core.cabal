@@ -109,9 +109,9 @@ library
     , daemons ==0.4.*
     , data-default ==0.8.*
     , directory ==1.3.*
-    , effectful ==2.7.*
-    , effectful-core ==2.7.*
-    , effectful-plugin ==2.2.*
+    , effectful >=2.6 && <2.8
+    , effectful-core >=2.6 && <2.8
+    , effectful-plugin >=2.0 && <2.3
     , effectful-th ==1.0.*
     , filepath >=1.4 && <1.6
     , fsnotify ==0.4.*
@@ -119,13 +119,13 @@ library
     , http-types ==0.12.*
     , ki ==1.0.*
     , list-t ==1.0.*
-    , optparse-applicative ==0.19.*
+    , optparse-applicative >=0.18 && <0.20
     , process ==1.6.*
     , prometheus-client ==1.1.*
     , prometheus-metrics-ghc ==1.0.*
     , stm ==2.5.*
     , stm-containers ==1.2.*
-    , text ==2.1.*
+    , text >=2.0 && <2.2
     , time >=1.12 && <1.17
     , time-units ==1.0.*
     , typed-process ==0.2.*
@@ -198,10 +198,10 @@ test-suite atelier-test
     , bytestring >=0.11 && <0.13
     , containers >=0.6 && <0.9
     , data-default ==0.8.*
-    , effectful ==2.7.*
-    , effectful-core ==2.7.*
-    , effectful-plugin ==2.2.*
-    , hedgehog ==1.7.*
+    , effectful >=2.6 && <2.8
+    , effectful-core >=2.6 && <2.8
+    , effectful-plugin >=2.0 && <2.3
+    , hedgehog >=1.5 && <1.8
     , hspec ==2.11.*
     , hspec-hedgehog ==0.3.*
     , stm ==2.5.*

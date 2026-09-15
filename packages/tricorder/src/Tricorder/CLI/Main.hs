@@ -76,7 +76,7 @@ main =
         . runLogNoOp
         . inputCabalFiles
         . runInputEff loadSession
-        . runInputEff ((.command.repl) <$> input)
+        . runInputEff ((.command.repl) <$> input @Session)
         . runReader @CacheConfig.Config def
         . Cache.runCacheTtl @ModuleName @PackageId
         . Cache.runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult

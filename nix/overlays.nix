@@ -1,18 +1,23 @@
-{
-  inputs,
-  project,
-  shell,
-}:
-[
-  inputs.haskell-nix.overlay
-  (final: _prev: {
-    tricorderProject = final.haskell-nix.hix.project (
-      project
-      // {
-        # uncomment with your current system for `nix flake show` to work:
-        # evalSystem = "x86_64-linux";
-        inherit shell;
-      }
-    );
-  })
-]
+{ withSystem, self, ... }: {
+  flake.overlays = {
+    nix-hpack = final: _: {
+      nix-hpack = withSystem final.stdenv.hostPlatform.system (
+        { config, ... }: config.packages.nix-hpack
+      );
+    };
+    tricorder = final: _: {
+      tricorder = withSystem final.stdenv.hostPlatform.system (
+        { config, ... }: config.packages.tricorder
+      );
+    };
+    default =
+      let
+        overlayNames = builtins.filter (o: o != "default") (builtins.attrNames self.overlays);
+        overlays = builtins.foldl' (
+          prevOverlay: thisOverlay: final: prev:
+          thisOverlay final (prev // prevOverlay final prev)
+        ) (_: _: { }) overlayNames;
+      in
+      overlays;
+  };
+}

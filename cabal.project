@@ -1,4 +1,8 @@
 packages:
-  packages/*
+  packages/atelier-prelude
+  packages/atelier-core
+  packages/tricorder-types
+  packages/tricorder-mcp
+  packages/tricorder
 
 tests: True

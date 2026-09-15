@@ -1,41 +1,58 @@
-{
-  compiler-nix-name,
-  self,
-}:
+{ inputs, ... }:
 let
-  component = {
-    # Treat warnings as errors in Nix builds (CI), but not in local dev.
-    # Applied to every first-party package.
-    ghcOptions = [ "-Werror" ];
-    # Make generated documentation suitable for upload to Hackage.
-    setupHaddockFlags = [ "--for-hackage" ];
-  };
+  common = import ./package/common.nix;
 in
 {
-  inherit compiler-nix-name;
-  src = ../.;
-
-  # Package-specific configuration
-  modules = [
+  perSystem =
     {
-      # Build Haddock (including hyperlinked source) for all packages
-      doHaddock = true;
+      lib,
+      pkgs,
+      config,
+      ...
+    }:
+    {
+      haskellProjects = lib.genAttrs config.ghc.names.all (ghcName: {
+        basePackages = pkgs.haskell.packages.${ghcName};
 
-      packages = {
-        atelier-prelude = component;
-        atelier-core = component;
-        tricorder-mcp = component;
-        tricorder-types = component;
-
-        # Configure tricorder package
-        tricorder = component // {
-          # Embed the flake's git revision so the released binary carries the
-          # correct hash. Falls back to "unknown" on dirty trees (no shortRev).
-          preBuild = ''
-            export TRICORDER_VERSION="${self.shortRev or "unknown"}"
-          '';
+        defaults.settings.local = {
+          check = true;
+          haddock = true;
         };
+
+        projectRoot = lib.fileset.toSource {
+          root = ../.;
+          fileset = lib.fileset.unions [
+            ../cabal.project
+            ../LICENSE
+            ../packages
+          ];
+        };
+
+        packages = {
+          mcp-server.source = inputs.mcp-server;
+          http-types.source = inputs.http-types;
+        };
+
+        devShell = {
+          enable = ghcName == config.ghc.names.default;
+          tools = hp: {
+            inherit (hp)
+              cabal-install
+              fourmolu
+              ghc
+              hlint
+              tasty-discover
+              weeder
+              ;
+          };
+        };
+      });
+
+      legacyPackages.haskellProjects = config.haskellProjects;
+
+      ghc.versions = {
+        default = common.default-ghc-version;
+        others = common.additional-ghc-versions;
       };
-    }
-  ];
+    };
 }

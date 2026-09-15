@@ -63,7 +63,7 @@ library
       aeson >=2.2 && <2.4
     , atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
-    , text ==2.1.*
+    , text >=2.0 && <2.2
   mixins:
       base hiding (Prelude)
   default-language: GHC2021
