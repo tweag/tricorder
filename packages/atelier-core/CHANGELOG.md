@@ -7,8 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.6.1.0] - 2026-09-15
+
 ### Added
 
+- `Atelier.Effects.FileSystem.Glob`: lifted functions from the `Glob` library.
 - Support for GHC 9.14.
 
 ## [0.6.0.0] - 2026-09-10
