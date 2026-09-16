@@ -55,7 +55,7 @@ library tricorder-mcp-internal
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
   build-depends:
       atelier-core ==0.6.*
-    , atelier-prelude ==0.3.*
+    , atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
     , bytestring >=0.11 && <0.13
     , directory ==1.3.*
@@ -99,7 +99,7 @@ executable tricorder-mcp
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
   build-depends:
-      atelier-prelude ==0.3.*
+      atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
@@ -142,7 +142,7 @@ test-suite tricorder-mcp-test
       tasty-discover:tasty-discover
   build-depends:
       atelier-core ==0.6.*
-    , atelier-prelude ==0.3.*
+    , atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
