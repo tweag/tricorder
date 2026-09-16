@@ -13,7 +13,7 @@ in
   apps = {
     tricorder = {
       type = "app";
-      program = "${flake.packages.tricorder}/bin/tricorder";
+      program = "${flake.packages."tricorder:exe:tricorder"}/bin/tricorder";
     };
 
     # Weeder: detects unused code

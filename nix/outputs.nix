@@ -34,24 +34,27 @@ let
   apps = import ./apps.nix { inherit pkgs compiler-nix-name flake; };
 in
 builtins.foldl' lib.recursiveUpdate { } [
-  flake
+  {
+    inherit (flake)
+      packages
+      checks
+      apps
+      ;
+  }
   docs
   sdists
   checks
   apps
   {
-    legacyPackages = pkgs;
+    legacyPackages = {
+      inherit flake;
+    };
+
     packages = {
       default = self.packages.${system}.tricorder;
       tricorder = flake.packages."tricorder:exe:tricorder";
       tricorder-mcp = flake.packages."tricorder-mcp:exe:tricorder-mcp";
       inherit (pkgs) nix-hpack;
     };
-
-    overlays = [
-      (final: _: {
-        tricorder = self.packages.${final.stdenv.hostPlatform.system}.tricorder;
-      })
-    ];
   }
 ]

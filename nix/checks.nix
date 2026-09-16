@@ -90,10 +90,15 @@ in
         '';
   };
 
-  legacyChecks.${compiler-nix-name} = {
-    all = pkgs.symlinkJoin {
+  legacyPackages = {
+    all-checks = pkgs.symlinkJoin {
       name = "all-checks-${compiler-nix-name}";
-      paths = builtins.attrValues self.checks.${system};
+      paths =
+        builtins.attrValues
+          self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.projects.${compiler-nix-name}.packages
+        ++
+          builtins.attrValues
+            self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.projects.${compiler-nix-name}.checks;
     };
   };
 }

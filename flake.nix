@@ -55,9 +55,9 @@
       in
       projects.${defaultGhcVersion}
       // {
-        legacyChecks = lib.mergeAttrsList (
-          map ({ legacyChecks, ... }: legacyChecks) (builtins.attrValues projects)
-        );
+        legacyPackages = projects.${defaultGhcVersion} // {
+          inherit projects;
+        };
       }
     )
     // {
