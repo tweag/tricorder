@@ -1,3 +1,4 @@
+{ self }:
 {
   pkgs,
   lib,
@@ -10,7 +11,9 @@ in
 {
   options.programs.tricorder = {
     enable = lib.mkEnableOption "tricorder GHCi build daemon";
-    package = lib.mkPackageOption pkgs "tricorder" { };
+    package = lib.mkPackageOption pkgs "tricorder" { } // {
+      default = self.packages.${pkgs.stdenv.hostPlatform.system}.tricorder;
+    };
   };
 
   config = lib.mkIf cfg.enable {
