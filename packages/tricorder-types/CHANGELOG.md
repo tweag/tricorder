@@ -7,6 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- Support for GHC 9.14. A faulty CI setup incorrectly stated that we were
+  building and testing successfully on GHC 9.14.
+
 ## [0.3.1.0] - 2026-10-15
 
 ### Added
