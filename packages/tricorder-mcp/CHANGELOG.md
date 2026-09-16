@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.1.2.2] - 2026-09-16
+
+### Changed
+
+- Bumped `atelier-core`, `atelier-prelude` and `tricorder-types`.
+
 ## [0.1.2.1] - 2026-09-11
 
 ### Changed
