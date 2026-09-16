@@ -54,7 +54,8 @@ jobs:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
-      - release-hackage-tricorder
+      - release-hackage-atelier-core
+      - release-hackage-atelier-prelude
       - release-hackage-tricorder-types
     if: ${{ !failure() && needs.checks.result == 'success' }}
     secrets: inherit
