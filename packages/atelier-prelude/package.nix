@@ -4,7 +4,7 @@ let
 in
 {
   name = "atelier-prelude";
-  version = "0.4.0.0";
+  version = "0.4.1.0";
   synopsis = "Custom relude-based prelude with Effectful conventions";
   description = "A custom prelude based on relude, adapted for Effectful — part of the atelier toolkit.";
   github = "tweag/tricorder";
