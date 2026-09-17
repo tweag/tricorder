@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `tricorder ui` no longer shows "pending test suites" without any test suites.
+
 ## [0.4.0.0] - 2026-09-16
 
 ### Removed
