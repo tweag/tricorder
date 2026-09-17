@@ -67,21 +67,12 @@ jobs:
           echo "packages: ." > cabal.project
           cabal update
           cabal build all
-      - name: Build docs
-        if: ${{ steps.tagging.outputs.created }}
-        run: |
-          nix build .#${{ inputs.package-name }}-docs
-          if test -f result-doc/*.tar.gz; then
-            mkdir -p ${{ runner.temp }}/release/docs
-            cp result-doc/*.tar.gz ${{ runner.temp }}/release/docs
-          fi
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
         with:
           hackageToken: ${{ secrets.HACKAGE_AUTH_TOKEN }}
           packagesPath: ${{ runner.temp }}/release/packages
-          docsPath: ${{ runner.temp }}/release/docs
           publish: true
       - name: Done
         if: ${{ steps.tagging.outputs.created }}
