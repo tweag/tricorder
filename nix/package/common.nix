@@ -1,10 +1,10 @@
 let
-  default-ghc-version = "9.10.3";
+  default-ghc-version = "9.14.1";
   additional-ghc-versions = [
     "9.6.7"
     "9.8.4"
+    "9.10.3"
     "9.12.4"
-    "9.14.1"
   ];
   ghc-versions = [ default-ghc-version ] ++ additional-ghc-versions;
 

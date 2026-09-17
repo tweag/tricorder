@@ -29,9 +29,9 @@ let
       inherit compiler-nix-name;
       src = ../.;
       cabalProjectLocal = ''
-        allow-newer:
+        allow-newer: 
           containers,
-          tasty-hspec:base
+          base
       '';
 
       # Package-specific configuration
