@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Proper support for GHC 9.14.
+
 ## [0.1.2.2] - 2026-09-16
 
 ### Changed

@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Proper support for GHC 9.14.
+
 ### Fixed
 
 - `tricorder ui` no longer shows "pending test suites" without any test suites.
