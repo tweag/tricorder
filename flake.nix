@@ -38,8 +38,6 @@
     }@inputs:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = nixpkgs.lib.systems.flakeExposed;
-      imports = [
-        ./nix/flake-module.nix
-      ];
+      imports = [ ./nix/flake-module.nix ];
     };
 }
