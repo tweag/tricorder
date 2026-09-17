@@ -1,20 +1,19 @@
-{
-  compiler-nix-name,
-  pkgs,
-  system,
-  inputs,
-  self,
-}:
-let
-  inherit (pkgs) lib;
-  common = import ./package/common.nix;
-  unusedConstraints = import ./package/unused-constraints.nix;
-in
-{
-  checks = {
-    git-hooks = inputs.git-hooks.lib.${system}.run {
-      src = ../.;
-      hooks = {
+{ self, inputs, ... }: {
+  imports = [ inputs.git-hooks.flakeModule ];
+  perSystem =
+    {
+      lib,
+      self',
+      pkgs,
+      config,
+      ...
+    }:
+    let
+      common = import ./package/common.nix;
+      unusedConstraints = import ./package/unused-constraints.nix;
+    in
+    {
+      pre-commit.settings.hooks = {
         fourmolu = {
           enable = true;
           package = pkgs.fourmolu;
@@ -42,7 +41,7 @@ in
           # additions) through locally; CI runs every hook unconditionally and
           # caught them. This widens the local trigger to match CI.
           files = "(\\.l?hs(-boot)?$)|(\\.cabal$)|((^|/)package\\.nix$)|((^|/)nix/package/.*\\.nix$)";
-          entry = "${pkgs.nix-hpack}/bin/nix-hpack";
+          entry = "${self'.packages.nix-hpack}/bin/nix-hpack";
           pass_filenames = false;
         };
         # Validate tagref cross-references (no dangling refs / duplicate tags).
@@ -52,53 +51,54 @@ in
           pass_filenames = false;
         };
       };
-    };
-    tricorder = pkgs.tricorder;
-    cabal-check =
-      pkgs.runCommand "cabal-check"
-        {
-          packagenames = builtins.concatStringsSep "\n" common.packageNames;
-          buildInputs = [
-            pkgs.cabal-install
-            pkgs.writableTmpDirAsHomeHook
-          ];
-        }
-        ''
-          for package in $packagenames; do
-            echo "Checking $package" >&2
-            (cd "${../.}/packages/$package" && cabal check)
-          done
-          # Ensuring $out is a directory makes this check compatible with
-          # symlinkJoin.
-          mkdir -p "$out"
-          touch "$out/cabal-check-ok"
-        '';
-    unused-constraints =
-      pkgs.runCommand "unused-constraints"
-        {
-          unused_constraints = lib.concatMapStringsSep "\n" (s: "- ${s}") unusedConstraints;
-        }
-        ''
-          if test -z "$unused_constraints"; then
-            mkdir -p "$out"
-            echo "ok" > "$out/check"
-          else
-            echo "There are unused version constraints in ./nix/package/dependencies.nix:" >&2
-            echo "$unused_constraints" >&2
-            exit 1
-          fi
-        '';
-  };
+      checks = {
+        tricorder = self'.packages.tricorder;
+        cabal-check =
+          pkgs.runCommand "cabal-check"
+            {
+              packagenames = builtins.concatStringsSep "\n" common.packageNames;
+              buildInputs = [
+                pkgs.cabal-install
+                pkgs.writableTmpDirAsHomeHook
+              ];
+            }
+            ''
+              for package in $packagenames; do
+                echo "Checking $package" >&2
+                (cd "${../.}/packages/$package" && cabal check)
+              done
+              # Ensuring $out is a directory makes this check compatible with
+              # symlinkJoin.
+              mkdir -p "$out"
+              touch "$out/cabal-check-ok"
+            '';
+        unused-constraints =
+          pkgs.runCommand "unused-constraints"
+            {
+              unused_constraints = lib.concatMapStringsSep "\n" (s: "- ${s}") unusedConstraints;
+            }
+            ''
+              if test -z "$unused_constraints"; then
+                mkdir -p "$out"
+                echo "ok" > "$out/check"
+              else
+                echo "There are unused version constraints in ./nix/package/dependencies.nix:" >&2
+                echo "$unused_constraints" >&2
+                exit 1
+              fi
+            '';
+      };
 
-  legacyPackages = {
-    all-checks = pkgs.symlinkJoin {
-      name = "all-checks-${compiler-nix-name}";
-      paths =
-        builtins.attrValues
-          self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.projects.${compiler-nix-name}.packages
-        ++
-          builtins.attrValues
-            self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.projects.${compiler-nix-name}.checks;
+      legacyPackages = lib.genAttrs config.ghc.names.all (compiler-nix-name: {
+        all-checks = pkgs.symlinkJoin {
+          name = "all-checks-${compiler-nix-name}";
+          paths =
+            builtins.attrValues
+              self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.flakes.${compiler-nix-name}.packages
+            ++
+              builtins.attrValues
+                self.legacyPackages.${pkgs.stdenv.hostPlatform.system}.flakes.${compiler-nix-name}.checks;
+        };
+      });
     };
-  };
 }

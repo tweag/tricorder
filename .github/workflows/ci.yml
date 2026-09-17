@@ -80,7 +80,7 @@ jobs:
         with:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
-      - run: nix build '.#legacyPackages.${{ matrix.system }}.projects.${{ matrix.ghc-version }}.legacyPackages.all-checks' -L
+      - run: nix build '.#legacyPackages.${{ matrix.system }}.${{ matrix.ghc-version }}.all-checks' -L
 
   results:
     name: Results
