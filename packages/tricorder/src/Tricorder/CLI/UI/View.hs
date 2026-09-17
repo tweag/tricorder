@@ -316,10 +316,12 @@ viewBuildPhase tz = \case
 
 
 viewPendingTestTargets :: [TestTarget] -> Widget n
-viewPendingTestTargets =
+viewPendingTestTargets [] = emptyWidget
+viewPendingTestTargets tgts =
     vBox
         . ([txt "Pending test suites:"] <>)
         . fmap (subtle . txt . renderTestTarget)
+        $ tgts
 
 
 viewBuildFailed :: Text -> Widget Viewports
