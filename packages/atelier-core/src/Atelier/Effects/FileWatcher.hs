@@ -69,11 +69,9 @@ module Atelier.Effects.FileWatcher
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.STM (retry)
 import Data.List (nub)
 import Effectful (Effect, IOE)
 import Effectful.Concurrent (Concurrent)
-import Effectful.Concurrent.STM (atomically)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift, localUnliftIO, reinterpret)
 import Effectful.State.Static.Shared (evalState, get, put)
 import Effectful.TH (makeEffect)
@@ -82,6 +80,7 @@ import System.FSNotify (eventPath, watchTree, withManager)
 import System.FilePath (takeExtension)
 
 import Data.Text qualified as T
+import Effectful.Concurrent qualified as Concurrent
 import System.FSNotify qualified as FSN
 
 import Atelier.Effects.Conc (concStrat)
@@ -198,12 +197,32 @@ runFileWatcherIO eff = interpretWith eff \env -> \case
                 for_ dedupedDirs \d ->
                     watchTree mgr d (matchesAny absWatches . eventPath) \fsEvent ->
                         void $ unliftIO $ callback (eventPath fsEvent) (toFileEvent fsEvent)
-                forever $ threadDelay 1_000_000
+                -- Park indefinitely to hold the manager open. fsnotify delivers
+                -- events on its own threads, so there is nothing to do here, and
+                -- waking up is not free: each wake-up ends the RTS idle period
+                -- and re-arms idle GC, costing a full major collection. 'forever'
+                -- is belt-and-braces in case the delay ever returns early.
+                --
+                -- Preferred over @atomically retry@: a transaction that retries
+                -- without having read a 'TVar' has no wakeup path, so it stays
+                -- parked only for as long as GC still sees this thread as
+                -- reachable. Should it ever become unreachable the RTS throws
+                -- @BlockedIndefinitelyOnSTM@, which would unwind 'withManager'
+                -- and silently stop all watching. A delay carries no such
+                -- dependency on how callers happen to retain the thread.
+                forever $ threadDelay maxBound
 
 
 -- | Scripted interpreter for testing.
--- Delivers all scripted events to the callback in order, then blocks
--- indefinitely — matching the blocking semantics of 'runFileWatcherIO'.
+--
+-- Delivers all scripted events to the callback in order, then parks forever,
+-- matching the blocking semantics of 'runFileWatcherIO' — 'WatchFilePaths'
+-- returns 'Void', so callers must never be resumed. Parks with a delay rather
+-- than @atomically retry@ for the same reason as 'runFileWatcherIO': a retry
+-- that read no 'TVar' stays parked only while GC sees the thread as reachable,
+-- so whether it survives depends on whether the test happens to hold onto the
+-- 'ThreadId'.
+--
 -- The 'Watch' specification is ignored; the caller controls what events are fed in.
 runFileWatcherScripted
     :: (Concurrent :> es) => [(FilePath, FileEvent)] -> Eff (FileWatcher : es) a -> Eff es a
@@ -213,7 +232,7 @@ runFileWatcherScripted events = reinterpret (evalState events) \env -> \case
             events' <- get
             put []
             for_ events' \(path, fileEvent) -> unlift $ callback path fileEvent
-            atomically retry
+            forever $ Concurrent.threadDelay maxBound
 
 
 -- Helpers
