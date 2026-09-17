@@ -30,8 +30,20 @@
           cabal = "latest";
           fourmolu = "latest";
           ghcid = "latest";
-          haskell-language-server = "latest";
-          hlint = "latest";
+          haskell-language-server = {
+            version = "latest";
+            cabalProjectLocal = ''
+              allow-newer:
+                base,
+                containers
+            '';
+          };
+          hlint = {
+            version = "latest";
+            cabalProjectLocal = ''
+              allow-newer: base
+            '';
+          };
           tasty-discover = "latest";
           weeder = "latest";
         };
