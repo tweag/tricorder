@@ -4,7 +4,7 @@ let
 in
 {
   name = "tricorder-mcp";
-  version = "0.1.2.2";
+  version = "0.1.3.0";
   synopsis = "MCP server for Tricorder";
   description = ''
     Model Context Protocol server for Tricorder.
@@ -26,6 +26,7 @@ in
     license-file
     language
     default-extensions
+    tested-with
     ;
 
   inherit (common.options)
