@@ -11,6 +11,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - Output from eval comments no longer runs outside of the terminal, and instead
   wraps around.
+- Component marked as `buildable: False` are not omitted from Tricorder's list
+  of targets.
 
 ### Changed
 
