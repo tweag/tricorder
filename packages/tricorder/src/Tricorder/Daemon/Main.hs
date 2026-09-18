@@ -14,6 +14,7 @@ import Atelier.Effects.FileWatcher (runFileWatcherIO)
 import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Publishing (runPubSub)
 import Atelier.Effects.Timeout (runTimeout)
+import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
@@ -103,6 +104,7 @@ main =
         . TestRunner.run
         . Waiters.run
         $ do
+            installTerminationHandler
             Log.info $ "Starting tricorder " <> Version.gitHash
             Conc.fork_ Core.main
             Conc.fork_ Server.main
