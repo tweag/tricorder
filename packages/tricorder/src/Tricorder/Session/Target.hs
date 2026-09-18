@@ -12,7 +12,8 @@ module Tricorder.Session.Target
 where
 
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
-import Distribution.Types.CondTree (condTreeData)
+import Distribution.Compat.Lens (view)
+import Distribution.Types.CondTree (CondTree, condTreeData)
 import Distribution.Types.GenericPackageDescription
     ( GenericPackageDescription
     , condBenchmarks
@@ -30,6 +31,7 @@ import Distribution.Types.PackageName (unPackageName)
 import Distribution.Types.UnqualComponentName (mkUnqualComponentName, unUnqualComponentName)
 
 import Data.Text qualified as T
+import Distribution.Types.BuildInfo.Lens qualified as Lens
 
 import Tricorder.Session.CabalFile (CabalFile (..))
 
@@ -204,11 +206,32 @@ allComponentTargets gpd =
         ++ benchTargets
   where
     mainPkgName = toText $ unPackageName . pkgName . package . packageDescription $ gpd
-    mainLibTargets = maybe [] (const [qualified Lib mainPkgName]) (condLibrary gpd)
-    subLibTargets = map (\(n, _) -> qualified Lib (getComponentName n)) (condSubLibraries gpd)
-    flibTargets = map (\(n, _) -> qualified FLib (getComponentName n)) (condForeignLibs gpd)
-    exeTargets = map (\(n, _) -> qualified Exe (getComponentName n)) (condExecutables gpd)
-    testTargets = map (\(n, _) -> qualified Test (getComponentName n)) (condTestSuites gpd)
-    benchTargets = map (\(n, _) -> qualified Bench (getComponentName n)) (condBenchmarks gpd)
+    mainLibTargets =
+        fmap (const $ qualified Lib mainPkgName)
+            $ filter (view Lens.buildable . condTreeData)
+            $ toList
+            $ condLibrary gpd
+    subLibTargets =
+        fmap (\(n, _) -> qualified Lib (getComponentName n))
+            $ filter isBuildable
+            $ condSubLibraries gpd
+    flibTargets =
+        fmap (\(n, _) -> qualified FLib (getComponentName n))
+            $ filter isBuildable
+            $ condForeignLibs gpd
+    exeTargets =
+        fmap (\(n, _) -> qualified Exe (getComponentName n))
+            $ filter isBuildable
+            $ condExecutables gpd
+    testTargets =
+        fmap (\(n, _) -> qualified Test (getComponentName n))
+            $ filter isBuildable
+            $ condTestSuites gpd
+    benchTargets =
+        fmap (\(n, _) -> qualified Bench (getComponentName n))
+            $ filter isBuildable
+            $ condBenchmarks gpd
     getComponentName = toText . unUnqualComponentName
     qualified = PackageQualified mainPkgName
+    isBuildable :: (Lens.HasBuildInfo val) => (a, CondTree condVar dep val) -> Bool
+    isBuildable = view Lens.buildable . condTreeData . snd
