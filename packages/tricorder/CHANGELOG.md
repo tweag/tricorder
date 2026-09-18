@@ -13,6 +13,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   wraps around.
 - Component marked as `buildable: False` are not omitted from Tricorder's list
   of targets.
+- GHC plugins declared via `-fplugin` are no longer silently skipped on reload
+  on GHC 9.14, causing a flood of spurious diagnostics.
 
 ### Changed
 
