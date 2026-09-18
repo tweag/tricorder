@@ -7,6 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Output from eval comments no longer runs outside of the terminal, and instead
+  wraps around.
+
 ### Changed
 
 - Reduce upper bound on `Cabal` and `Cabal-syntax` dependencies. Version `3.18`

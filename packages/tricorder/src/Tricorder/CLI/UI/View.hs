@@ -221,7 +221,7 @@ viewEvaluation evaluation =
             <> case evaluation.state of
                 Eval.Completed output ->
                     [ subtle $ txt "Result:"
-                    , vBox $ txt <$> T.lines output
+                    , txtWrap output
                     ]
                 Eval.Pending ->
                     [ subtle $ txt "Running..."
