@@ -30,8 +30,8 @@ let
   );
   depList = map dep;
   constraints = packageVersions // {
-    Cabal = ">=3.12 && <3.19";
-    Cabal-syntax = ">=3.12 && <3.19";
+    Cabal = ">=3.12 && <3.17";
+    Cabal-syntax = ">=3.12 && <3.17";
     Glob = ">=0.10 && <0.11";
     aeson = ">=2.2 && <2.4";
     base = ">=4.18 && < 4.23";

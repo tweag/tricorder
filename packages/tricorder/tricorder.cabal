@@ -122,8 +122,8 @@ library tricorder-internal
       TypeFamilies
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded
   build-depends:
-      Cabal >=3.12 && <3.19
-    , Cabal-syntax >=3.12 && <3.19
+      Cabal >=3.12 && <3.17
+    , Cabal-syntax >=3.12 && <3.17
     , Glob ==0.10.*
     , aeson >=2.2 && <2.4
     , atelier-core ==0.7.*
@@ -297,7 +297,7 @@ test-suite tricorder-test
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:
-      Cabal-syntax >=3.12 && <3.19
+      Cabal-syntax >=3.12 && <3.17
     , aeson >=2.2 && <2.4
     , atelier-core ==0.7.*
     , atelier-prelude ==0.4.*
