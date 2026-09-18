@@ -187,7 +187,6 @@ setupGhciProcess config p onProgress onReady = do
     -- Send fixed setup commands (protocol requirements)
     File.hPutTextLn inp ":set prompt \"\""
     File.hPutTextLn inp ":set prompt-cont \"\""
-    File.hPutTextLn inp ":set +c"
     -- Send any caller-supplied extra setup commands
     for_ config.extraSetupCommands \c ->
         File.hPutTextLn inp c
