@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce upper bound on `Cabal` and `Cabal-syntax` dependencies. Version `3.18`
+  bring with them breaking changes that Tricorder is not yet compatible with, so
+  this is a necessary change.
+
 ## [0.4.1.0] - 2026-09-17
 
 ### Added
