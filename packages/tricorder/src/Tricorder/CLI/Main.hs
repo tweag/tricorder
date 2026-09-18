@@ -15,6 +15,7 @@ import Atelier.Effects.Log (runLogNoOp)
 import Atelier.Effects.Posix.Daemons (runDaemons)
 import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
+import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
@@ -83,4 +84,6 @@ main =
         . GhcPkg.runGhcPkgIO
         . PackageStore.run
         . Hackage.run
-        $ App.run
+        $ do
+            installTerminationHandler
+            App.run

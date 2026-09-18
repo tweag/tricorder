@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Signal`: For properly handling termination of an application.
+
 ## [0.7.1.0] - 2026-09-17
 
 ### Added

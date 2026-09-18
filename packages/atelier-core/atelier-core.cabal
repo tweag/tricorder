@@ -66,6 +66,7 @@ library
       Atelier.Effects.UUID
       Atelier.Effects.Yield
       Atelier.Exception
+      Atelier.Signal
       Atelier.Time
       Atelier.Types.Base64
       Atelier.Types.HttpApiDataReadShow
