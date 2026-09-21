@@ -8,6 +8,7 @@ module Tricorder.Daemon.GhciSession.GhciProcess
     , waitForBannerOrFail
     , withGhciProcess
     , execGhci
+    , drainUntil
     , interruptGhci
     , terminateGhciProcess
     , collectGhciResult
@@ -36,6 +37,7 @@ import Atelier.Effects.Process
 import Atelier.Effects.Timeout (Timeout, timeout)
 import Control.Concurrent.STM (TVar, modifyTVar', readTVar, retry, writeTVar)
 import Data.Default (Default (..))
+import Data.Sequence ((|>))
 import Data.Time.Units (Second)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (atomically, newTVarIO)
@@ -140,6 +142,7 @@ setupGhciProcess
     :: ( Conc :> es
        , Concurrent :> es
        , File :> es
+       , Log :> es
        , Timeout :> es
        )
     => Config
@@ -218,7 +221,7 @@ setupGhciProcess config p onProgress onReady = do
 -- action receives the process handle and the output captured during startup.
 -- See 'setupGhciProcess' for the @onProgress@ and @onReady@ callbacks.
 withGhciProcess
-    :: (Conc :> es, Concurrent :> es, File :> es, Process :> es, Timeout :> es)
+    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es, Process :> es, Timeout :> es)
     => Config
     -> Command
     -> FilePath
@@ -249,6 +252,7 @@ execGhci
     :: ( Conc :> es
        , Concurrent :> es
        , File :> es
+       , Log :> es
        )
     => GhciProcess -> Text -> (GhciLoading -> Eff es ()) -> Eff es [Text]
 execGhci ghciProcess command onProgress = do
@@ -372,21 +376,47 @@ sendSyncCommand h marker = do
 -- Each ordinary line is passed to @onLine@ as it arrives, so callers can stream
 -- progress without waiting for the full drain to complete. Returns accumulated
 -- non-marker lines in order. Throws 'UnexpectedExit' on EOF before the marker.
-drainUntil :: (File :> es) => Handle -> Text -> (Text -> Eff es ()) -> Eff es [Text]
-drainUntil h marker onLine = go []
+drainUntil :: (File :> es, Log :> es) => Handle -> Text -> (Text -> Eff es ()) -> Eff es [Text]
+drainUntil h marker onLine = go mempty
   where
     go acc = do
         result <- trySync $ File.hGetLine h
         case result of
-            Left _ ->
-                throwIO $ UnexpectedExit marker (listToMaybe (reverse acc))
+            Left ex -> do
+                let accumulatedLines = T.intercalate "\n" $ toList acc
+                Log.err
+                    $ T.intercalate
+                        "\n"
+                        [ "Reached EOF before reading marker from GHCi."
+                        , "Was looking for marker '" <> marker <> "', but no such marker was found."
+                        , ""
+                        ]
+                        <> if T.null accumulatedLines
+                            then
+                                T.intercalate
+                                    "\n"
+                                    [ "GHCi returned no output before we reached what we believe is EOF."
+                                    , "Got the following exception when attempting to read from GHCi:"
+                                    , toText $ displayException ex
+                                    ]
+                            else
+                                T.intercalate
+                                    "\n"
+                                    [ "Accumulated output from GHCi so far:"
+                                    , accumulatedLines
+                                    ]
+                throwIO
+                    $ UnexpectedExit marker
+                    $ if T.null accumulatedLines
+                        then Nothing
+                        else Just accumulatedLines
             Right line
-                | marker `T.isInfixOf` line -> pure (reverse acc)
+                | marker `T.isInfixOf` line -> pure $ toList acc
                 -- A stale marker from an interrupted command: drop it, keep going.
                 | markerPrefix `T.isInfixOf` line -> go acc
                 | otherwise -> do
                     onLine line
-                    go (line : acc)
+                    go $ acc |> line
 
 
 -- | Convert a 'GhciLoading' progress callback into a per-line hook suitable
