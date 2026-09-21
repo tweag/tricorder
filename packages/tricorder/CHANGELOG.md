@@ -17,6 +17,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   on GHC 9.14, causing a flood of spurious diagnostics.
 - Frequent wakeups while idle caused Tricorder to run GC unnecessarily. The
   length of time between idle checks has now been increased. (Thanks @agentm!)
+- Errors and issues that occur when reading from GHCi will now be logged. To
+  capture specific parts of the GHCi output, Tricorder makes GHCi echo some
+  marker lines around the output of any issued commands from Tricorder. When we
+  receive back a reply that ends before seeing the ending marker, something's
+  gone awry, and previously Tricorder would just display
+  `Unexpected Exit "#~TRI-FINISH-1" Nothing` in a lot of these cases because we
+  failed to read from GHCi.
 
 ### Changed
 

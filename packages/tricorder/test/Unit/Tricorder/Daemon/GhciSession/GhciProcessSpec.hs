@@ -3,6 +3,7 @@ module Unit.Tricorder.Daemon.GhciSession.GhciProcessSpec (spec_GhciProcess) wher
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.File (runFile)
+import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Atelier.Effects.Process (runProcessIO, terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
 import Atelier.Effects.Timeout (runTimeout)
@@ -11,11 +12,12 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (newTVarIO)
 import Control.Exception (IOException, catch)
 import Data.Char (isDigit)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Time.Units (Second)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Exception (trySync)
+import Effectful.Writer.Static.Shared (runWriter)
 import System.IO (hGetLine)
 import System.Posix.Signals (nullSignal, sigKILL, signalProcess)
 import System.Process.Typed
@@ -48,6 +50,7 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , InterruptDecision (..)
     , SessionState (..)
     , decideInterrupt
+    , drainUntil
     , execGhci
     , waitForBannerOrFail
     )
@@ -56,12 +59,140 @@ import Tricorder.Daemon.GhciSession.GhciProcess
 spec_GhciProcess :: Spec
 spec_GhciProcess = do
     describe "decideInterrupt" testDecideInterrupt
+    describe "drainUntil" testDrainUntil
     describe "execGhci" testExecGhciScope
     describe "execGhci (stale marker desync)" testExecGhciStaleMarker
     describe "execGhci (sync marker scope independence)" testSyncMarkerScopeIndependent
     describe "waitForBannerOrFail" testWaitForBannerOrFail
     describe "withProcessGroup (process group)" testWithProcessGroupCleanup
     describe "terminateProcessGroup (process group)" testTerminateProcessGroup
+
+
+-- | Mirrors the private 'markerFor' helper (not exported), using the same
+-- reconstruction as 'testExecGhciStaleMarker' below.
+finishMarker :: Int -> Text
+finishMarker n = "#~TRI-FINISH-" <> show n <> "~#"
+
+
+testDrainUntil :: Spec
+testDrainUntil = do
+    it "returns accumulated non-marker lines in order and stops at the marker" do
+        (r, w) <- Process.createPipe
+        (result, _msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    for_ ["line1", "line2", finishMarker 1, "line3"] (File.hPutTextLn w)
+                    File.hClose w
+                    drainUntil r (finishMarker 1) (\_ -> pure ())
+        result `shouldBe` ["line1", "line2"]
+
+    it "streams each non-marker line to onLine, in order, before returning" do
+        (r, w) <- Process.createPipe
+        seenRef <- newIORef []
+        (result, _msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    for_ ["a", "b", "c", finishMarker 2] (File.hPutTextLn w)
+                    File.hClose w
+                    drainUntil r (finishMarker 2) (\l -> liftIO $ modifyIORef' seenRef (l :))
+        seen <- reverse <$> readIORef seenRef
+        seen `shouldBe` ["a", "b", "c"]
+        result `shouldBe` seen
+
+    it "skips a stale marker with a different suffix and keeps draining" do
+        (r, w) <- Process.createPipe
+        (result, _msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    -- 'finishMarker 5' is a leftover from a prior, interrupted
+                    -- command; the drain waiting for 'finishMarker 9' must
+                    -- skip it rather than stopping.
+                    for_ ["before", finishMarker 5, "after", finishMarker 9] (File.hPutTextLn w)
+                    File.hClose w
+                    drainUntil r (finishMarker 9) (\_ -> pure ())
+        result `shouldBe` ["before", "after"]
+
+    it "throws UnexpectedExit with ALL accumulated lines (in order) on EOF, not just the last one" do
+        (r, w) <- Process.createPipe
+        (outcome, _msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    for_ ["first", "second", "third"] (File.hPutTextLn w)
+                    File.hClose w -- EOF before the marker ever arrives
+                    trySync (drainUntil r (finishMarker 1) (\_ -> pure ()))
+        case outcome of
+            Right ls -> expectationFailure ("expected UnexpectedExit, got: " <> show ls)
+            Left ex -> case fromException ex of
+                Just (UnexpectedExit m ls) -> do
+                    m `shouldBe` finishMarker 1
+                    ls `shouldBe` Just "first\nsecond\nthird"
+                other -> expectationFailure ("expected UnexpectedExit, got: " <> show other)
+
+    it "throws UnexpectedExit with no lines when EOF is reached immediately" do
+        (r, w) <- Process.createPipe
+        (outcome, _msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    File.hClose w
+                    trySync (drainUntil r (finishMarker 1) (\_ -> pure ()))
+        case outcome of
+            Right ls -> expectationFailure ("expected UnexpectedExit, got: " <> show ls)
+            Left ex -> case fromException ex of
+                Just (UnexpectedExit m ls) -> do
+                    m `shouldBe` finishMarker 1
+                    ls `shouldBe` Nothing
+                other -> expectationFailure ("expected UnexpectedExit, got: " <> show other)
+
+    it
+        "logs an ERROR mentioning the missing marker and the exception when EOF is reached with no output"
+        do
+            (r, w) <- Process.createPipe
+            (_outcome, msgs) <-
+                runEff
+                    . runWriter @[Message]
+                    . runLogWriter
+                    . runFile
+                    $ do
+                        File.hClose w
+                        trySync (drainUntil r (finishMarker 3) (\_ -> pure ()))
+            case filter (\m -> m.severity == ERROR) msgs of
+                [] -> expectationFailure "expected an ERROR log message"
+                (logMsg : _) -> do
+                    (finishMarker 3 `T.isInfixOf` logMsg.text) `shouldBe` True
+                    ("GHCi returned no output" `T.isInfixOf` logMsg.text) `shouldBe` True
+
+    it "logs an ERROR including the accumulated output when EOF is reached mid-output" do
+        (r, w) <- Process.createPipe
+        (_outcome, msgs) <-
+            runEff
+                . runWriter @[Message]
+                . runLogWriter
+                . runFile
+                $ do
+                    for_ ["oops-line-1", "oops-line-2"] (File.hPutTextLn w)
+                    File.hClose w
+                    trySync (drainUntil r (finishMarker 4) (\_ -> pure ()))
+        case filter (\m -> m.severity == ERROR) msgs of
+            [] -> expectationFailure "expected an ERROR log message"
+            (logMsg : _) -> do
+                (finishMarker 4 `T.isInfixOf` logMsg.text) `shouldBe` True
+                ("oops-line-1" `T.isInfixOf` logMsg.text) `shouldBe` True
+                ("oops-line-2" `T.isInfixOf` logMsg.text) `shouldBe` True
 
 
 -- | Regression for the touch-during-reload desync. Interrupting a *Busy* GHCi
@@ -102,6 +233,7 @@ testExecGhciStaleMarker =
                 . runTimeout
                 . runDelay
                 . runFile
+                . runLogNoOp
                 . runConc
                 $ do
                     -- A stale 'marker 5' (left by a prior interrupted reload)
@@ -159,6 +291,7 @@ testSyncMarkerScopeIndependent =
                 . runTimeout
                 . runDelay
                 . runFile
+                . runLogNoOp
                 . runConc
                 $ do
                     -- Pre-seed the marker on both streams so the drain returns
@@ -395,6 +528,7 @@ testExecGhciScope =
                 . runTimeout
                 . runDelay
                 . runFile
+                . runLogNoOp
                 . runConc
                 $ Conc.scoped do
                     -- A sibling fork in the SAME ambient scope. If the bug
