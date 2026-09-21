@@ -30,8 +30,8 @@ let
       src = ../.;
       cabalProjectLocal = ''
         allow-newer: 
-          containers,
-          base
+          config-ini:containers,
+          tasty-hspec:base
       '';
 
       # Package-specific configuration
