@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.4.1.1] - 2026-09-21
+
 ### Fixed
 
 - Output from eval comments no longer runs outside of the terminal, and instead
@@ -28,8 +30,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Changed
 
 - Reduce upper bound on `Cabal` and `Cabal-syntax` dependencies. Version `3.18`
-  bring with them breaking changes that Tricorder is not yet compatible with, so
-  this is a necessary change.
+  bring with them breaking changes that Tricorder is not yet compatible with,
+  so this is a necessary change.
 
 ## [0.4.1.0] - 2026-09-17
 
