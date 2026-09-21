@@ -11,8 +11,8 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit, exitSuccess)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
-import Atelier.Time (Second)
-import Data.Time (diffUTCTime)
+import Atelier.Time (Second, nominalDiffTime)
+import Data.Time (NominalDiffTime, diffUTCTime)
 import Effectful (Effect, Limit (..), Persistence (..), UnliftStrategy (..))
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (atomically, modifyTVar', newTVarIO, readTVar, writeTVar)
@@ -37,9 +37,14 @@ makeEffect ''IdleTimer
 
 
 -- | Run the idle timer, shutting the process down once
--- @idle_timeout_seconds@ (read from 'Session', re-read on every check so
--- config reloads apply live) elapses with no open connections. A timeout of
--- zero or less disables shutdown.
+-- @idle_timeout_seconds@ elapses with no open connections. A timeout of zero
+-- or less disables shutdown.
+--
+-- The timeout is read from 'Session' on every check rather than captured once,
+-- so config reloads apply to a daemon that is already idle — within
+-- 'maxCheckInterval', which bounds how long the check sleeps. Shutdown itself
+-- still happens at the deadline, not at a check boundary: the last sleep is
+-- trimmed to the exact time remaining.
 quitOnTimeout
     :: ( Clock :> es
        , Conc :> es
@@ -56,22 +61,24 @@ quitOnTimeout act = do
     activeActions <- newTVarIO (0 :: Int)
 
     Conc.fork_ $ Log.withNamespace "IdleTimer" $ forever do
-        Delay.wait (2 :: Second)
         idleTimeout <- input
         case idleTimeout of
-            IdleTimeout secs | secs <= 0 -> pure ()
+            -- Disabled, but keep checking so re-enabling it via a config
+            -- reload is still picked up.
+            IdleTimeout secs | secs <= 0 -> Delay.wait maxCheckInterval
             IdleTimeout secs -> do
                 now <- currentTime
-                shouldExit <- atomically do
-                    connections <- readTVar activeActions
-                    idleSince <- readTVar lastActivity
-                    pure $ connections <= 0 && diffUTCTime now idleSince >= fromIntegral secs
-                when shouldExit do
-                    Log.info
-                        $ "Idle for "
-                            <> show secs
-                            <> " with no active connections, shutting down."
-                    exitSuccess
+                (connections, idleSince) <- atomically do
+                    (,) <$> readTVar activeActions <*> readTVar lastActivity
+                let remaining = fromIntegral secs - diffUTCTime now idleSince
+                if connections > 0 || remaining > 0
+                    then Delay.wait $ nextCheck connections remaining
+                    else do
+                        Log.info
+                            $ "Idle for "
+                                <> show secs
+                                <> " with no active connections, shutting down."
+                        exitSuccess
 
     interpretWith act \env -> \case
         WithActivity action -> do
@@ -85,3 +92,26 @@ quitOnTimeout act = do
                     atomically do
                         modifyTVar' activeActions (max 0 . subtract 1)
                         writeTVar lastActivity end
+
+
+-- | Longest the idle check will sleep between polls.
+--
+-- Checking in bounded chunks rather than one sleep until the deadline keeps
+-- live config reloads responsive: a changed @idle_timeout_seconds@ (including
+-- re-enabling a disabled one) is picked up within this interval. It is kept
+-- generous because wake-ups are not free — each one ends the RTS idle period
+-- and re-arms idle GC, costing a major collection.
+maxCheckInterval :: Second
+maxCheckInterval = 60
+
+
+-- | How long to sleep before the next idle check.
+--
+-- With connections open the timeout cannot fire, so there is nothing to wait
+-- for but a config change. Otherwise sleep until the deadline, capped at
+-- 'maxCheckInterval' and floored at one second so a sub-second remainder
+-- cannot spin the loop.
+nextCheck :: Int -> NominalDiffTime -> Second
+nextCheck connections remaining
+    | connections > 0 = maxCheckInterval
+    | otherwise = max 1 . min maxCheckInterval $ nominalDiffTime remaining
