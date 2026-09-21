@@ -15,6 +15,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   of targets.
 - GHC plugins declared via `-fplugin` are no longer silently skipped on reload
   on GHC 9.14, causing a flood of spurious diagnostics.
+- Frequent wakeups while idle caused Tricorder to run GC unnecessarily. The
+  length of time between idle checks has now been increased. (Thanks @agentm!)
 
 ### Changed
 
