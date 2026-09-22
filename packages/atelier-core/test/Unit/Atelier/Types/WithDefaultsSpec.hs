@@ -7,7 +7,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Data.ByteString.Lazy qualified as LBS
 
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.WithDefaults (WithDefaults (..))
 
 

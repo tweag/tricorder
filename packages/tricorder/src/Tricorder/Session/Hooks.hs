@@ -6,7 +6,7 @@ module Tricorder.Session.Hooks
 where
 
 import Atelier.Effects.Process (Process)
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
 import Effectful.Exception (trySync)

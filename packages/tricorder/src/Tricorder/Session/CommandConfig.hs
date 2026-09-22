@@ -1,6 +1,6 @@
 module Tricorder.Session.CommandConfig (CommandConfig (..)) where
 
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
 

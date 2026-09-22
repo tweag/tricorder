@@ -10,7 +10,7 @@ import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 
 import Atelier.Config (LoadedConfig (..), extractNestedConfig)
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.WithDefaults (WithDefaults (..))
 
 

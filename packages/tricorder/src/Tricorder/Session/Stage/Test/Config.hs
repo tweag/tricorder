@@ -5,7 +5,7 @@ module Tricorder.Session.Stage.Test.Config
     )
 where
 
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON (..), ToJSON, Value (..))
 import Data.Aeson.Types (ToJSON (..))
 import Data.Default (Default (..))

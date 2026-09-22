@@ -15,7 +15,7 @@ module Tricorder.Build.EvalComment
     )
 where
 
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..), withObject, (.:))
 import GHC.Generics (Generically (..))
 import Text.Megaparsec

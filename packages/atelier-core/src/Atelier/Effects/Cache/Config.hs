@@ -12,7 +12,7 @@ import Data.Aeson (FromJSON)
 import Data.Default (Default (..))
 import Data.Time (NominalDiffTime)
 
-import Atelier.Types.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 
 
 -- | Configuration for a TTL-evicting cache
