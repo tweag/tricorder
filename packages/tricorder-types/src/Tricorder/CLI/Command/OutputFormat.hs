@@ -1,6 +1,7 @@
 module Tricorder.CLI.Command.OutputFormat
     ( OutputFormat (..)
     , toArgs
+    , jsonOutputFlagName
     )
 where
 
@@ -8,9 +9,13 @@ where
 data OutputFormat
     = TextOutput
     | JsonOutput
-    deriving stock (Eq)
+    deriving stock (Eq, Show)
 
 
 toArgs :: OutputFormat -> [String]
-toArgs JsonOutput = ["--json"]
+toArgs JsonOutput = ["--" <> jsonOutputFlagName]
 toArgs TextOutput = []
+
+
+jsonOutputFlagName :: String
+jsonOutputFlagName = "json"

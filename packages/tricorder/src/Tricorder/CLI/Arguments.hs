@@ -1,13 +1,5 @@
 module Tricorder.CLI.Arguments
-    ( Command (..)
-    , LogMode (..)
-    , SourceOptions (..)
-    , StatusOptions (..)
-    , TestOptions (..)
-    , EvalCommentsOptions (..)
-    , Verbosity (..)
-    , WaitMode (..)
-    , parseArguments
+    ( parseArguments
     , runArguments
     )
 where
@@ -34,6 +26,7 @@ import Options.Applicative
     , metavar
     , option
     , progDesc
+    , progDescDoc
     , readerError
     , short
     )
@@ -46,14 +39,17 @@ import Tricorder.CLI.Command
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
-    , WaitMode (..)
     )
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
+
+import Options.Applicative.Help.Pretty qualified as Doc
 
 import Tricorder.SourceLookup (ReexportLimits (..), defaultReexportLimits)
 
 import Tricorder.CLI.Arguments.Daemon qualified as Daemon
 import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
+import Tricorder.CLI.Arguments.Test qualified as Test
+import Tricorder.CLI.Arguments.WaitMode qualified as WaitMode
 import Tricorder.Version qualified as Version
 
 
@@ -87,7 +83,18 @@ commandParser =
             <> command
                 "status"
                 (info statusParser (progDesc "Print build diagnostics (--json for machine-readable output)"))
-            <> command "test-results" (info testParser (progDesc "Show output from the latest test run"))
+            <> command
+                "test-results"
+                ( info
+                    testResultsParser
+                    ( progDescDoc
+                        $ Just
+                        $ "Show output from the latest test run"
+                            <> Doc.line
+                            <> Doc.annotate Doc.bold "DEPRECATED: use the `test suites` subcommand"
+                    )
+                )
+            <> command "test" (Test <$> Test.parser)
             <> command "ui" (info (pure UI) (progDesc "Auto-refreshing terminal display"))
             <> command "log" (info logParser (progDesc "Show daemon log output"))
             <> command
@@ -118,7 +125,7 @@ statusParser :: Parser Command
 statusParser =
     Status
         <$> ( StatusOptions
-                <$> waitParser
+                <$> WaitMode.parser
                 <*> OutputFormat.parser
                 <*> flag
                     Concise
@@ -138,9 +145,9 @@ statusParser =
             )
 
 
-testParser :: Parser Command
-testParser =
-    Test
+testResultsParser :: Parser Command
+testResultsParser =
+    TestResults
         <$> ( TestOptions
                 <$> flag
                     False
@@ -148,7 +155,7 @@ testParser =
                     ( long "failed"
                         <> help "Only show output from failed test suites"
                     )
-                <*> waitParser
+                <*> WaitMode.parser
             )
 
 
@@ -210,19 +217,9 @@ evalCommentsParser :: Parser Command
 evalCommentsParser =
     EvalComments
         <$> ( EvalCommentsOptions
-                <$> waitParser
+                <$> WaitMode.parser
                 <*> OutputFormat.parser
             )
-
-
-waitParser :: Parser WaitMode
-waitParser =
-    flag
-        ShowCurrent
-        WaitForBuild
-        ( long "wait"
-            <> help "Block until the current build cycle completes"
-        )
 
 
 queryReader :: ReadM SourceQuery

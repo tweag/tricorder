@@ -20,7 +20,15 @@ import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
+import Tricorder.CLI.Command
+    ( EvalCommentsOptions (..)
+    , SourceOptions (..)
+    , StatusOptions (..)
+    , TestOptions (..)
+    , Verbosity (..)
+    )
 import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
+import Tricorder.CLI.Command.WaitMode (WaitMode (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Console qualified as Console
@@ -31,14 +39,6 @@ import Data.Text qualified as T
 import Tricorder.Build (BuildState (..), Severity (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
-import Tricorder.CLI.Arguments
-    ( EvalCommentsOptions (..)
-    , SourceOptions (..)
-    , StatusOptions (..)
-    , TestOptions (..)
-    , Verbosity (..)
-    , WaitMode (..)
-    )
 import Tricorder.CLI.Render
     ( diagnosticLineIndexed
     , formatDuration

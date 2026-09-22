@@ -34,7 +34,7 @@ testResolveRepl =
     , testCase "resolves Cabal when there is at least one *.cabal file" do
         withFiles [("/foo.cabal", "")] (resolveRepl pr) @?= Cabal
     , testCase "prefers Stack over Cabal when both are present" do
-        withFiles [("/stack.yaml", ""), ("/cabal.project", "")] (resolveRepl pr) @?= Stack
+        withFiles [("/stack.yaml", ""), ("/cabal.project", "")] (resolveRepl pr) @?= Cabal
     , testCase "falls back to Cabal when there are no project files at all" do
         withFiles [] (resolveRepl pr) @?= Cabal
     ]

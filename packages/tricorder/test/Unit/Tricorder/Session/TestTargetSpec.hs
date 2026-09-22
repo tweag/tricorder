@@ -23,23 +23,23 @@ testResolveTestTargets =
     [ testCase "infers test: components from targets when testTargets is absent" do
         let cfg = def :: Config
         TestTarget.resolve cfg (mkTargets ["lib:mylib", "test:mylib-test"])
-            @?= TestTarget.parse ["test:mylib-test"]
+            @?= mapMaybe TestTarget.parse ["test:mylib-test"]
     , testCase "returns empty list when no test: components in targets" do
         let cfg = def :: Config
         TestTarget.resolve cfg (mkTargets ["lib:mylib", "exe:myapp"])
-            @?= TestTarget.parse []
+            @?= mapMaybe TestTarget.parse []
     , testCase "uses explicit testTargets list when set" do
         let cfg = def {testTargets = Just ["test:b-test"]} :: Config
         TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
-            @?= TestTarget.parse ["test:b-test"]
+            @?= mapMaybe TestTarget.parse ["test:b-test"]
     , testCase "returns empty list when testTargets is explicitly empty" do
         let cfg = def {testTargets = Just []} :: Config
         TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test"])
-            @?= TestTarget.parse []
+            @?= []
     , testCase "infers multiple test: components" do
         let cfg = def :: Config
         TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
-            @?= TestTarget.parse ["test:a-test", "test:b-test"]
+            @?= mapMaybe TestTarget.parse ["test:a-test", "test:b-test"]
     ]
   where
     mkTargets = fmap Target.parse

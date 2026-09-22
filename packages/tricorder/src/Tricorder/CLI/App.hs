@@ -16,6 +16,7 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
+import Tricorder.CLI.Command (Command (..), LogMode (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 import Prelude hiding (force)
 
@@ -23,7 +24,6 @@ import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
 import Tricorder.CLI.Command.Daemon qualified as DaemonCommand
 
-import Tricorder.CLI.Arguments (Command (..), LogMode (..))
 import Tricorder.CLI.Daemon
     ( restartDaemon
     , startDaemon
@@ -52,6 +52,7 @@ import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
+import Tricorder.CLI.App.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 
 
@@ -118,13 +119,14 @@ run =
                     Console.putStrLn "Stopped."
                 else
                     showStatus opts
-        Test opts -> do
+        TestResults opts -> do
             running <- isDaemonRunning
             if not running
                 then
                     Console.putStrLn "Stopped."
                 else
                     showTests opts
+        Test testCmd -> Test.run testCmd
         Log logMode -> do
             logFile <- asks @LogPath (.getLogPath)
             case logMode of
