@@ -60,7 +60,7 @@ import System.IO (Handle, hFlush, stdout)
 import Data.ByteString.Char8 qualified as B8
 
 import Atelier.Effects.Env (Env, getEnvironment)
-import Atelier.Types.JsonReadShow (JsonReadShow (..))
+import Atelier.Types.JSON.ReadShow (ReadShow (..))
 import Atelier.Types.QuietSnake (QuietSnake (..))
 
 
@@ -119,7 +119,7 @@ data Severity
     | -- | A failure that needs attention.
       ERROR
     deriving stock (Bounded, Enum, Eq, Ord, Read, Show)
-    deriving (FromJSON) via (JsonReadShow Severity)
+    deriving (FromJSON) via (ReadShow Severity)
 
 
 instance Default Config where
