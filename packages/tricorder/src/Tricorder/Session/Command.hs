@@ -8,11 +8,16 @@ where
 
 import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (Default (..))
+import Data.Yaml (decodeEither')
+import Effectful.Exception (throwIO)
 import Effectful.NonDet (NonDet, OnEmptyPolicy (..), emptyEff, plusEff, runNonDet)
 import System.FilePath ((</>))
+import System.IO.Error (userError)
 
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Data.Aeson.KeyMap qualified as KM
 import Data.List qualified as List
+import Data.Yaml.Aeson qualified as Aeson
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Config (Config, command, replBuildDir)
@@ -62,7 +67,7 @@ instance Default Command where
 -- the user has pinned an explicit @command@ or explicit @targets@ in config.
 resolveCommand
     :: (FileSystem :> es) => ProjectRoot -> Config -> [Target] -> [TestTarget] -> Eff es Command
-resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
+resolveCommand projectRoot cfg targets testTargets =
     case cfg.command of
         Just cmd -> case words cmd of
             "stack" : "repl" : args -> detectStackKind args
@@ -73,13 +78,7 @@ resolveCommand projectRoot@(ProjectRoot root) cfg targets testTargets =
             detectCommand targets testTargets cfg.replBuildDir projectRoot
   where
     detectStackKind args = do
-        hasCabalFileInRoot <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory root
-        let repl =
-                if hasCabalFileInRoot
-                    then
-                        Stack
-                    else
-                        StackMulti
+        repl <- stackReplKind projectRoot
         pure $ Command repl args []
 
 
@@ -103,13 +102,26 @@ detectCommand targets testTargets replBuildDir projectRoot = do
 
 
 useStack :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> Eff es Command
-useStack (ProjectRoot projectRoot) = do
+useStack pr@(ProjectRoot projectRoot) = do
     hasStack <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
     if hasStack
-        then
-            pure $ Command Stack [] []
+        then do
+            repl <- stackReplKind pr
+            pure $ Command repl [] []
         else
             emptyEff
+
+
+stackReplKind :: (FileSystem :> es) => ProjectRoot -> Eff es Repl
+stackReplKind (ProjectRoot projectRoot) = do
+    stackYaml <- FileSystem.readFileBs $ projectRoot </> "stack.yaml"
+    case decodeEither' stackYaml of
+        Left err -> throwIO $ userError $ "Could not read and decode stack.yaml: " <> show err
+        Right value -> pure $ case value of
+            Aeson.Object km -> case KM.lookup "packages" km of
+                Just (Aeson.Array arr) | length arr > 1 -> StackMulti
+                _ -> Stack
+            _ -> Stack
 
 
 useMultiCabal :: (FileSystem :> es, NonDet :> es) => ProjectRoot -> FilePath -> Eff es Command
