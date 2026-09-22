@@ -1,6 +1,10 @@
 module Tricorder.Daemon.TestRunner
     ( -- * Effect
       TestRunner (..)
+    , TestCommand
+    , renderTestCommand
+    , mkTestCommand
+    , unsafeMkTestCommand
     , runTestSuite
 
       -- * Interpreters
@@ -32,7 +36,6 @@ import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, get, put)
 import Effectful.TH (makeEffect)
 
-import Atelier.Effects.Log qualified as Log
 import Data.List qualified as List
 import Data.Text qualified as T
 
@@ -44,12 +47,13 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command (Command (..), Repl (..))
-import Tricorder.Session.TestTarget (TestTarget, getTestTarget, renderTestTarget)
+import Tricorder.Session.TestTarget (TestTarget, getTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
 import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Build.Test qualified as Test
+import Tricorder.Session.Command qualified as Command
 
 
 data TestRunner :: Effect where
@@ -58,12 +62,16 @@ data TestRunner :: Effect where
     RunTestSuite
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
-        -> Maybe ByteSize
-        -- ^ Memory limit for test suite
-        -> Repl
         -> TestTimeout
-        -> TestTarget
+        -> TestCommand
         -> TestRunner m Test.Suite
+
+
+newtype TestCommand = TestCommand Command
+
+
+renderTestCommand :: TestCommand -> Text
+renderTestCommand (TestCommand cmd) = Command.render cmd
 
 
 makeEffect ''TestRunner
@@ -84,41 +92,16 @@ run
     => Eff (TestRunner : es) a -> Eff es a
 run act = do
     interpretWith act \env -> \case
-        RunTestSuite progressHandler mMemoryLimit repl testTimeout target ->
+        RunTestSuite progressHandler testTimeout (TestCommand cmd) ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
                     noProgress _ = pure ()
                     noReady _ = pure ()
-                    memoryLimitArg =
-                        maybe
-                            []
-                            ( \limit ->
-                                let
-                                    stack =
-                                        [ "--ghc-options"
-                                        , "+RTS -M"
-                                            <> ByteSize.toRTSSize limit
-                                            <> " -RTS"
-                                        ]
-                                    cabal =
-                                        [ "--repl-options"
-                                        , "+RTS -M"
-                                            <> ByteSize.toRTSSize limit
-                                            <> " -RTS"
-                                        ]
-                                in
-                                    case repl of
-                                        Stack -> stack
-                                        StackMulti -> stack
-                                        Cabal -> cabal
-                                        Unknown -> cabal
-                            )
-                            mMemoryLimit
                 ProjectRoot projectRoot <- ask
                 result <- trySync
                     $ withGhciProcess
                         def
-                        (Command repl memoryLimitArg [getTestTarget target])
+                        cmd
                         projectRoot
                         onProgress
                         noReady
@@ -135,14 +118,6 @@ run act = do
                             $ Test.SuiteErrored
                             $ Test.SuiteError {message = show ex}
                     Right (Left secs) -> do
-                        Log.warn
-                            $ mconcat
-                                [ "Test suite "
-                                , renderTestTarget target
-                                , " timed out after "
-                                , show secs
-                                , "s"
-                                ]
                         pure
                             $ Test.SuiteErrored
                             $ Test.SuiteError
@@ -177,7 +152,7 @@ runScripted
 runScripted results =
     reinterpret_
         (evalState results)
-        (\(RunTestSuite _ _ _ _ _) -> popResult)
+        (\(RunTestSuite _ _ _) -> popResult)
   where
     popResult :: Eff (State [Either SomeException Test.Suite] : es) Test.Suite
     popResult =
@@ -240,3 +215,38 @@ detectOutcome output =
     -- @<file-or-loc>:L:C: error: …@ (with at least one space after the colon).
     -- The substring @": error:"@ is the canonical marker for these.
     isCompileErrorLine line = ": error:" `T.isInfixOf` line
+
+
+mkTestCommand :: Repl -> Maybe ByteSize -> TestTarget -> TestCommand
+mkTestCommand repl mMemoryLimit target =
+    TestCommand $ Command repl memoryLimitArg [getTestTarget target]
+  where
+    memoryLimitArg =
+        maybe
+            []
+            ( \limit ->
+                let
+                    stack =
+                        [ "--ghc-options"
+                        , "+RTS -M"
+                            <> ByteSize.toRTSSize limit
+                            <> " -RTS"
+                        ]
+                    cabal =
+                        [ "--repl-options"
+                        , "+RTS -M"
+                            <> ByteSize.toRTSSize limit
+                            <> " -RTS"
+                        ]
+                in
+                    case repl of
+                        Stack -> stack
+                        StackMulti -> stack
+                        Cabal -> cabal
+                        Unknown -> cabal
+            )
+            mMemoryLimit
+
+
+unsafeMkTestCommand :: Command -> TestCommand
+unsafeMkTestCommand = TestCommand

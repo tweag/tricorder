@@ -11,10 +11,10 @@ import Tricorder.Daemon.TestRunner
     , TestRunner
     , detectOutcome
     , runTestSuite
+    , unsafeMkTestCommand
     )
-import Tricorder.Session.Command (Repl (..))
+import Tricorder.Session.Command (Command (..), Repl (..))
 import Tricorder.Session.Target (Target (..))
-import Tricorder.Session.TestTarget (TestTarget (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 
 import Tricorder.Build.Test qualified as Test
@@ -104,30 +104,39 @@ testScripted = do
     it "returns scripted TestRun" do
         result <-
             runScripted [Right passingRun]
-                $ runTestSuite noProgress Nothing Cabal testTimeout
-                $ mkTestTarget "test:foo"
+                $ runTestSuite noProgress testTimeout
+                $ unsafeMkTestCommand
+                $ Command Cabal [] [Bare "test:foo"]
         result `shouldBe` passingRun
 
     it "ignores the target name argument" do
         result <-
             runScripted [Right failingRun]
-                $ runTestSuite noProgress Nothing Cabal testTimeout
-                $ mkTestTarget "test:anything"
+                $ runTestSuite noProgress testTimeout
+                $ unsafeMkTestCommand
+                $ Command Cabal [] [Bare "test:anything"]
         result `shouldBe` failingRun
 
     it "throws when scripted result is Left" do
         result <-
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
-                $ runTestSuite noProgress Nothing Cabal testTimeout
-                $ mkTestTarget "test:foo"
+                $ runTestSuite noProgress testTimeout
+                $ unsafeMkTestCommand
+                $ Command Cabal [] [Bare "test:foo"]
         result `shouldBe` Left boom
 
     describe "sequencing" do
         it "consumes results in order across multiple calls" do
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
-                a <- runTestSuite noProgress Nothing Cabal testTimeout $ mkTestTarget "test:foo"
-                b <- runTestSuite noProgress Nothing Cabal testTimeout $ mkTestTarget "test:bar"
+                a <-
+                    runTestSuite noProgress testTimeout
+                        $ unsafeMkTestCommand
+                        $ Command Cabal [] [Bare "test:foo"]
+                b <-
+                    runTestSuite noProgress testTimeout
+                        $ unsafeMkTestCommand
+                        $ Command Cabal [] [Bare "test:bar"]
                 pure (a, b)
             a `shouldBe` passingRun
             b `shouldBe` failingRun
@@ -136,11 +145,13 @@ testScripted = do
             result <- runScripted [Left (toException boom), Right passingRun] do
                 r1 <-
                     try @ErrorCall
-                        $ runTestSuite noProgress Nothing Cabal testTimeout
-                        $ mkTestTarget "test:foo"
+                        $ runTestSuite noProgress testTimeout
+                        $ unsafeMkTestCommand
+                        $ Command Cabal [] [Bare "test:foo"]
                 r2 <-
-                    runTestSuite noProgress Nothing Cabal testTimeout
-                        $ mkTestTarget "test:bar"
+                    runTestSuite noProgress testTimeout
+                        $ unsafeMkTestCommand
+                        $ Command Cabal [] [Bare "test:bar"]
                 pure (r1, r2)
             fst result `shouldBe` Left boom
             snd result `shouldBe` passingRun
@@ -178,10 +189,6 @@ failingRun =
 
 runScripted :: [Either SomeException Test.Suite] -> Eff '[TestRunner, Concurrent, IOE] a -> IO a
 runScripted results = runEff . runConcurrent . TestRunner.runScripted results
-
-
-mkTestTarget :: Text -> TestTarget
-mkTestTarget = TestTarget . Bare
 
 
 testTimeout :: TestTimeout
