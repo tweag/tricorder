@@ -38,10 +38,13 @@ session:
 - `command`: Build command to use to enter the cabal repl. If not specified,
   Tricorder will attempt to check whether `stack` is used, and also whether it
   is running in a multi-package repository. Specify this option if you think
-  Tricorder is incorrect in the command it picks.
+  Tricorder is incorrect in the command it picks. If `command` is set,
+  Tricorder does not consider `targets` for its build stage.
 - `targets`: Build components to compile in the `cabal repl`. If not specified,
   Tricorder will build all components detected in the `.cabal` file for the
-  repository.
+  repository. If `command` is specified, `targets` is ignored for the purposes
+  of building, but it is examined for potential test targets if `test_targets`
+  is not specified.
 - `watch_dirs`: Directories to watch. When a file is changed in a watched
   directory, Tricorder will attempt to rebuild all targets. If not specified,
   Tricorder will add all `hs-source-dirs` for the configured or detected
