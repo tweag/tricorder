@@ -29,19 +29,18 @@ render = Target.render . getTestTarget
 
 -- | Parse raw target strings (e.g. the @test_targets@ config) and project them
 -- onto their test suites — non-test entries are dropped.
-parse :: [Text] -> [TestTarget]
-parse = project . map Target.parse
+parse :: Text -> Maybe TestTarget
+parse = project . Target.parse
 
 
 -- | [tag:test_targets_invariant] Project a target list onto its test suites —
 -- the only way to build a 'TestTargets', so the @test:@-only invariant holds by
 -- construction.
-project :: [Target] -> [TestTarget]
-project = mapMaybe mk
-  where
-    mk tgt@(Qualified Test _) = Just $ TestTarget tgt
-    mk tgt@(PackageQualified _ Test _) = Just $ TestTarget tgt
-    mk _ = Nothing
+project :: Target -> Maybe TestTarget
+project = \case
+    tgt@(Qualified Test _) -> Just $ TestTarget tgt
+    tgt@(PackageQualified _ Test _) -> Just $ TestTarget tgt
+    _ -> Nothing
 
 
 -- | Resolve which test suites to run after a clean build. The explicit
@@ -52,5 +51,5 @@ project = mapMaybe mk
 -- set, falls back to deriving test targets from the build 'targets'.
 resolve :: Config -> [Target] -> [TestTarget]
 resolve cfg targets = case cfg.test.commandConfig.targets <|> cfg.testTargets of
-    Just explicit -> parse explicit
-    Nothing -> project targets
+    Just explicit -> mapMaybe parse explicit
+    Nothing -> mapMaybe project targets

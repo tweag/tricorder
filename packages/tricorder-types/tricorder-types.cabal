@@ -36,7 +36,12 @@ library
   exposed-modules:
       Tricorder.CLI.Command
       Tricorder.CLI.Command.Daemon
+      Tricorder.CLI.Command.FieldMask
+      Tricorder.CLI.Command.IfDaemonIsStopped
       Tricorder.CLI.Command.OutputFormat
+      Tricorder.CLI.Command.Test
+      Tricorder.CLI.Command.TestFilter
+      Tricorder.CLI.Command.WaitMode
       Tricorder.SourceLookup.SourceQuery
   other-modules:
       Paths_tricorder_types
