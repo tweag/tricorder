@@ -49,6 +49,7 @@ import Tricorder.CLI.Command
     )
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
 
+import Tricorder.CLI.Arguments.Test qualified as Test
 import Tricorder.Version qualified as Version
 
 
@@ -82,7 +83,13 @@ commandParser =
             <> command
                 "status"
                 (info statusParser (progDesc "Print build diagnostics (--json for machine-readable output)"))
-            <> command "test-results" (info testParser (progDesc "Show output from the latest test run"))
+            <> command
+                "test-results"
+                ( info
+                    testResultsParser
+                    (progDesc "Show output from the latest test run (DEPRECATED: use the `test` subcommand)")
+                )
+            <> command "test" (Test <$> Test.parser)
             <> command "ui" (info (pure UI) (progDesc "Auto-refreshing terminal display"))
             <> command "log" (info logParser (progDesc "Show daemon log output"))
             <> command
@@ -132,9 +139,9 @@ statusParser =
             )
 
 
-testParser :: Parser Command
-testParser =
-    Test
+testResultsParser :: Parser Command
+testResultsParser =
+    TestResults
         <$> ( TestOptions
                 <$> flag
                     False

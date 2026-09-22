@@ -35,6 +35,8 @@ source-repository head
 library
   exposed-modules:
       Tricorder.CLI.Command
+      Tricorder.CLI.Command.Test
+      Tricorder.CLI.Command.WaitMode
       Tricorder.SourceLookup.SourceQuery
   other-modules:
       Paths_tricorder_types

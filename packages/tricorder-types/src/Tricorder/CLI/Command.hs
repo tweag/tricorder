@@ -7,21 +7,18 @@ module Tricorder.CLI.Command
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
-    , WaitMode (..)
     , commandToArgs
     )
 where
 
+import Tricorder.CLI.Command.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
+
+import Tricorder.CLI.Command.Test qualified as Test
+import Tricorder.CLI.Command.WaitMode qualified as WaitMode
 
 
 data Force = Force | NoForce
-
-
-data WaitMode
-    = ShowCurrent
-    | WaitForBuild
-    deriving stock (Eq)
 
 
 data OutputFormat
@@ -63,7 +60,9 @@ data Command
     = Start
     | Stop Force
     | Status StatusOptions
-    | Test TestOptions
+    | -- | DEPRECATED: Use 'Test' instead.
+      TestResults TestOptions
+    | Test Test.Command
     | UI
     | Log LogMode
     | Source [SourceQuery]
@@ -82,29 +81,25 @@ commandToArgs Start = ["start"]
 commandToArgs (Stop doForce) = "stop" : forceArgs doForce
 commandToArgs (Status (StatusOptions {wait, format, verbosity, expand})) =
     "status"
-        : waitArgs wait
+        : WaitMode.toArgs wait
             <> formatArgs format
             <> verbosityArgs verbosity
             <> maybe [] (\n -> ["--expand", show n]) expand
-commandToArgs (Test (TestOptions {failedOnly, wait})) =
-    "test-results" : failedArgs failedOnly <> waitArgs wait
+commandToArgs (TestResults (TestOptions {failedOnly, wait})) =
+    "test-results" : failedArgs failedOnly <> WaitMode.toArgs wait
+commandToArgs (Test testCommand) = Test.commandToArgs testCommand
 commandToArgs UI = ["ui"]
 commandToArgs (Log ShowLogPath) = ["log", "--print-path"]
 commandToArgs (Log ShowLog) = ["log"]
 commandToArgs (Source queries) = "source" : map renderSourceQuery queries
 commandToArgs (Restart doForce) = "restart" : forceArgs doForce
 commandToArgs (EvalComments (EvalCommentsOptions {wait, format})) =
-    "eval-comments" : waitArgs wait <> formatArgs format
+    "eval-comments" : WaitMode.toArgs wait <> formatArgs format
 
 
 forceArgs :: Force -> [String]
 forceArgs Force = ["--force"]
 forceArgs NoForce = []
-
-
-waitArgs :: WaitMode -> [String]
-waitArgs WaitForBuild = ["--wait"]
-waitArgs ShowCurrent = []
 
 
 formatArgs :: OutputFormat -> [String]

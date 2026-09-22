@@ -39,7 +39,9 @@ library tricorder-internal
       Tricorder.Build.EvalComment
       Tricorder.Build.Test
       Tricorder.CLI.App
+      Tricorder.CLI.App.Test
       Tricorder.CLI.Arguments
+      Tricorder.CLI.Arguments.Test
       Tricorder.CLI.Daemon
       Tricorder.CLI.Main
       Tricorder.CLI.Operations
