@@ -19,6 +19,7 @@ module Atelier.Effects.FileSystem
     , writeFileBS
     , writeFileLBS
     , canonicalizePath
+    , getModificationTime
     , getCurrentDirectory
     , getXdgRuntimeDir
     , runFileSystemIO
@@ -28,6 +29,7 @@ module Atelier.Effects.FileSystem
 where
 
 import Control.Exception (bracket)
+import Data.Time (UTCTime (..))
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Exception (throwIO)
@@ -40,6 +42,7 @@ import System.Posix.Types (COff (..), FileOffset)
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Map.Strict qualified as M
+import Data.Time.Calendar.OrdinalDate qualified as Day
 import System.Directory qualified as Dir
 import System.Posix.IO qualified as Posix
 
@@ -78,6 +81,8 @@ data FileSystem :: Effect where
     GetCurrentDirectory :: FileSystem m FilePath
     -- | The XDG runtime directory (@$XDG_RUNTIME_DIR@), falling back to @\/tmp@.
     GetXdgRuntimeDir :: FileSystem m FilePath
+    -- | Obtain the time at which the file or directory was last modified.
+    GetModificationTime :: FilePath -> FileSystem m UTCTime
 
 
 makeEffect ''FileSystem
@@ -125,6 +130,7 @@ runFileSystemIO = interpret_ $ \case
     CanonicalizePath path -> liftIO $ Dir.canonicalizePath path
     GetCurrentDirectory -> liftIO Dir.getCurrentDirectory
     GetXdgRuntimeDir -> liftIO $ fromMaybe "/tmp" <$> lookupEnv "XDG_RUNTIME_DIR"
+    GetModificationTime path -> liftIO $ Dir.getModificationTime path
 
 
 -- | Interpret 'FileSystem' with inert results: reads return empty, existence
@@ -144,6 +150,7 @@ runFileSystemNoOp = interpret_ $ \case
     CanonicalizePath path -> pure path
     GetCurrentDirectory -> pure "."
     GetXdgRuntimeDir -> pure "/tmp"
+    GetModificationTime _ -> pure $ UTCTime (Day.fromOrdinalDate 1970 1) 0
 
 
 -- | Run `FileSystem` effect backed by a `State` effect with a `Map`. The keys
@@ -175,3 +182,4 @@ runFileSystemState = interpret_ \case
     CanonicalizePath fp -> pure fp
     GetCurrentDirectory -> pure "/"
     GetXdgRuntimeDir -> pure "/tmp"
+    GetModificationTime _ -> pure $ UTCTime (Day.fromOrdinalDate 1970 1) 0

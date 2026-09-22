@@ -15,6 +15,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - Multi-package Stack projects were being resolved as single-package Stack
   projects. (Thanks @marcosh!)
+- When Tricorder detects that the project is a Stack project, it now correctly
+  inspects `stack.yaml` for packages instead of assuming packages are listed in
+  `cabal.project`.
 
 ## [0.4.1.1] - 2026-09-21
 
