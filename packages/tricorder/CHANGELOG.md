@@ -14,7 +14,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Fixed
 
 - Multi-package Stack projects were being resolved as single-package Stack
-  projects.
+  projects. (Thanks @marcosh!)
 
 ## [0.4.1.1] - 2026-09-21
 
