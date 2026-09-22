@@ -11,6 +11,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - Log test suite commands.
 
+### Fixed
+
+- Multi-package Stack projects were being resolved as single-package Stack
+  projects.
+
 ## [0.4.1.1] - 2026-09-21
 
 ### Fixed
