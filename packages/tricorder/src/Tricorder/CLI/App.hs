@@ -118,13 +118,14 @@ run =
                     Console.putStrLn "Stopped."
                 else
                     showStatus opts
-        Test opts -> do
+        TestResults opts -> do
             running <- isDaemonRunning
             if not running
                 then
                     Console.putStrLn "Stopped."
                 else
                     showTests opts
+        Test testCmd -> Test.run testCmd
         Log logMode -> do
             logFile <- asks @LogPath (.getLogPath)
             case logMode of

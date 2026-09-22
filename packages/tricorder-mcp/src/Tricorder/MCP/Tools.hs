@@ -25,12 +25,14 @@ import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
 import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
+import Tricorder.CLI.Command.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 import Prelude hiding (force)
 
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Tricorder.CLI.Command qualified as CLI
+import Tricorder.CLI.Command.WaitMode qualified as WaitMode
 
 
 data Tool
@@ -230,7 +232,7 @@ toolCommand = \case
     (TestResults (TestResultsOptions {failed, wait, projectRoot})) ->
         ( projectRoot
         , CLI.commandToArgs
-            $ CLI.Test
+            $ CLI.TestResults
                 CLI.TestOptions
                     { failedOnly = fromMaybe False failed
                     , wait = toWaitMode wait
@@ -257,8 +259,11 @@ toForce :: Maybe Bool -> CLI.Force
 toForce = maybe CLI.NoForce (\enabled -> if enabled then CLI.Force else CLI.NoForce)
 
 
-toWaitMode :: Maybe Bool -> CLI.WaitMode
-toWaitMode = maybe CLI.ShowCurrent (\enabled -> if enabled then CLI.WaitForBuild else CLI.ShowCurrent)
+toWaitMode :: Maybe Bool -> WaitMode
+toWaitMode =
+    maybe
+        WaitMode.ShowCurrent
+        (\enabled -> if enabled then WaitMode.WaitForBuild else WaitMode.ShowCurrent)
 
 
 toVerbosity :: Maybe Bool -> CLI.Verbosity
