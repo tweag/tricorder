@@ -422,16 +422,21 @@ runTestsForTargets command memoryLimit testTimeout testTargets = do
     initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testTargets
     go target = do
         Log.info $ "Running tests: " <> renderTestTarget target
-        finishedSuite <-
-            TestRunner.runTestSuite
-                ( \suite -> do
-                    updated <- State.state $ dup . Map.insert target suite
-                    Pub.publish $ Test.Suites updated
-                )
-                memoryLimit
-                command.repl
-                testTimeout
-                target
+        let testCommand = TestRunner.mkTestCommand command.repl memoryLimit target
+            publishProgress suite = do
+                updated <- State.state $ dup . Map.insert target suite
+                Pub.publish $ Test.Suites updated
+        Log.info
+            $ "Test suite "
+                <> renderTestTarget target
+                <> " command:\n"
+                <> TestRunner.renderTestCommand testCommand
+        finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
+        case finishedSuite of
+            Test.SuiteErrored (Test.SuiteError message) ->
+                Log.warn $ "Test suite " <> renderTestTarget target <> "failed: " <> message
+            _ ->
+                pure ()
         updated <- State.state $ dup . Map.insert target finishedSuite
         Pub.publish $ Test.Suites updated
 

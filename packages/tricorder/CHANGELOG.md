@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Log test suite commands.
+
 ## [0.4.1.1] - 2026-09-21
 
 ### Fixed
