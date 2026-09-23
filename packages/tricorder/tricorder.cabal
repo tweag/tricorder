@@ -78,6 +78,7 @@ library tricorder-internal
       Tricorder.Session.Hooks
       Tricorder.Session.IdleTimeout
       Tricorder.Session.ReplBuildDir
+      Tricorder.Session.StackYaml
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
       Tricorder.Session.TestTimeout
