@@ -3,7 +3,7 @@ module Unit.Tricorder.SourceLookup.GhcPkgSpec (spec_GhcPkg) where
 import Effectful (runPureEff)
 import Test.Hspec
 
-import Tricorder.Session.Command (Repl (..))
+import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), findModule, runGhcPkgScripted)
 
 

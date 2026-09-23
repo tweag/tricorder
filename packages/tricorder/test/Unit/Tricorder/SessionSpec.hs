@@ -23,6 +23,7 @@ spec_Session :: Spec
 spec_Session = do
     describe "loadSession" testLoadSession
     describe "loadSession idleTimeout" testIdleTimeout
+    describe "loadSession missing {target} placeholder" testMissingTargetPlaceholder
 
 
 testLoadSession :: Spec
@@ -58,6 +59,44 @@ testLoadSession = do
             . runInputConst cabalFiles
             . runReader (ProjectRoot "/")
             . runInputConst (LoadedConfig Null)
+            $ loadSession
+
+
+testMissingTargetPlaceholder :: Spec
+testMissingTargetPlaceholder = do
+    describe "test.command_template" do
+        it "emits a WARN when it has no {target} placeholder" do
+            let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl test:foo" :: Text)]]
+            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` True
+
+        it "does not emit a WARN when it has the {target} placeholder" do
+            let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
+            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
+
+    describe "eval.command_template" do
+        it "emits a WARN when it has no {target} placeholder" do
+            let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl Tricorder.Foo" :: Text)]]
+            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` True
+
+        it "does not emit a WARN when it has the {target} placeholder" do
+            let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
+            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
+
+    describe "build.command_template" do
+        it "does not emit a WARN when it has no {targets} placeholder" do
+            let cfg = sessionCfg ["build" .= object ["command_template" .= ("cabal repl lib:foo" :: Text)]]
+            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
+  where
+    sessionCfg session = LoadedConfig $ object ["session" .= object session]
+    captureLogsFor cfg =
+        runPureEff
+            . execWriter @[Message]
+            . runLogWriter
+            . evalState @(Map FilePath ByteString) mempty
+            . runFileSystemState
+            . runInputConst ([] :: [CabalFile])
+            . runReader (ProjectRoot "/")
+            . runInputConst cfg
             $ loadSession
 
 

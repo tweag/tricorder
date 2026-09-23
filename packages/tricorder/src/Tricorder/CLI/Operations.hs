@@ -43,7 +43,7 @@ import Tricorder.CLI.Render
     , renderSourceResults
     )
 import Tricorder.Runtime (SocketPath (..))
-import Tricorder.Session.Command (Repl)
+import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
