@@ -19,7 +19,8 @@ import Tricorder.Daemon.GhciSession
     , withGhci
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..), Repl (..))
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Stage (Stage (..))
 
 
 spec_GhciSession :: Spec
@@ -90,8 +91,8 @@ testScripted = do
 -- Helpers
 --------------------------------------------------------------------------------
 
-cmd :: Command
-cmd = Command Cabal [] []
+cmd :: ResolvedCommand 'Build
+cmd = ResolvedCommand "cabal repl lib:foo"
 
 
 boom :: ErrorCall

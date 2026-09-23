@@ -59,7 +59,8 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command)
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand)
+import Tricorder.Session.Stage (Stage (..))
 
 
 data GhciSession :: Effect where
@@ -70,7 +71,9 @@ data GhciSession :: Effect where
     WithGhciWith
         :: (BuildProgress -> m ())
         -- ^ Action to run when reporting progress
-        -> Command
+        -> ResolvedCommand 'Build
+        -- ^ Fully rendered command to spawn GHCi with — see
+        -- 'Tricorder.Session.Command.render'.
         -> ProjectRoot
         -> (LoadResult -> Controls m -> m a)
         -> GhciSession m a
@@ -99,7 +102,7 @@ transformControls f ctrls =
 
 withGhci
     :: (GhciSession :> es, Pub BuildProgress :> es)
-    => Command
+    => ResolvedCommand 'Build
     -> ProjectRoot
     -> (LoadResult -> Controls (Eff es) -> Eff es a)
     -> Eff es a

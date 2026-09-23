@@ -73,12 +73,18 @@ library tricorder-internal
       Tricorder.Session
       Tricorder.Session.CabalFile
       Tricorder.Session.Command
+      Tricorder.Session.Command.Build
+      Tricorder.Session.Command.Eval
+      Tricorder.Session.Command.ResolvedCommand
+      Tricorder.Session.Command.Test
       Tricorder.Session.Config
       Tricorder.Session.GenerateWithHpack
       Tricorder.Session.Hooks
       Tricorder.Session.IdleTimeout
+      Tricorder.Session.Repl
       Tricorder.Session.ReplBuildDir
       Tricorder.Session.StackYaml
+      Tricorder.Session.Stage
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
       Tricorder.Session.TestTimeout
@@ -259,8 +265,12 @@ test-suite tricorder-test
       Unit.Tricorder.Daemon.TestRunnerSpec
       Unit.Tricorder.Daemon.WatchSpec
       Unit.Tricorder.Session.CabalFileSpec
+      Unit.Tricorder.Session.Command.BuildSpec
+      Unit.Tricorder.Session.Command.EvalSpec
+      Unit.Tricorder.Session.Command.TestSpec
       Unit.Tricorder.Session.CommandSpec
       Unit.Tricorder.Session.Helpers
+      Unit.Tricorder.Session.ReplSpec
       Unit.Tricorder.Session.TargetSpec
       Unit.Tricorder.Session.TestTargetSpec
       Unit.Tricorder.Session.WatchDirsSpec

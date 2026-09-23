@@ -10,6 +10,41 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Added
 
 - Log test suite commands.
+- `session.build`, `session.test`, and `session.eval` config sections, each
+  independently configuring the command used to build the project, run test
+  suites, and evaluate eval comments. `command_template` is a template
+  string containing a placeholder — `{targets}` (plural) for `build`, since
+  one invocation covers every target, and `{target}` (singular) for `test`
+  and `eval`, since each invocation runs against exactly one target (escape
+  as `\{targets}`/`\{target}` for a literal placeholder); `targets`
+  (build/test only) and `extra_auto_arguments` round out each section. `targets`
+  still applies even when `command_template` is set (via
+  `{targets}`/`{target}`); `extra_auto_arguments` only applies to Tricorder's
+  *automatically resolved* command — see the next entry. Not breaking: the
+  deprecated `command`, `targets`, and `test_targets` keys continue to work,
+  mapping onto `build.command_template`, `build.targets`, and `test.targets`
+  respectively, and will be removed no earlier than 3 major version bumps
+  from this release.
+- Warn when `test.command_template` or `eval.command_template` is set to a
+  template with no `{target}` placeholder — every invocation would
+  otherwise run the exact same command against whatever is hardcoded in the
+  template, since the per-target substitution never happens.
+- Warn when a section's `extra_auto_arguments` is set alongside a custom
+  `command_template` for that section — `extra_auto_arguments` is silently
+  ignored in that combination, since anything it could add can already be
+  written directly into `command_template`.
+
+### Changed
+
+- REPL kind (Cabal vs. Stack, and multi-package vs. single-package Stack) is
+  now always detected from the filesystem, even when `command`/
+  `build.command_template` is set to a custom command. Previously, a custom
+  `command` that didn't start with `cabal`/`stack` fell back to Cabal-shaped
+  target rendering regardless of the actual project type; it now renders
+  targets according to the real, detected REPL kind. `test`/`eval` commands
+  can now also have their target substituted into a custom template via
+  `{target}`, which a fully custom top-level `command` previously could not
+  do for the build command either.
 
 ### Fixed
 

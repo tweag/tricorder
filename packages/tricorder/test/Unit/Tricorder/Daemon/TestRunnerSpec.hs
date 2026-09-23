@@ -11,10 +11,8 @@ import Tricorder.Daemon.TestRunner
     , TestRunner
     , detectOutcome
     , runTestSuite
-    , unsafeMkTestCommand
     )
-import Tricorder.Session.Command (Command (..), Repl (..))
-import Tricorder.Session.Target (Target (..))
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 
 import Tricorder.Build.Test qualified as Test
@@ -105,16 +103,16 @@ testScripted = do
         result <-
             runScripted [Right passingRun]
                 $ runTestSuite noProgress testTimeout
-                $ unsafeMkTestCommand
-                $ Command Cabal [] [Bare "test:foo"]
+                $ ResolvedCommand
+                $ "cabal repl test:foo"
         result `shouldBe` passingRun
 
     it "ignores the target name argument" do
         result <-
             runScripted [Right failingRun]
                 $ runTestSuite noProgress testTimeout
-                $ unsafeMkTestCommand
-                $ Command Cabal [] [Bare "test:anything"]
+                $ ResolvedCommand
+                $ "cabal repl test:anything"
         result `shouldBe` failingRun
 
     it "throws when scripted result is Left" do
@@ -122,8 +120,8 @@ testScripted = do
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
                 $ runTestSuite noProgress testTimeout
-                $ unsafeMkTestCommand
-                $ Command Cabal [] [Bare "test:foo"]
+                $ ResolvedCommand
+                $ "cabal repl test:foo"
         result `shouldBe` Left boom
 
     describe "sequencing" do
@@ -131,12 +129,12 @@ testScripted = do
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
                 a <-
                     runTestSuite noProgress testTimeout
-                        $ unsafeMkTestCommand
-                        $ Command Cabal [] [Bare "test:foo"]
+                        $ ResolvedCommand
+                        $ "cabal repl test:foo"
                 b <-
                     runTestSuite noProgress testTimeout
-                        $ unsafeMkTestCommand
-                        $ Command Cabal [] [Bare "test:bar"]
+                        $ ResolvedCommand
+                        $ "cabal repl test:bar"
                 pure (a, b)
             a `shouldBe` passingRun
             b `shouldBe` failingRun
@@ -146,12 +144,12 @@ testScripted = do
                 r1 <-
                     try @ErrorCall
                         $ runTestSuite noProgress testTimeout
-                        $ unsafeMkTestCommand
-                        $ Command Cabal [] [Bare "test:foo"]
+                        $ ResolvedCommand
+                        $ "cabal repl test:foo"
                 r2 <-
                     runTestSuite noProgress testTimeout
-                        $ unsafeMkTestCommand
-                        $ Command Cabal [] [Bare "test:bar"]
+                        $ ResolvedCommand
+                        $ "cabal repl test:bar"
                 pure (r1, r2)
             fst result `shouldBe` Left boom
             snd result `shouldBe` passingRun

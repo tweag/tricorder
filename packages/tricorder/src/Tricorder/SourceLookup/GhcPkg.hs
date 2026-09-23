@@ -16,7 +16,7 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName (..))
 
 import Data.Text qualified as T
 
-import Tricorder.Session.Command (Repl (..))
+import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 

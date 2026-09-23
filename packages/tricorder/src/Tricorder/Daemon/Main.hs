@@ -36,6 +36,7 @@ import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPa
 import Tricorder.Session (inputSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.IdleTimeout (IdleTimeout)
+import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 import Tricorder.SourceLookup.PackageId (PackageId)
@@ -46,7 +47,7 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
-import Tricorder.Session.Command qualified as Repl
+import Tricorder.Session.Repl qualified as Repl
 import Tricorder.Session.StackYaml qualified as StackYaml
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
@@ -94,7 +95,7 @@ main =
         . evalState (BuildId 1)
         . Input.fromState @BuildId
         . evalState Repl.Unknown
-        . Input.fromState @Repl.Repl
+        . Input.fromState @Repl
         . evalState @IdleTimeout def
         . Input.fromState @IdleTimeout
         . IdleTimer.quitOnTimeout

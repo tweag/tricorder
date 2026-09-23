@@ -9,7 +9,7 @@ where
 
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 
-import Tricorder.Session.Config (Config (..))
+import Tricorder.Session.Config (CommandConfig (..), Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..), parseTarget, renderTarget)
 
 
@@ -40,11 +40,13 @@ projectTestTargets = mapMaybe mkTestTarget
     mkTestTarget _ = Nothing
 
 
--- | Resolve which test suites to run after a clean build. Either source — the
--- explicit @test_targets@ config or the build 'targets' — is projected onto its
--- @test:@ components (see 'projectTestTargets'), so non-test entries are
--- dropped and the result only ever names test suites [ref:test_targets_invariant].
+-- | Resolve which test suites to run after a clean build. The explicit
+-- source — @test.targets@, falling back to the deprecated top-level
+-- @test_targets@ — is projected onto its @test:@ components (see
+-- 'projectTestTargets'), so non-test entries are dropped and the result only
+-- ever names test suites [ref:test_targets_invariant]. With neither source
+-- set, falls back to deriving test targets from the build 'targets'.
 resolveTestTargets :: Config -> [Target] -> [TestTarget]
-resolveTestTargets cfg targets = case cfg.testTargets of
+resolveTestTargets cfg targets = case cfg.test.targets <|> cfg.testTargets of
     Just explicit -> parseTestTargets explicit
     Nothing -> projectTestTargets targets

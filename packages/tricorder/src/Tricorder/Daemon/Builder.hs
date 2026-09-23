@@ -47,10 +47,11 @@ import Tricorder.Daemon.Dispatch
 import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command)
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand)
 import Tricorder.Session.WatchDirs (WatchDirs)
 
 import Tricorder.Daemon.GhciSession qualified as GhciSession
+import Tricorder.Session.Stage qualified as Stage
 
 
 data Builder :: Effect where
@@ -87,7 +88,7 @@ with
        , Reader ProjectRoot :> es
        )
     => BuildId
-    -> Command
+    -> ResolvedCommand 'Stage.Build
     -> WatchDirs
     -> (BuilderState -> NewLoadResult -> Eff (Builder : es) a)
     -> Eff es (Either SomeException a)
