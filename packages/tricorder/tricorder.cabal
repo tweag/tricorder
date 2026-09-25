@@ -11,7 +11,7 @@ description:     tricorder rebuilds your Haskell project continuously and surfac
 category:        Development
 homepage:        https://github.com/tweag/tricorder#readme
 bug-reports:     https://github.com/tweag/tricorder/issues
-author:          Victor Nascimento Bakke
+author:          Christian Georgii
 maintainer:      victor.bakke@tweag.io
 license:         MIT
 license-file:    LICENSE
