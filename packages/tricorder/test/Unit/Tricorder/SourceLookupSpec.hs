@@ -22,7 +22,7 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.Session.Command (Repl (..))
+import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
     , lookupModuleSource

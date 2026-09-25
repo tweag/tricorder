@@ -14,7 +14,7 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Log qualified as Log
 
-import Tricorder.Session.Command (Repl)
+import Tricorder.Session.Repl (Repl)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageId (PackageId (..))

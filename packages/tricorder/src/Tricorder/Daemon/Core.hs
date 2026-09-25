@@ -62,9 +62,13 @@ import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.Command (Command (..), Repl)
+import Tricorder.Session.Command (CommandTemplate)
+import Tricorder.Session.Command.Build (renderBuild)
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.Test (renderTest)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout)
+import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
@@ -83,6 +87,7 @@ import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
 import Tricorder.Session.Command qualified as Command
 import Tricorder.Session.Hooks qualified as Hooks
+import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Target qualified as Target
 import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
@@ -122,42 +127,82 @@ main
        , Waiters :> es
        )
     => Eff es Void
-main = runPubSub @ReloadSession
-    . runPubSub @WatchedFile
-    . runPubSub @CabalChangeDetected
-    . runPubSub @SourceChangeDetected
-    . runPubSub @RestartBuilder
-    . runPubSub @ReloadBuilder
-    $ Conc.restartableFork waitForReloadSession do
-        root <- Reader.ask
-        session <- input
-        logSession session
-
-        State.put session.command.repl
-        State.put session.idleTimeout
-        Conc.fork_ $ watchConfigFile root
-        conditionallyWatchStackYaml root
-
-        Conc.fork_ $ Watch.files root session
-        Conc.fork_ $ Sub.listen_ Watch.publishChange
-
-        Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) -> do
-            needsSessionReload <- shouldReloadSession session
-            if needsSessionReload
-                then
-                    Pub.publish ReloadSession
-                else
-                    Pub.publish RestartBuilder
-
-        Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
-            Pub.publish $ ReloadBuilder fp event
-
-        when session.generateWithHpack.getGenerateWithHpack do
-            void $ Conc.fork Hpack.main
-
-        State.evalState emptyBuilderState $ withSession session
+main =
+    runPubSub @ReloadSession
+        . runPubSub @WatchedFile
+        . runPubSub @CabalChangeDetected
+        . runPubSub @SourceChangeDetected
+        . runPubSub @RestartBuilder
+        . runPubSub @ReloadBuilder
+        . Conc.restartableFork waitForReloadSession
+        $ input >>= withSession
   where
     waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
+
+
+withSession
+    :: ( Chan :> es
+       , Clock :> es
+       , Conc :> es
+       , Concurrent :> es
+       , Debounce FilePath :> es
+       , EvalCommentRunner :> es
+       , FileSystem :> es
+       , FileWatcher :> es
+       , GhciSession :> es
+       , Hpack :> es
+       , Input Session :> es
+       , Log :> es
+       , Process :> es
+       , Pub BuildPhase :> es
+       , Pub CabalChangeDetected :> es
+       , Pub ReloadBuilder :> es
+       , Pub ReloadSession :> es
+       , Pub RestartBuilder :> es
+       , Pub SourceChangeDetected :> es
+       , Pub WatchedFile :> es
+       , Reader ProjectRoot :> es
+       , State BuildId :> es
+       , State IdleTimeout :> es
+       , State Repl :> es
+       , Sub CabalChangeDetected :> es
+       , Sub ReloadBuilder :> es
+       , Sub RestartBuilder :> es
+       , Sub SourceChangeDetected :> es
+       , Sub WatchedFile :> es
+       , TestRunner :> es
+       , Waiters :> es
+       )
+    => Session -> Eff es Void
+withSession session = do
+    root <- Reader.ask
+    logSession session
+
+    State.put session.build.repl
+    State.put session.idleTimeout
+    Conc.fork_ $ watchConfigFile root
+    conditionallyWatchStackYaml root
+
+    Conc.fork_ $ Watch.files root session
+    Conc.fork_ $ Sub.listen_ Watch.publishChange
+
+    Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) ->
+        ifM
+            (shouldReloadSession session)
+            (Pub.publish ReloadSession)
+            (Pub.publish RestartBuilder)
+
+    Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
+        Pub.publish $ ReloadBuilder fp event
+
+    when (coerce session.generateWithHpack)
+        $ void
+        $ Conc.fork Hpack.main
+
+    State.evalState emptyBuilderState do
+        Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
+            buildId <- State.state (\s -> (s, s + 1))
+            runBuilder buildId session
 
 
 shouldReloadSession :: (Input Session :> es) => Session -> Eff es Bool
@@ -194,34 +239,8 @@ conditionallyWatchStackYaml root = do
             \_ _ -> Pub.publish RestartBuilder
 
 
--- | For a given session, handles controlling the build process itself,
--- restarting it as necessary.
-withSession
-    :: ( Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , EvalCommentRunner :> es
-       , GhciSession :> es
-       , Log :> es
-       , Process :> es
-       , Pub BuildPhase :> es
-       , Reader ProjectRoot :> es
-       , State BuildId :> es
-       , State BuilderState :> es
-       , Sub ReloadBuilder :> es
-       , Sub RestartBuilder :> es
-       , TestRunner :> es
-       , Waiters :> es
-       )
-    => Session -> Eff es Void
-withSession session = do
-    Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
-        buildId <- State.state (\s -> (s, s + 1))
-        runSession buildId session
-
-
 -- | Starts the initial build with GHCi, and waits for source changes.
-runSession
+runBuilder
     :: ( Clock :> es
        , Conc :> es
        , Concurrent :> es
@@ -237,13 +256,13 @@ runSession
        , Waiters :> es
        )
     => BuildId -> Session -> Eff es ()
-runSession buildId session = do
+runBuilder buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hooks.runHook
     startupError <- fmap (either id absurd)
         $ Pub.map (Build.Building session.testTargets)
-        $ Builder.with buildId session.command session.watchDirs \_ initialLoad -> do
+        $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
             whenJust (session.hooks.start >>= (.after)) Hooks.runHook
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
@@ -263,6 +282,8 @@ runSession buildId session = do
                     $ waitForReload session event
 
     Pub.publish $ Build.Failed $ show startupError
+  where
+    buildCommand = renderBuild session.build session.buildTargets
 
 
 -- | Handles source changes as they come, determining whether the source change
@@ -374,7 +395,7 @@ runEvalComments session loadResult = do
             let pendingComments =
                     sconcat $ (\(lm, ecs) -> toPending lm.relPath <$> ecs) <$> nonEmptyComments
             Pub.publish $ Eval.Found $ Eval.Comments pendingComments
-            evaluatedComments <- EvalCommentRunner.evaluateComments session.command.repl nonEmptyComments
+            evaluatedComments <- EvalCommentRunner.evaluateComments session.eval nonEmptyComments
             pure $ Eval.Found $ Eval.Comments evaluatedComments
   where
     toPending file comment =
@@ -394,7 +415,7 @@ runTests
 runTests session buildResult
     | hasTargets session.testTargets && noErrors buildResult.diagnostics =
         runTestsForTargets
-            session.command
+            session.test
             session.testMemoryLimit
             session.testTimeout
             session.testTargets
@@ -409,12 +430,12 @@ runTestsForTargets
        , Pub Test.Suites :> es
        , TestRunner :> es
        )
-    => Command
+    => CommandTemplate 'Stage.Test
     -> Maybe ByteSize
     -> TestTimeout
     -> [TestTarget]
     -> Eff es Test.Suites
-runTestsForTargets command memoryLimit testTimeout testTargets = do
+runTestsForTargets testTemplate memoryLimit testTimeout testTargets = do
     Pub.publish $ Test.Suites initial
     Log.info $ "Running " <> show (length testTargets) <> " test suite(s)"
     fmap Test.Suites . State.execState initial $ traverse_ go testTargets
@@ -422,7 +443,7 @@ runTestsForTargets command memoryLimit testTimeout testTargets = do
     initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testTargets
     go target = do
         Log.info $ "Running tests: " <> renderTestTarget target
-        let testCommand = TestRunner.mkTestCommand command.repl memoryLimit target
+        let testCommand = renderTest testTemplate memoryLimit target
             publishProgress suite = do
                 updated <- State.state $ dup . Map.insert target suite
                 Pub.publish $ Test.Suites updated
@@ -430,7 +451,7 @@ runTestsForTargets command memoryLimit testTimeout testTargets = do
             $ "Test suite "
                 <> renderTestTarget target
                 <> " command:\n"
-                <> TestRunner.renderTestCommand testCommand
+                <> testCommand.getResolvedCommand
         finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->
@@ -462,7 +483,9 @@ logSession session =
         $ T.intercalate
             "\n"
             [ "Loaded session"
-            , "Command: " <> Command.render session.command
+            , "Build command: " <> (renderBuild session.build session.buildTargets).getResolvedCommand
+            , "Test command template: " <> session.test.template
+            , "Eval command template: " <> session.eval.template
             , "Targets:"
             , showList Target.renderTarget session.targets
             , "Test targets:"

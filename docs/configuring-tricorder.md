@@ -15,10 +15,18 @@ The Tricorder daemon is configured using the following options under the
 
 ```yaml
 session:
-  command: cabal repl --enable-multi-repl
-  targets: [lib:foo, exe:bar]
+  build:
+    command_template: "cabal repl --enable-multi-repl {targets}"
+    targets: [lib:foo, exe:bar]
+    extra_auto_arguments: []
+  test:
+    command_template: "cabal repl {target}"
+    targets: [test:foo]
+    extra_auto_arguments: []
+  eval:
+    command_template: "cabal repl {target}"
+    extra_auto_arguments: []
   watch_dirs: [foo/src]
-  test_targets: [test:foo]
   repl_build_dir: /tmp
   test_timeout: 10
   generate_with_hpack: true
@@ -35,16 +43,68 @@ session:
       after: echo "reloaded" >> log.txt
 ```
 
-- `command`: Build command to use to enter the cabal repl. If not specified,
-  Tricorder will attempt to check whether `stack` is used, and also whether it
-  is running in a multi-package repository. Specify this option if you think
-  Tricorder is incorrect in the command it picks. If `command` is set,
-  Tricorder does not consider `targets` for its build stage.
-- `targets`: Build components to compile in the `cabal repl`. If not specified,
-  Tricorder will build all components detected in the `.cabal` file for the
-  repository. If `command` is specified, `targets` is ignored for the purposes
-  of building, but it is examined for potential test targets if `test_targets`
-  is not specified.
+- `build`, `test`, `eval`: Configure the commands Tricorder uses to build the
+  project, run test suites, and evaluate eval comments, respectively. Each
+  accept the following properties:
+  - `command_template`: A _template string_ for the command to run. It will be
+    completed by Tricorder before use. If not specified, Tricorder
+    automatically resolves a command template to use based on whether the
+    project uses Cabal or Stack (auto-detected). The template variable
+    available depends on the section, since `build` runs once against every
+    target, while `test` and `eval` each run once per target:
+    - `build.command_template` understands `{targets}` (plural), replaced
+      with the full space-separated list of targets, rendered appropriately for
+      the detected build tool.
+    - `test.command_template` and `eval.command_template` understand
+      `{target}` (singular), replaced with the one target that particular
+      invocation runs against (a test suite, or the module being
+      evaluated).
+
+    The template variables can be escaped by preceding the opening `{` with a
+    backslash, `\{`. So `\{targets}` in the `build.command_template` will be
+    rendered as `{targets}` in the invoked command.
+
+    If a `command_template` has no placeholder at all (of the form it
+    understands), Tricorder never inserts the target into it, and the command
+    runs exactly as written.
+
+  - `targets`: Explicit target list, for `build` and `test` (`eval` ignores
+    this, since it automatically detects which modules to evaluate comments in
+    based on which modules contain eval comments.) If not specified, `build`
+    auto-detects all components in the `.cabal` file(s), and `test` derives its
+    targets from whichever `build` targets start with `test:`. Set
+    `test.targets: []` to disable running tests with Tricorder. Unlike
+    `command_template`, `targets` still applies even when `command_template` is
+    set; set targets and reference them in your own template via
+    `{targets}`/`{target}`.
+  - `extra_auto_arguments`: Extra command-line arguments, appended after
+    Tricorder's _automatically resolved_ command. Only applies when
+    `command_template` is **not** set — anything `extra_auto_arguments`
+    could add can already be written directly into a custom `command_template`,
+    so once you supply one, `extra_auto_arguments` is ignored (Tricorder
+    logs a warning if you set both).
+
+  If `test.command_template` or `eval.command_template` is set to a custom
+  template with no `{target}` placeholder, Tricorder logs a warning. Both
+  spawn one process per target (one test suite, one module being
+  evaluated); without the placeholder, that target is never substituted
+  in, so every invocation would otherwise run the exact same command,
+  which is usually undesired.
+
+  **Deprecated:** `command`, `targets`, and `test_targets` (see below)
+  configure the same things as `build.command_template`, `build.targets`,
+  and `test.targets` and continue to work, but are superseded by the
+  sections above. They will be removed no earlier than 3 major (`0.8.0.0`)
+  version bumps after the release that introduces this deprecation notice.
+  - `command`: Equivalent to `build.command_template`. Ignored if
+    `build.command_template` is set. Never affected `test`/`eval` commands
+    even before deprecation.
+  - `targets`: Equivalent to `build.targets`. Ignored if `build.targets` is
+    set. Also still the fallback source for deriving `test.targets` when
+    neither `test.targets` nor `test_targets` is set.
+  - `test_targets`: Equivalent to `test.targets`. Ignored if `test.targets`
+    is set.
+
 - `watch_dirs`: Directories to watch. When a file is changed in a watched
   directory, Tricorder will attempt to rebuild all targets. If not specified,
   Tricorder will add all `hs-source-dirs` for the configured or detected
@@ -53,9 +113,6 @@ session:
   files you do _not_ want to watch in `watch_dirs`. Tricorder will always
   ignore files in `dist-newstyle`. Defaults to no patterns, meaning all files
   (except those in `dist-newstyle`) will be watched.
-- `test_targets`: Targets to treat as test suites. If not specified, all
-  targets in `targets` starting with `test:` are treated as `test_targets`.
-  Specify `test_targets: []` to disable running tests with Tricorder.
 - `repl_build_dir`: Directory to keep compiled files from the repl. Defaults to
   `dist-newstyle/tricorder` in the repository.
 - `test_timeout`: Number of seconds each test target is granted before it is

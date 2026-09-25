@@ -32,9 +32,11 @@ import Data.Text qualified as T
 import Tricorder.Daemon.GhciSession.GhciParser (LoadedModule (..))
 import Tricorder.Daemon.GhciSession.GhciProcess (execGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..), Repl)
+import Tricorder.Session.Command (CommandTemplate)
+import Tricorder.Session.Command.Eval (renderEval)
 
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Target qualified as Target
 
 
@@ -42,7 +44,7 @@ data EvalCommentRunner :: Effect where
     -- | Scan all loaded source files for eval comments and evaluate them, each
     -- in a fresh GHCi session started in that file's module context.
     EvaluateComments
-        :: Repl
+        :: CommandTemplate 'Stage.Eval
         -> NonEmpty (LoadedModule, NonEmpty Eval.Comment)
         -> EvalCommentRunner m (NonEmpty Eval.Evaluation)
     -- | Extract eval comments from provided source files. Returns a map of all
@@ -80,10 +82,10 @@ run act = do
                         case Eval.findComments $ decodeUtf8Lenient bs of
                             [] -> []
                             x : xs -> [(lm, x :| xs)]
-        EvaluateComments repl moduleComments -> do
+        EvaluateComments template moduleComments -> do
             fmap sconcat $ for moduleComments \(lm, comments) -> do
                 runFileEvals
-                    repl
+                    template
                     lm.relPath
                     lm.moduleName
                     comments
@@ -108,7 +110,10 @@ runFileEvals
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => Repl
+    => CommandTemplate 'Stage.Eval
+    -- ^ Resolved @eval@ command template (see
+    -- 'Tricorder.Session.Command.resolveEvalCommand'), rendered below
+    -- against the single module being evaluated.
     -> FilePath
     -- ^ Relative path to the source file (stored in results).
     -> Text
@@ -116,15 +121,16 @@ runFileEvals
     -- in interpreted mode so that its full local scope is available.
     -> NonEmpty Eval.Comment
     -> Eff es (NonEmpty Eval.Evaluation)
-runFileEvals repl relPath moduleName comments = do
+runFileEvals template relPath moduleName comments = do
     ProjectRoot projectRoot <- ask
     let noProgress = \_ -> pure ()
         noSetup = \_ -> pure ()
         wrapForGhci expr
             | T.elem '\n' expr = ":{" <> "\n" <> expr <> "\n" <> ":}"
             | otherwise = expr
+        command = renderEval template [Target.Bare moduleName]
     sessionResult <- trySync
-        $ withGhciProcess def (Command repl [] [Target.Bare moduleName]) projectRoot noProgress noSetup \ghci _ -> do
+        $ withGhciProcess def command projectRoot noProgress noSetup \ghci _ -> do
             _ <- execGhci ghci (":m *" <> moduleName) noProgress
             for comments \comment -> do
                 outputResult <- trySync $ execGhci ghci (wrapForGhci comment.expression) noProgress

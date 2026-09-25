@@ -1,10 +1,6 @@
 module Tricorder.Daemon.TestRunner
     ( -- * Effect
       TestRunner (..)
-    , TestCommand
-    , renderTestCommand
-    , mkTestCommand
-    , unsafeMkTestCommand
     , runTestSuite
 
       -- * Interpreters
@@ -39,21 +35,18 @@ import Effectful.TH (makeEffect)
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Daemon.GhciSession.GhciProcess
     ( execGhci
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command (Command (..), Repl (..))
-import Tricorder.Session.TestTarget (TestTarget, getTestTarget)
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand)
+import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
-import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Build.Test qualified as Test
-import Tricorder.Session.Command qualified as Command
 
 
 data TestRunner :: Effect where
@@ -63,15 +56,8 @@ data TestRunner :: Effect where
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
         -> TestTimeout
-        -> TestCommand
+        -> ResolvedCommand 'Test
         -> TestRunner m Test.Suite
-
-
-newtype TestCommand = TestCommand Command
-
-
-renderTestCommand :: TestCommand -> Text
-renderTestCommand (TestCommand cmd) = Command.render cmd
 
 
 makeEffect ''TestRunner
@@ -92,7 +78,7 @@ run
     => Eff (TestRunner : es) a -> Eff es a
 run act = do
     interpretWith act \env -> \case
-        RunTestSuite progressHandler testTimeout (TestCommand cmd) ->
+        RunTestSuite progressHandler testTimeout cmd ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
                     noProgress _ = pure ()
@@ -215,38 +201,3 @@ detectOutcome output =
     -- @<file-or-loc>:L:C: error: …@ (with at least one space after the colon).
     -- The substring @": error:"@ is the canonical marker for these.
     isCompileErrorLine line = ": error:" `T.isInfixOf` line
-
-
-mkTestCommand :: Repl -> Maybe ByteSize -> TestTarget -> TestCommand
-mkTestCommand repl mMemoryLimit target =
-    TestCommand $ Command repl memoryLimitArg [getTestTarget target]
-  where
-    memoryLimitArg =
-        maybe
-            []
-            ( \limit ->
-                let
-                    stack =
-                        [ "--ghc-options"
-                        , "+RTS -M"
-                            <> ByteSize.toRTSSize limit
-                            <> " -RTS"
-                        ]
-                    cabal =
-                        [ "--repl-options"
-                        , "+RTS -M"
-                            <> ByteSize.toRTSSize limit
-                            <> " -RTS"
-                        ]
-                in
-                    case repl of
-                        Stack -> stack
-                        StackMulti -> stack
-                        Cabal -> cabal
-                        Unknown -> cabal
-            )
-            mMemoryLimit
-
-
-unsafeMkTestCommand :: Command -> TestCommand
-unsafeMkTestCommand = TestCommand
