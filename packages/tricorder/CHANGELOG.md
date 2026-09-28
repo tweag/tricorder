@@ -10,6 +10,17 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Added
 
 - Log test suite commands.
+- `session.build`, `session.test`, and `session.eval` config sections, each
+  independently configuring the command used to build the project, run test
+  suites, and evaluate eval comments. See
+  [Configuring Tricorder](/docs/configuring-tricorder.md) for a complete,
+  up-to-date description of these options.
+
+### Changed
+
+- Deprecate configuration options `session.command`, `session.targets` and
+  `session.test_targets` in favor of `session.build.command_template`,
+  `session.build.targets` and `session.test.targets`, respectively.
 
 ### Fixed
 
