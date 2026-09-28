@@ -15,6 +15,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   suites, and evaluate eval comments. See
   [Configuring Tricorder](/docs/configuring-tricorder.md) for a complete,
   up-to-date description of these options.
+- `tricorder daemon info` subcommand showing daemon info. This information was
+  moved from `tricorder ui`.
 
 ### Changed
 
@@ -29,6 +31,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - When Tricorder detects that the project is a Stack project, it now correctly
   inspects `stack.yaml` for packages instead of assuming packages are listed in
   `cabal.project`.
+
+### Removed
+
+- `tricorder ui` no longer has the "Daemon info" tab. This tab contains
+  information that is rarely necessary to have as accessible as in the TUI, so it
+  has been moved to a separate `tricorder daemon info` subcommand.
 
 ## [0.4.1.1] - 2026-09-21
 

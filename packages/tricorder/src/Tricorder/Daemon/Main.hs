@@ -42,7 +42,6 @@ import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 import Tricorder.SourceLookup.PackageId (PackageId)
 
 import Tricorder.Daemon.Core qualified as Core
-import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
@@ -85,7 +84,6 @@ main =
         . inputCabalFiles
         . inputSession
         . runReader @CacheConfig.Config def
-        . DaemonInfo.runInput
         . runCacheTtl @ModuleName @PackageId
         . runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult
         . runProcessIO

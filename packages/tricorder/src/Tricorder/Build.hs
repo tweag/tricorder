@@ -15,7 +15,6 @@ import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import GHC.Generics (Generically (..))
 
 import Tricorder.Build.Duration (Duration)
-import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.EvalComment qualified as Eval
@@ -23,8 +22,7 @@ import Tricorder.Build.Test qualified as Test
 
 
 data BuildState = BuildState
-    { daemonInfo :: DaemonInfo
-    , phase :: BuildPhase
+    { phase :: BuildPhase
     , buildId :: BuildId
     }
     deriving stock (Eq, Generic, Show)

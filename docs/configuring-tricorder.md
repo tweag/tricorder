@@ -172,7 +172,6 @@ The following event names are recognized
 (keep this list in sync with the `KeyEvent` type in
 `tricorder/src/Tricorder/UI/Keys.hs` [ref:keybinding_events]):
 
-- `toggle_daemon_info_view`: Toggle displaying the daemon info tab.
 - `toggle_help`: Toggle displaying the help tab. This tab shows available key
   bindings, including your custom key bindings.
 - `cycle_test_view`: Toggle the tests tab and cycle through test results views.

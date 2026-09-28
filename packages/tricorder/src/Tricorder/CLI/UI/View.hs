@@ -26,7 +26,6 @@ import Brick.Widgets.Core
     , withVScrollBars
     )
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, utcToLocalTime)
-import System.FilePath (isAbsolute)
 
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
@@ -45,8 +44,6 @@ import Tricorder.CLI.UI.State
     , Viewports (..)
     , currentRoute
     )
-import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
-import Tricorder.Session.Target (Target, renderTarget)
 import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
@@ -55,7 +52,6 @@ import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.CLI.UI.Route qualified as Route
-import Tricorder.Version qualified as Version
 
 
 mkAttrMap :: State -> AttrMap
@@ -83,8 +79,6 @@ view kc ws =
         , case currentRoute ws of
             Route.Help ->
                 viewHelp kc
-            Route.DaemonInfo ->
-                viewDaemonInfo ws
             Route.Tests ->
                 viewTests ws
             Route.Main ->
@@ -109,11 +103,6 @@ viewRouteTab kc ws route =
     style = if route == currentRoute ws then id else subtle
     showBinding = (" " <>) . ("[" <>) . (<> "]") . ppBinding
     keyBind = maybe "" showBinding $ keybindForRoute kc route
-
-
-viewDaemonInfo :: State -> Widget Viewports
-viewDaemonInfo ws =
-    withBuildState ws (viewExpandedDaemonInfo . (.daemonInfo))
 
 
 viewTests :: State -> Widget Viewports
@@ -167,7 +156,6 @@ viewHeading ws = case currentRoute ws of
         TestFilterAll -> Just "Tests"
         TestFilterFailedOnly -> Just "Tests - Failed only"
     Route.Help -> Just "Help"
-    Route.DaemonInfo -> Just "Daemon info"
     Route.Main -> Nothing
     Route.Evals -> Just "Eval comments"
 
@@ -226,67 +214,6 @@ viewEvaluation evaluation =
                 Eval.Pending ->
                     [ subtle $ txt "Running..."
                     ]
-
-
-viewExpandedDaemonInfo :: DaemonInfo -> Widget n
-viewExpandedDaemonInfo di =
-    vBox
-        [ viewVersion
-        , viewTargets di.targets
-        , viewWatchDirs di.watchDirs
-        , viewSockPath di.sockPath
-        , viewLogFile di.logFile
-        ]
-
-
-viewVersion :: Widget n
-viewVersion =
-    hBoxSpaced
-        1
-        [ emphasis $ txt "Client version:"
-        , txt Version.gitHash
-        ]
-
-
-viewTargets :: [Target] -> Widget n
-viewTargets targets =
-    hBoxSpaced
-        1
-        [ emphasis $ txt "Targets:"
-        , if null targets
-            then
-                txt "(all)"
-            else
-                vBox $ (map (txt . renderTarget) targets)
-        ]
-
-
-viewLogFile :: FilePath -> Widget n
-viewLogFile p = hBoxSpaced 1 [emphasis $ txt "Log:", txt $ toText p]
-
-
-viewSockPath :: FilePath -> Widget n
-viewSockPath sockPath =
-    hBoxSpaced 1 [emphasis $ txt "Socket:", txt $ toText sockPath]
-
-
-viewWatchDirs :: [FilePath] -> Widget n
-viewWatchDirs watchDirs =
-    vBox
-        [ emphasis $ txt "Watching:"
-        , padLeft (Pad 2)
-            $ vBox
-            $ viewWatchDir <$> watchDirs
-        ]
-
-
-viewWatchDir :: FilePath -> Widget n
-viewWatchDir dir = hBox [txt "- ", txt $ toText displayDir]
-  where
-    displayDir
-        | isAbsolute dir = dir
-        | dir == "." = "./"
-        | otherwise = "./" <> dir
 
 
 viewBuildPhase :: TimeZone -> BuildPhase -> Widget Viewports
@@ -459,7 +386,7 @@ formatDuration (Duration d) =
 
 
 -- | Single-line build status with no scrollable diagnostics list, used as a
--- compact header when a secondary panel (test results, daemon info) is open.
+-- compact header when a secondary panel (test results) is open.
 viewBuildPhaseLine :: TimeZone -> BuildPhase -> Widget n
 viewBuildPhaseLine tz = \case
     Build.Starting ->

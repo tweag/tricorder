@@ -24,6 +24,7 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
+import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 import Prelude hiding (force)
 
@@ -221,7 +222,7 @@ toolCommand = \case
             $ CLI.Status
                 CLI.StatusOptions
                     { wait = toWaitMode wait
-                    , format = CLI.JsonOutput
+                    , format = JsonOutput
                     , verbosity = toVerbosity verbose
                     , expand
                     }
@@ -243,7 +244,7 @@ toolCommand = \case
             $ CLI.EvalComments
                 CLI.EvalCommentsOptions
                     { wait = toWaitMode wait
-                    , format = CLI.JsonOutput
+                    , format = JsonOutput
                     }
         )
     LogPath (LogPathOptions {projectRoot}) ->

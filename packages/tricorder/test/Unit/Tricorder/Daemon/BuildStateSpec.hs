@@ -13,7 +13,6 @@ import Tricorder.Build
     , Severity (..)
     )
 import Tricorder.Build.Duration (Duration (..))
-import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
@@ -97,13 +96,6 @@ mkBuildState msgs =
                     }
                 )
                 $ PostBuild mempty Eval.NoneFound
-        , daemonInfo =
-            DaemonInfo
-                { targets = []
-                , watchDirs = []
-                , sockPath = ""
-                , logFile = ""
-                }
         }
   where
     epoch = UTCTime (fromGregorian 1970 1 1) 0
