@@ -1,8 +1,9 @@
-module Unit.Atelier.Types.WithDefaultsSpec (spec_WithDefaults) where
+module Unit.Atelier.Types.WithDefaultsSpec (test_WithDefaults) where
 
 import Data.Aeson (FromJSON, ToJSON, eitherDecode)
 import Data.Default (Default (..))
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Data.ByteString.Lazy qualified as LBS
 
@@ -33,31 +34,33 @@ decodeWithDefaults :: LBS.ByteString -> Either String Fixture
 decodeWithDefaults bs = getQuietSnake . getWithDefaults <$> eitherDecode @(WithDefaults (QuietSnake Fixture)) bs
 
 
-spec_WithDefaults :: Spec
-spec_WithDefaults = do
-    describe "WithDefaults" do
-        it "falls back to Default values for missing non-Maybe fields" do
-            let result = decodeWithDefaults "{}"
-            result `shouldBe` Right def
-
-        it "uses provided values when all fields are present" do
-            let result =
-                    decodeWithDefaults
-                        "{\"required_field\": \"hello\", \"items\": [\"a\", \"b\"], \"count\": 42}"
-            result
-                `shouldBe` Right
-                    Fixture
-                        { requiredField = "hello"
-                        , items = ["a", "b"]
-                        , count = 42
-                        }
-
-        it "partial object: provided fields override defaults, missing fall back" do
-            let result = decodeWithDefaults "{\"count\": 7}"
-            result
-                `shouldBe` Right
-                    def {count = 7}
-
-        it "explicitly provided empty list overrides the default list" do
-            let result = decodeWithDefaults "{\"items\": []}"
-            result `shouldBe` Right def {items = []}
+test_WithDefaults :: TestTree
+test_WithDefaults =
+    testGroup
+        "WithDefaults"
+        [ testGroup
+            "WithDefaults"
+            [ testCase "falls back to Default values for missing non-Maybe fields" do
+                let result = decodeWithDefaults "{}"
+                result @?= Right def
+            , testCase "uses provided values when all fields are present" do
+                let result =
+                        decodeWithDefaults
+                            "{\"required_field\": \"hello\", \"items\": [\"a\", \"b\"], \"count\": 42}"
+                result
+                    @?= Right
+                        Fixture
+                            { requiredField = "hello"
+                            , items = ["a", "b"]
+                            , count = 42
+                            }
+            , testCase "partial object: provided fields override defaults, missing fall back" do
+                let result = decodeWithDefaults "{\"count\": 7}"
+                result
+                    @?= Right
+                        def {count = 7}
+            , testCase "explicitly provided empty list overrides the default list" do
+                let result = decodeWithDefaults "{\"items\": []}"
+                result @?= Right def {items = []}
+            ]
+        ]

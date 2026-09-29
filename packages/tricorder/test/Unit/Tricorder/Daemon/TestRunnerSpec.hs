@@ -1,10 +1,11 @@
-module Unit.Tricorder.Daemon.TestRunnerSpec (spec_TestRunner) where
+module Unit.Tricorder.Daemon.TestRunnerSpec (test_TestRunner) where
 
 import Control.Exception (ErrorCall (..))
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (try)
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Daemon.TestRunner
     ( GhciOutcome (..)
@@ -19,113 +20,112 @@ import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 
 
-spec_TestRunner :: Spec
-spec_TestRunner = do
-    describe "detectOutcome" testDetectOutcome
-    describe "runScripted" testScripted
+test_TestRunner :: TestTree
+test_TestRunner =
+    testGroup
+        "TestRunner"
+        [ testGroup "detectOutcome" testDetectOutcome
+        , testGroup "runScripted" testScripted
+        ]
 
 
 --------------------------------------------------------------------------------
 -- detectOutcome tests
 --------------------------------------------------------------------------------
 
-testDetectOutcome :: Spec
-testDetectOutcome = do
-    describe "no exception line" do
-        it "treats empty output as pass" do
-            detectOutcome "" `shouldBe` GhciPassed
-
-        it "treats output with no exception as pass" do
-            detectOutcome "2 examples, 0 failures\n" `shouldBe` GhciPassed
-
-        it "does not match 'ExitSuccess' without the exception prefix" do
-            detectOutcome "ExitSuccess\n" `shouldBe` GhciPassed
-
-    describe "ExitSuccess" do
-        it "detects ExitSuccess as pass" do
-            detectOutcome "*** Exception: ExitSuccess\n" `shouldBe` GhciPassed
-
-        it "detects ExitSuccess anywhere in output" do
+testDetectOutcome :: [TestTree]
+testDetectOutcome =
+    [ testGroup
+        "no exception line"
+        [ testCase "treats empty output as pass" do
+            detectOutcome "" @?= GhciPassed
+        , testCase "treats output with no exception as pass" do
+            detectOutcome "2 examples, 0 failures\n" @?= GhciPassed
+        , testCase "does not match 'ExitSuccess' without the exception prefix" do
+            detectOutcome "ExitSuccess\n" @?= GhciPassed
+        ]
+    , testGroup
+        "ExitSuccess"
+        [ testCase "detects ExitSuccess as pass" do
+            detectOutcome "*** Exception: ExitSuccess\n" @?= GhciPassed
+        , testCase "detects ExitSuccess anywhere in output" do
             detectOutcome "All tests passed\n*** Exception: ExitSuccess\n"
-                `shouldBe` GhciPassed
-
-    describe "ExitFailure" do
-        it "detects ExitFailure 1 as fail" do
+                @?= GhciPassed
+        ]
+    , testGroup
+        "ExitFailure"
+        [ testCase "detects ExitFailure 1 as fail" do
             detectOutcome "1 failure\n*** Exception: ExitFailure 1\n"
-                `shouldBe` GhciFailed
-
-        it "detects ExitFailure with any exit code as fail" do
-            detectOutcome "*** Exception: ExitFailure 42\n" `shouldBe` GhciFailed
-
-        it "detects ExitFailure anywhere in output" do
+                @?= GhciFailed
+        , testCase "detects ExitFailure with any exit code as fail" do
+            detectOutcome "*** Exception: ExitFailure 42\n" @?= GhciFailed
+        , testCase "detects ExitFailure anywhere in output" do
             detectOutcome "Some output\n*** Exception: ExitFailure 1\nMore output\n"
-                `shouldBe` GhciFailed
-
-    describe "other exception" do
-        it "classifies unknown exception as error with message" do
+                @?= GhciFailed
+        ]
+    , testGroup
+        "other exception"
+        [ testCase "classifies unknown exception as error with message" do
             detectOutcome "*** Exception: SomeException \"oops\"\n"
-                `shouldBe` GhciCrashed "SomeException \"oops\""
-
-        it "trims trailing whitespace from the error message" do
+                @?= GhciCrashed "SomeException \"oops\""
+        , testCase "trims trailing whitespace from the error message" do
             detectOutcome "*** Exception: Crashed  \n"
-                `shouldBe` GhciCrashed "Crashed"
-
-    describe "compile failure (no exception line, but GHC errors present)" do
-        it "flags ':main not in scope' as crashed" do
+                @?= GhciCrashed "Crashed"
+        ]
+    , testGroup
+        "compile failure (no exception line, but GHC errors present)"
+        [ testCase "flags ':main not in scope' as crashed" do
             detectOutcome "<interactive>:1:1: error: [GHC-76037] Not in scope: 'main'\n"
-                `shouldBe` GhciCrashed
+                @?= GhciCrashed
                     "<interactive>:1:1: error: [GHC-76037] Not in scope: 'main'"
-
-        it "flags a source-file compile error as crashed" do
+        , testCase "flags a source-file compile error as crashed" do
             detectOutcome "src/Foo.hs:42:5: error: Variable not in scope: foo\n"
-                `shouldBe` GhciCrashed "src/Foo.hs:42:5: error: Variable not in scope: foo"
-
-        it "reports the first error line when multiple are present" do
+                @?= GhciCrashed "src/Foo.hs:42:5: error: Variable not in scope: foo"
+        , testCase "reports the first error line when multiple are present" do
             detectOutcome
                 "src/Foo.hs:42:5: error: Variable not in scope: foo\nsrc/Bar.hs:10:1: error: Parse error\n"
-                `shouldBe` GhciCrashed "src/Foo.hs:42:5: error: Variable not in scope: foo"
-
-        it "prefers exit exception over compile-error heuristic when both appear" do
+                @?= GhciCrashed "src/Foo.hs:42:5: error: Variable not in scope: foo"
+        , testCase "prefers exit exception over compile-error heuristic when both appear" do
             -- A real failing run could plausibly mention 'error:' in its
             -- captured output (e.g. logged messages); the ExitFailure line
             -- still wins.
             detectOutcome "log: error: something happened\n*** Exception: ExitFailure 1\n"
-                `shouldBe` GhciFailed
+                @?= GhciFailed
+        ]
+    ]
 
 
 --------------------------------------------------------------------------------
 -- Scripted interpreter tests
 --------------------------------------------------------------------------------
 
-testScripted :: Spec
-testScripted = do
-    it "returns scripted TestRun" do
+testScripted :: [TestTree]
+testScripted =
+    [ testCase "returns scripted TestRun" do
         result <-
             runScripted [Right passingRun]
                 $ runTestSuite noProgress testTimeout
                 $ ResolvedCommand
                 $ "cabal repl test:foo"
-        result `shouldBe` passingRun
-
-    it "ignores the target name argument" do
+        result @?= passingRun
+    , testCase "ignores the target name argument" do
         result <-
             runScripted [Right failingRun]
                 $ runTestSuite noProgress testTimeout
                 $ ResolvedCommand
                 $ "cabal repl test:anything"
-        result `shouldBe` failingRun
-
-    it "throws when scripted result is Left" do
+        result @?= failingRun
+    , testCase "throws when scripted result is Left" do
         result <-
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
                 $ runTestSuite noProgress testTimeout
                 $ ResolvedCommand
                 $ "cabal repl test:foo"
-        result `shouldBe` Left boom
-
-    describe "sequencing" do
-        it "consumes results in order across multiple calls" do
+        result @?= Left boom
+    , testGroup
+        "sequencing"
+        [ testCase "consumes results in order across multiple calls" do
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
                 a <-
                     runTestSuite noProgress testTimeout
@@ -136,10 +136,9 @@ testScripted = do
                         $ ResolvedCommand
                         $ "cabal repl test:bar"
                 pure (a, b)
-            a `shouldBe` passingRun
-            b `shouldBe` failingRun
-
-        it "recover scenario: error then success" do
+            a @?= passingRun
+            b @?= failingRun
+        , testCase "recover scenario: error then success" do
             result <- runScripted [Left (toException boom), Right passingRun] do
                 r1 <-
                     try @ErrorCall
@@ -151,8 +150,10 @@ testScripted = do
                         $ ResolvedCommand
                         $ "cabal repl test:bar"
                 pure (r1, r2)
-            fst result `shouldBe` Left boom
-            snd result `shouldBe` passingRun
+            fst result @?= Left boom
+            snd result @?= passingRun
+        ]
+    ]
 
 
 --------------------------------------------------------------------------------

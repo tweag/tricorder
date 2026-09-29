@@ -1,30 +1,36 @@
-module Unit.Tricorder.CLI.RenderSpec (spec_Render) where
+module Unit.Tricorder.CLI.RenderSpec (test_Render) where
 
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (Assertion, assertBool, testCase)
+
+import Data.Text qualified as T
 
 import Tricorder.Build (Diagnostic (..), Severity (..))
 import Tricorder.CLI.Render (diagnosticBlock)
 
 
-spec_Render :: Spec
-spec_Render = do
-    describe "diagnosticBlock" do
-        it "includes the one-liner prefix for an error" do
-            diagnosticBlock errMsg `shouldContainT` "E Foo.hs:10 type mismatch"
-
-        it "includes the full text body after the first line" do
-            diagnosticBlock errMsg `shouldContainT` "\ntype mismatch"
-
-        it "uses 'W' prefix for warnings" do
-            diagnosticBlock warnMsg `shouldContainT` "W Bar.hs:3 unused import"
-
-        it "contains both title and text when they differ" do
-            let d = mixedMsg
-            diagnosticBlock d `shouldContainT` "short title"
-            diagnosticBlock d `shouldContainT` "full body of the message"
+test_Render :: TestTree
+test_Render =
+    testGroup
+        "Render"
+        [ testGroup
+            "diagnosticBlock"
+            [ testCase "includes the one-liner prefix for an error" do
+                diagnosticBlock errMsg `shouldContainT` "E Foo.hs:10 type mismatch"
+            , testCase "includes the full text body after the first line" do
+                diagnosticBlock errMsg `shouldContainT` "\ntype mismatch"
+            , testCase "uses 'W' prefix for warnings" do
+                diagnosticBlock warnMsg `shouldContainT` "W Bar.hs:3 unused import"
+            , testCase "contains both title and text when they differ" do
+                let d = mixedMsg
+                diagnosticBlock d `shouldContainT` "short title"
+                diagnosticBlock d `shouldContainT` "full body of the message"
+            ]
+        ]
   where
-    shouldContainT :: Text -> Text -> Expectation
-    shouldContainT a b = toString a `shouldContain` toString b
+    shouldContainT :: Text -> Text -> Assertion
+    shouldContainT a b =
+        assertBool (toString a <> "\ndoes not contain\n" <> toString b) $ b `T.isInfixOf` a
 
 
 --------------------------------------------------------------------------------

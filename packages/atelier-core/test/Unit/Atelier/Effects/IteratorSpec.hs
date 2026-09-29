@@ -1,9 +1,10 @@
-module Unit.Atelier.Effects.IteratorSpec (spec_Iterator) where
+module Unit.Atelier.Effects.IteratorSpec (test_Iterator) where
 
 import Control.Concurrent (threadDelay)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
@@ -16,34 +17,35 @@ import Atelier.Effects.Iterator qualified as Iter
 import Atelier.Effects.Publishing.Pub qualified as Pub
 
 
-spec_Iterator :: Spec
-spec_Iterator = do
-    describe "fromEvents" testFromEvents
-    describe "filter" testFilter
-    describe "changes" testChanges
+test_Iterator :: TestTree
+test_Iterator =
+    testGroup
+        "Iterator"
+        [ testGroup "fromEvents" testFromEvents
+        , testGroup "filter" testFilter
+        , testGroup "changes" testChanges
+        ]
 
 
-testFromEvents :: Spec
-testFromEvents = do
-    it "yields a published event" do
+testFromEvents :: [TestTree]
+testFromEvents =
+    [ testCase "yields a published event" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     Pub.publish (42 :: Int)
                 Iter.next iter
-        result `shouldBe` 42
-
-    it "yields events in publication order" do
+        result @?= 42
+    , testCase "yields events in publication order" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next iter)
-        result `shouldBe` [1, 2, 3]
-
-    it "buffers events so next can catch up" do
+        result @?= [1, 2, 3]
+    , testCase "buffers events so next can catch up" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
@@ -51,58 +53,58 @@ testFromEvents = do
                     traverse_ Pub.publish [1, 2, 3]
                 liftIO $ threadDelay 5_000
                 replicateM 3 (Iter.next iter)
-        result `shouldBe` [1, 2, 3]
+        result @?= [1, 2, 3]
+    ]
 
 
-testFilter :: Spec
-testFilter = do
-    it "passes values that satisfy the predicate" do
+testFilter :: [TestTree]
+testFilter =
+    [ testCase "passes values that satisfy the predicate" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1 .. 4]
                 Iter.next (Iter.filter even iter)
-        result `shouldBe` 2
-
-    it "skips values that do not satisfy the predicate" do
+        result @?= 2
+    , testCase "skips values that do not satisfy the predicate" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1 .. 6]
                 replicateM 3 (Iter.next (Iter.filter even iter))
-        result `shouldBe` [2, 4, 6]
+        result @?= [2, 4, 6]
+    ]
 
 
-testChanges :: Spec
-testChanges = do
-    it "skips values equal to the initial value" do
+testChanges :: [TestTree]
+testChanges =
+    [ testCase "skips values equal to the initial value" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [0, 0, 1]
                 Iter.next (Iter.changes 0 iter)
-        result `shouldBe` 1
-
-    it "yields values that differ from the initial value" do
+        result @?= 1
+    , testCase "yields values that differ from the initial value" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
-        result `shouldBe` [1, 2, 3]
-
-    it "skips initial values interspersed with non-initial values" do
+        result @?= [1, 2, 3]
+    , testCase "skips initial values interspersed with non-initial values" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
                 _ <- fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [0, 1, 0, 2, 0, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
-        result `shouldBe` [1, 2, 3]
+        result @?= [1, 2, 3]
+    ]
 
 
 --------------------------------------------------------------------------------

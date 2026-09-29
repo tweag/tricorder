@@ -94,9 +94,8 @@ in
       ++ depList [
         "atelier-core"
         "atelier-prelude"
-        "hspec"
         "tasty"
-        "tasty-hspec"
+        "tasty-hunit"
       ];
     };
   };

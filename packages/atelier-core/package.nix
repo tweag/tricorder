@@ -99,19 +99,18 @@ in
         "atelier-core"
       ]
       ++ depList [
-        "atelier-prelude"
         "aeson"
+        "atelier-prelude"
         "bytestring"
         "containers"
         "data-default"
         "effectful"
         "hedgehog"
-        "hspec"
-        "hspec-hedgehog"
         "stm"
         "stm-containers"
         "tasty"
-        "tasty-hspec"
+        "tasty-hedgehog"
+        "tasty-hunit"
         "time"
       ];
     };

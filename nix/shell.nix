@@ -8,11 +8,6 @@
       devShells.default = config.legacyPackages.project.shellFor {
         name = "tricorder-shell";
 
-        # Include local packages. All first-party packages must be listed so the
-        # shell prebuilds the union of their dependency closures into the package db.
-        # Listing only tricorder leaves out deps unique to atelier-db (rel8,
-        # tmp-postgres) and atelier-testing (hedgehog, hspec-hedgehog), forcing
-        # `cabal build all` to compile them from source.
         packages = ps: map (p: ps.${p}) common.packageNames;
 
         # Enable Hoogle documentation

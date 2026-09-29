@@ -1,4 +1,4 @@
-module Unit.Tricorder.SessionSpec (spec_Session) where
+module Unit.Tricorder.SessionSpec (test_Session) where
 
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (runFileSystemState)
@@ -10,7 +10,8 @@ import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (execWriter)
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..), loadSession)
@@ -19,28 +20,36 @@ import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Unit.Tricorder.Session.Helpers (libWithPreludeCabal, preludeOnlyLibCabal)
 
 
-spec_Session :: Spec
-spec_Session = do
-    describe "loadSession" testLoadSession
-    describe "loadSession idleTimeout" testIdleTimeout
-    describe "loadSession missing {target} placeholder" testMissingTargetPlaceholder
+test_Session :: TestTree
+test_Session =
+    testGroup
+        "Session"
+        [ testLoadSession
+        , testIdleTimeout
+        , testMissingTargetPlaceholder
+        ]
 
 
-testLoadSession :: Spec
-testLoadSession = do
-    describe "when every resolved target exposes a custom Prelude module" do
-        it "emits a WARN" do
-            let msgs = captureSessionLogs [preludeOnlyCF]
-            any (\m -> m.severity == WARN) msgs `shouldBe` True
-
-    describe "when not every resolved target exposes a custom Prelude module" do
-        it "does not emit a WARN" do
-            -- libWithPreludeCabal has both a lib (custom Prelude) and an exe (no Prelude)
-            let msgs = captureSessionLogs [mixedCF]
-            any (\m -> m.severity == WARN) msgs `shouldBe` False
-
-    it "does not emit a WARN when there are no resolved targets" do
-        any (\m -> m.severity == WARN) (captureSessionLogs []) `shouldBe` False
+testLoadSession :: TestTree
+testLoadSession =
+    testGroup
+        "loadSession"
+        [ testGroup
+            "when every resolved target exposes a custom Prelude module"
+            [ testCase "emits a WARN" do
+                let msgs = captureSessionLogs [preludeOnlyCF]
+                any (\m -> m.severity == WARN) msgs @?= True
+            ]
+        , testGroup
+            "when not every resolved target exposes a custom Prelude module"
+            [ testCase "does not emit a WARN" do
+                -- libWithPreludeCabal has both a lib (custom Prelude) and an exe (no Prelude)
+                let msgs = captureSessionLogs [mixedCF]
+                any (\m -> m.severity == WARN) msgs @?= False
+            ]
+        , testCase "does not emit a WARN when there are no resolved targets" do
+            any (\m -> m.severity == WARN) (captureSessionLogs []) @?= False
+        ]
   where
     preludeOnlyCF =
         CabalFile "/p.cabal"
@@ -62,30 +71,35 @@ testLoadSession = do
             $ loadSession
 
 
-testMissingTargetPlaceholder :: Spec
-testMissingTargetPlaceholder = do
-    describe "test.command_template" do
-        it "emits a WARN when it has no {target} placeholder" do
-            let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl test:foo" :: Text)]]
-            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` True
-
-        it "does not emit a WARN when it has the {target} placeholder" do
-            let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
-            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
-
-    describe "eval.command_template" do
-        it "emits a WARN when it has no {target} placeholder" do
-            let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl Tricorder.Foo" :: Text)]]
-            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` True
-
-        it "does not emit a WARN when it has the {target} placeholder" do
-            let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
-            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
-
-    describe "build.command_template" do
-        it "does not emit a WARN when it has no {targets} placeholder" do
-            let cfg = sessionCfg ["build" .= object ["command_template" .= ("cabal repl lib:foo" :: Text)]]
-            any (\m -> m.severity == WARN) (captureLogsFor cfg) `shouldBe` False
+testMissingTargetPlaceholder :: TestTree
+testMissingTargetPlaceholder =
+    testGroup
+        "loadSession missing {target} placeholder"
+        [ testGroup
+            "test.command_template"
+            [ testCase "emits a WARN when it has no {target} placeholder" do
+                let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl test:foo" :: Text)]]
+                any (\m -> m.severity == WARN) (captureLogsFor cfg) @?= True
+            , testCase "does not emit a WARN when it has the {target} placeholder" do
+                let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
+                any (\m -> m.severity == WARN) (captureLogsFor cfg) @?= False
+            ]
+        , testGroup
+            "eval.command_template"
+            [ testCase "emits a WARN when it has no {target} placeholder" do
+                let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl Tricorder.Foo" :: Text)]]
+                any (\m -> m.severity == WARN) (captureLogsFor cfg) @?= True
+            , testCase "does not emit a WARN when it has the {target} placeholder" do
+                let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
+                any (\m -> m.severity == WARN) (captureLogsFor cfg) @?= False
+            ]
+        , testGroup
+            "build.command_template"
+            [ testCase "does not emit a WARN when it has no {targets} placeholder" do
+                let cfg = sessionCfg ["build" .= object ["command_template" .= ("cabal repl lib:foo" :: Text)]]
+                any (\m -> m.severity == WARN) (captureLogsFor cfg) @?= False
+            ]
+        ]
   where
     sessionCfg session = LoadedConfig $ object ["session" .= object session]
     captureLogsFor cfg =
@@ -100,14 +114,16 @@ testMissingTargetPlaceholder = do
             $ loadSession
 
 
-testIdleTimeout :: Spec
-testIdleTimeout = do
-    it "defaults to 300 seconds when unset" do
-        (loadSessionWith (LoadedConfig Null)).idleTimeout `shouldBe` IdleTimeout 300
-
-    it "reads idle_timeout_seconds from the session config" do
-        let cfg = LoadedConfig $ object ["session" .= object ["idle_timeout_seconds" .= (5 :: Int)]]
-        (loadSessionWith cfg).idleTimeout `shouldBe` IdleTimeout 5
+testIdleTimeout :: TestTree
+testIdleTimeout =
+    testGroup
+        "loadSession idleTimeout"
+        [ testCase "defaults to 300 seconds when unset" do
+            (loadSessionWith (LoadedConfig Null)).idleTimeout @?= IdleTimeout 300
+        , testCase "reads idle_timeout_seconds from the session config" do
+            let cfg = LoadedConfig $ object ["session" .= object ["idle_timeout_seconds" .= (5 :: Int)]]
+            (loadSessionWith cfg).idleTimeout @?= IdleTimeout 5
+        ]
   where
     loadSessionWith cfg =
         runPureEff

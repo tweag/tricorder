@@ -1,10 +1,11 @@
-module Unit.Tricorder.Session.Command.BuildSpec (spec_Build) where
+module Unit.Tricorder.Session.Command.BuildSpec (test_Build) where
 
 import Atelier.Effects.FileSystem (FileSystem, runFileSystemState)
 import Data.Default (def)
 import Effectful (runPureEff)
 import Effectful.State.Static.Shared (State, evalState)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Data.Map.Strict qualified as Map
 
@@ -21,116 +22,124 @@ import Tricorder.Session.TestTarget (TestTarget, parseTestTargets)
 import Tricorder.Session.Config qualified as Config
 
 
-spec_Build :: Spec
-spec_Build = do
-    describe "resolveBuildCommand" testResolveBuildCommand
-    describe "renderBuild" testRenderBuild
+test_Build :: TestTree
+test_Build =
+    testGroup
+        "Build"
+        [ testGroup "resolveBuildCommand" testResolveBuildCommand
+        , testGroup "renderBuild" testRenderBuild
+        ]
 
 
-testRenderBuild :: Spec
-testRenderBuild = do
-    it "substitutes {targets} with the rendered target list" do
+testRenderBuild :: [TestTree]
+testRenderBuild =
+    [ testCase "substitutes {targets} with the rendered target list" do
         build (CommandTemplate Cabal "cabal repl {targets}" [] targetsPlaceholder) [parseTarget "lib:foo"]
-            `shouldBe` "cabal repl lib:foo"
-
-    it "substitutes every occurrence of {targets}" do
+            @?= "cabal repl lib:foo"
+    , testCase "substitutes every occurrence of {targets}" do
         build
             (CommandTemplate Cabal "echo {targets} && cabal repl {targets}" [] targetsPlaceholder)
             [parseTarget "lib:foo"]
-            `shouldBe` "echo lib:foo && cabal repl lib:foo"
-
-    it "leaves a template with no placeholder untouched, but still appends arguments" do
+            @?= "echo lib:foo && cabal repl lib:foo"
+    , testCase "leaves a template with no placeholder untouched, but still appends arguments" do
         build
             (CommandTemplate Cabal "my-wrapper --repl" ["--flag"] targetsPlaceholder)
             [parseTarget "lib:foo"]
-            `shouldBe` "my-wrapper --repl --flag"
-
-    it "renders \\{targets} as a literal {targets}, without substitution" do
+            @?= "my-wrapper --repl --flag"
+    , testCase "renders \\{targets} as a literal {targets}, without substitution" do
         build (CommandTemplate Cabal "echo \\{targets}" [] targetsPlaceholder) [parseTarget "lib:foo"]
-            `shouldBe` "echo {targets}"
-
-    it "substitutes an unescaped {targets} while leaving an escaped one literal" do
+            @?= "echo {targets}"
+    , testCase "substitutes an unescaped {targets} while leaving an escaped one literal" do
         build
             (CommandTemplate Cabal "echo \\{targets} && cabal repl {targets}" [] targetsPlaceholder)
             [parseTarget "lib:foo"]
-            `shouldBe` "echo {targets} && cabal repl lib:foo"
-
-    it "substitutes {targets} with nothing when the target list is empty" do
+            @?= "echo {targets} && cabal repl lib:foo"
+    , testCase "substitutes {targets} with nothing when the target list is empty" do
         build (CommandTemplate Cabal "cabal repl {targets}" [] targetsPlaceholder) []
-            `shouldBe` "cabal repl"
-
-    it "appends arguments after the rendered template" do
+            @?= "cabal repl"
+    , testCase "appends arguments after the rendered template" do
         build
             (CommandTemplate Cabal "cabal repl {targets}" ["--flag", "value"] targetsPlaceholder)
             [parseTarget "lib:foo"]
-            `shouldBe` "cabal repl lib:foo --flag value"
-
-    it "does not substitute {target} (singular) when the command uses targetsPlaceholder" do
+            @?= "cabal repl lib:foo --flag value"
+    , testCase "does not substitute {target} (singular) when the command uses targetsPlaceholder" do
         build (CommandTemplate Cabal "cabal repl {target}" [] targetsPlaceholder) [parseTarget "lib:foo"]
-            `shouldBe` "cabal repl {target}"
+            @?= "cabal repl {target}"
+    ]
   where
     build template targets = (renderBuild template targets).getResolvedCommand
 
 
-testResolveBuildCommand :: Spec
-testResolveBuildCommand = do
-    describe "deprecated top-level command" do
-        it "is used as the build template when build.command_template is unset" do
-            renderBuildFor [] def {command = Just "foo"} [] sampleTestTargets `shouldBe` "foo"
-
-    describe "build.command_template" do
-        it "overrides the deprecated top-level command" do
+testResolveBuildCommand :: [TestTree]
+testResolveBuildCommand =
+    [ testGroup
+        "deprecated top-level command"
+        [ testCase "is used as the build template when build.command_template is unset" do
+            renderBuildFor [] def {command = Just "foo"} [] sampleTestTargets @?= "foo"
+        ]
+    , testGroup
+        "build.command_template"
+        [ testCase "overrides the deprecated top-level command" do
             let cfg =
                     cfg0
                         { command = Just "should be ignored"
                         , build = cfg0.build {commandTemplate = Just "cabal repl {targets}"}
                         }
             renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"]) sampleTestTargets
-                `shouldBe` "cabal repl lib:foo"
-
-    describe "explicit targets" do
-        it "spell them out verbatim, ignoring discovered test targets" do
+                @?= "cabal repl lib:foo"
+        ]
+    , testGroup
+        "explicit targets"
+        [ testCase "spell them out verbatim, ignoring discovered test targets" do
             renderBuildFor [("/cabal.project", "")] cfg0 (parseTarget <$> ["lib:foo"]) sampleTestTargets
-                `shouldBe` "cabal repl --enable-multi-repl --builddir /replbuild lib:foo"
-
-    describe "no command or targets configured" do
-        describe "and there is a cabal.project file" do
-            it "uses cabal 'all' plus the discovered test targets" do
+                @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo"
+        ]
+    , testGroup
+        "no command or targets configured"
+        [ testGroup
+            "and there is a cabal.project file"
+            [ testCase "uses cabal 'all' plus the discovered test targets" do
                 renderBuildFor [("/cabal.project", "")] cfg0 [] sampleTestTargets
-                    `shouldBe` "cabal repl --enable-multi-repl --builddir /replbuild all test:foo"
-
-        describe "and there is at least one *.cabal file" do
-            it "uses cabal 'all' plus the discovered test targets" do
+                    @?= "cabal repl --enable-multi-repl --builddir /replbuild all test:foo"
+            ]
+        , testGroup
+            "and there is at least one *.cabal file"
+            [ testCase "uses cabal 'all' plus the discovered test targets" do
                 renderBuildFor [("/foo.cabal", "")] cfg0 [] sampleTestTargets
-                    `shouldBe` "cabal repl --enable-multi-repl --builddir /replbuild all test:foo"
-
-        describe "and there is a stack.yaml file" do
-            it "uses stack ghci with 'all' plus test targets" do
+                    @?= "cabal repl --enable-multi-repl --builddir /replbuild all test:foo"
+            ]
+        , testGroup
+            "and there is a stack.yaml file"
+            [ testCase "uses stack ghci with 'all' plus test targets" do
                 renderBuildFor [("/stack.yaml", "")] cfg0 [] sampleTestTargets
-                    `shouldBe` "stack ghci all foo"
-
-        describe "and there is both a stack.yaml and a cabal.project file" do
-            it "prefers stack ghci over cabal" do
+                    @?= "stack ghci all foo"
+            ]
+        , testGroup
+            "and there is both a stack.yaml and a cabal.project file"
+            [ testCase "prefers stack ghci over cabal" do
                 renderBuildFor [("/stack.yaml", ""), ("/cabal.project", "")] cfg0 [] sampleTestTargets
-                    `shouldBe` "stack ghci all foo"
-
-        describe "but there are no project files" do
-            it "uses default cabal repl with 'all' plus test targets" do
+                    @?= "stack ghci all foo"
+            ]
+        , testGroup
+            "but there are no project files"
+            [ testCase "uses default cabal repl with 'all' plus test targets" do
                 renderBuildFor [] cfg0 [] sampleTestTargets
-                    `shouldBe` "cabal repl --builddir /replbuild all test:foo"
-
-        describe "and no test targets are discovered" do
-            it "falls back to plain 'all'" do
+                    @?= "cabal repl --builddir /replbuild all test:foo"
+            ]
+        , testGroup
+            "and no test targets are discovered"
+            [ testCase "falls back to plain 'all'" do
                 renderBuildFor [("/cabal.project", "")] cfg0 [] (parseTestTargets [])
-                    `shouldBe` "cabal repl --enable-multi-repl --builddir /replbuild all"
-
-    describe "build.extra_auto_arguments" do
-        it "is appended after the rendered automatically resolved template" do
+                    @?= "cabal repl --enable-multi-repl --builddir /replbuild all"
+            ]
+        ]
+    , testGroup
+        "build.extra_auto_arguments"
+        [ testCase "is appended after the rendered automatically resolved template" do
             let cfg = cfg0 {build = cfg0.build {extraAutoArguments = ["--extra-flag"]}}
             renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"]) sampleTestTargets
-                `shouldBe` "cabal repl --enable-multi-repl --builddir /replbuild lib:foo --extra-flag"
-
-        it "is ignored when build.command_template is set" do
+                @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo --extra-flag"
+        , testCase "is ignored when build.command_template is set" do
             let cfg =
                     cfg0
                         { build =
@@ -140,16 +149,17 @@ testResolveBuildCommand = do
                                 }
                         }
             renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"]) sampleTestTargets
-                `shouldBe` "cabal repl lib:foo"
-
-        it "is ignored when the deprecated top-level command is set" do
+                @?= "cabal repl lib:foo"
+        , testCase "is ignored when the deprecated top-level command is set" do
             let cfg =
                     cfg0
                         { command = Just "cabal repl {targets}"
                         , build = cfg0.build {extraAutoArguments = ["--extra-flag"]}
                         }
             renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"]) sampleTestTargets
-                `shouldBe` "cabal repl lib:foo"
+                @?= "cabal repl lib:foo"
+        ]
+    ]
 
 
 -- | Resolve and fully render the build command against a faked filesystem —

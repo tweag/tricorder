@@ -152,9 +152,8 @@ test-suite tricorder-mcp-test
     , base >=4.18 && <4.23
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
-    , hspec ==2.11.*
     , tasty ==1.5.*
-    , tasty-hspec ==1.2.*
+    , tasty-hunit >=0.10.2 && <0.11
     , tricorder-mcp-internal
   mixins:
       base hiding (Prelude)

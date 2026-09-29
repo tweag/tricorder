@@ -1,10 +1,11 @@
-module Unit.Tricorder.Daemon.GhciSessionSpec (spec_GhciSession) where
+module Unit.Tricorder.Daemon.GhciSessionSpec (test_GhciSession) where
 
 import Atelier.Effects.Publishing.Pub (Pub)
 import Control.Exception (ErrorCall (..))
 import Effectful (IOE, runEff)
 import Effectful.Exception (try)
-import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
 import Atelier.Effects.Publishing.Pub qualified as Pub
 import Data.Map.Strict qualified as Map
@@ -23,68 +24,74 @@ import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 
 
-spec_GhciSession :: Spec
-spec_GhciSession = do
-    describe "runGhciSessionScripted" testScripted
+test_GhciSession :: TestTree
+test_GhciSession =
+    testGroup
+        "GhciSession"
+        [ testGroup "runGhciSessionScripted" testScripted
+        ]
 
 
 --------------------------------------------------------------------------------
 -- Scripted interpreter tests
 --------------------------------------------------------------------------------
 
-testScripted :: Spec
-testScripted = do
-    describe "withGhci" do
-        describe "initial load" do
-            it "returns scripted messages" do
+testScripted :: [TestTree]
+testScripted =
+    [ testGroup
+        "withGhci"
+        [ testGroup
+            "initial load"
+            [ testCase "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [errMsg]]
                         $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
-                msgs `shouldBe` [errMsg]
-
-            it "returns empty list when scripted result has no messages" do
+                msgs @?= [errMsg]
+            , testCase "returns empty list when scripted result has no messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult []]
                         $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
-                msgs `shouldBe` []
-
-            it "throws when scripted result is Left" do
+                msgs @?= []
+            , testCase "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
                         $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
-                result `shouldBe` Left boom
-
-        describe "reloading" do
-            it "returns scripted messages" do
+                result @?= Left boom
+            ]
+        , testGroup
+            "reloading"
+            [ testCase "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [warnMsg], simpleResult [errMsg]]
                         $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
-                msgs `shouldBe` [errMsg]
-
-            it "throws when scripted result is Left" do
+                msgs @?= [errMsg]
+            , testCase "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
                         $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
-                result `shouldBe` Left boom
-
-    describe "sequencing" do
-        it "consumes results in order across mixed operations" do
+                result @?= Left boom
+            ]
+        ]
+    , testGroup
+        "sequencing"
+        [ testCase "consumes results in order across mixed operations" do
             (a, b) <- runScripted [simpleResult [errMsg], simpleResult [warnMsg]] do
                 withGhci cmd (ProjectRoot "/") \LoadResult {diagnostics = a} controls -> do
                     LoadResult {diagnostics = b} <- controls.reload
                     pure (a, b)
-            a `shouldBe` [errMsg]
-            b `shouldBe` [warnMsg]
-
-        it "recover scenario: error then success" do
+            a @?= [errMsg]
+            b @?= [warnMsg]
+        , testCase "recover scenario: error then success" do
             result <- runScripted [Left (toException boom), simpleResult []] do
                 r1 <- try @ErrorCall $ withGhci cmd (ProjectRoot "/") \i _ -> pure i
                 LoadResult {diagnostics = r2} <- withGhci cmd (ProjectRoot "/") \i _ -> pure i
                 pure (r1, r2)
-            fst result `shouldSatisfy` isLeft
-            snd result `shouldBe` []
+            assertBool "expected Left" $ isLeft (fst result)
+            snd result @?= []
+        ]
+    ]
 
 
 --------------------------------------------------------------------------------
