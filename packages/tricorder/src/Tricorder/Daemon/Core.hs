@@ -135,7 +135,11 @@ main =
         . runPubSub @RestartBuilder
         . runPubSub @ReloadBuilder
         . Conc.restartableFork waitForReloadSession
-        $ input >>= withSession
+        $ do
+            Log.debug "Before session"
+            session <- input
+            Log.debug "After session"
+            withSession session
   where
     waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
 

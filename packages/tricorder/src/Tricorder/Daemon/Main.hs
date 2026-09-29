@@ -47,7 +47,7 @@ import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Session.Repl qualified as Repl
-import Tricorder.Session.StackYaml qualified as StackYaml
+import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Socket.Server qualified as Server
 import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.SourceLookup.Hackage qualified as Hackage
@@ -80,7 +80,7 @@ main =
         . inputLoadedConfig
         . runLogging
         . runChan
-        . StackYaml.runWithCache
+        . StackProject.inputWithCache
         . inputCabalFiles
         . inputSession
         . runReader @CacheConfig.Config def

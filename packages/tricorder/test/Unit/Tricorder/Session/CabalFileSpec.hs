@@ -2,6 +2,8 @@ module Unit.Tricorder.Session.CabalFileSpec (test_CabalFile) where
 
 import Atelier.Effects.Env (runEnvConst)
 import Atelier.Effects.FileSystem (runFileSystemState)
+import Atelier.Effects.Input (runInputConst)
+import Atelier.Effects.Log (runLogNoOp)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
@@ -12,11 +14,14 @@ import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.CabalFile (discoverCabalPackages, discoverStackPackages)
-import Tricorder.Session.StackYaml (StackProject (..))
+import Tricorder.Session.CabalFile
+    ( CabalFile (..)
+    , discoverCabalPackages
+    , discoverStackPackages
+    , readProjectFile
+    )
+import Tricorder.Session.StackProject (StackProject (..))
 import Unit.Tricorder.Session.Helpers (cabalFixture, multiPackageCabalFs, multiPackageFs)
-
-import Tricorder.Session.StackYaml qualified as StackYaml
 
 
 test_CabalFile :: TestTree
@@ -25,6 +30,7 @@ test_CabalFile =
         "CabalFile"
         [ testGroup "discoverCabalPackages" testDiscoverCabalPackages
         , testGroup "discoverStackPackages" testDiscoverStackPackages
+        , testGroup "readProjectFile" testReadProjectFile
         ]
 
 
@@ -162,21 +168,42 @@ testDiscoverCabalPackages =
 testDiscoverStackPackages :: [TestTree]
 testDiscoverStackPackages =
     [ testCase "resolves each package path against the project root" do
-        let actual = runStack (Right $ StackProject ["pkg-a", "pkg-b"]) discoverStackPackages
+        let actual = runStack (StackProject ["pkg-a", "pkg-b"]) discoverStackPackages
         actual @?= Right ["/pkg-a", "/pkg-b"]
     , testCase "normalises resolved paths" do
-        let actual = runStack (Right $ StackProject ["./pkg-a"]) discoverStackPackages
+        let actual = runStack (StackProject ["./pkg-a"]) discoverStackPackages
         actual @?= Right ["/pkg-a"]
     , testCase "returns no packages when the list is empty" do
-        let actual = runStack (Right $ StackProject []) discoverStackPackages
+        let actual = runStack (StackProject []) discoverStackPackages
         actual @?= Right []
-    , testCase "propagates a stack.yaml read failure as an error" do
-        let actual = runStack (Left "boom") discoverStackPackages
-        actual @?= Left "Failed to read project file: boom"
     ]
   where
     pr = ProjectRoot "/"
     runStack result =
         runPureEff
             . runReader pr
-            . StackYaml.runConst result
+            . runLogNoOp
+            . runInputConst result
+
+
+-- | Pins how a package path resolves to a @.cabal@ file: a directory path
+-- (as listed in @stack.yaml@) reads the @.cabal@ file inside it.
+testReadProjectFile :: [TestTree]
+testReadProjectFile =
+    [ testGroup
+        "when the path is a directory"
+        [ testCase "reads the .cabal file inside it" do
+            let actual = runRead multiPackageCabalFs $ readProjectFile "/pkg-a"
+            actual @?= Right "/pkg-a/pkg-a.cabal"
+        , testCase "fails with the directory path when it contains no .cabal file" do
+            let fs = Map.singleton "/pkg-a/package.yaml" "name: pkg-a\n"
+                actual = runRead fs $ readProjectFile "/pkg-a"
+            actual @?= Left "/pkg-a"
+        ]
+    ]
+  where
+    runRead fs =
+        fmap (.projectFilePath)
+            . runPureEff
+            . evalState fs
+            . runFileSystemState
