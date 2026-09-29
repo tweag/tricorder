@@ -1,14 +1,8 @@
-module Unit.Tricorder.Session.TargetSpec (spec_Target) where
+module Unit.Tricorder.Session.TargetSpec (test_Target) where
 
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
-import Test.Hspec
-    ( Spec
-    , describe
-    , it
-    , shouldBe
-    , shouldContain
-    , shouldMatchList
-    )
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Target
@@ -29,211 +23,246 @@ import Unit.Tricorder.Session.Helpers
     )
 
 
-spec_Target :: Spec
-spec_Target = do
-    describe "resolveTargets" testResolveTargets
-    describe "parseTarget" testParseTarget
-    describe "compareTargets" testCompareTargets
-    describe "allComponentTargets" testAllComponentTargets
-    describe "definesCustomPrelude" testDefinesCustomPrelude
+test_Target :: TestTree
+test_Target =
+    testGroup
+        "Target"
+        [ testGroup "resolveTargets" testResolveTargets
+        , testGroup "parseTarget" testParseTarget
+        , testGroup "compareTargets" testCompareTargets
+        , testGroup "allComponentTargets" testAllComponentTargets
+        , testGroup "definesCustomPrelude" testDefinesCustomPrelude
+        ]
 
 
-testParseTarget :: Spec
-testParseTarget = do
-    describe "qualified targets" do
-        it "parses lib: as the main library (empty name)" do
-            parseTarget "lib:" `shouldBe` Qualified Lib ""
+testParseTarget :: [TestTree]
+testParseTarget =
+    [ testGroup
+        "qualified targets"
+        [ testCase "parses lib: as the main library (empty name)" do
+            parseTarget "lib:" @?= Qualified Lib ""
+        , testCase "parses a named lib: target" do
+            parseTarget "lib:myapp-utils" @?= Qualified Lib "myapp-utils"
+        , testCase "parses an flib: target" do
+            parseTarget "flib:myapp-flib" @?= Qualified FLib "myapp-flib"
+        , testCase "parses an exe: target" do
+            parseTarget "exe:myapp-exe" @?= Qualified Exe "myapp-exe"
+        , testCase "parses a test: target" do
+            parseTarget "test:myapp-test" @?= Qualified Test "myapp-test"
+        , testCase "parses a bench: target" do
+            parseTarget "bench:myapp-bench" @?= Qualified Bench "myapp-bench"
+        ]
+    , testGroup
+        "a name with no kind prefix"
+        [ testCase "parses as bare" do
+            parseTarget "myapp" @?= Bare "myapp"
+        ]
+    , testGroup
+        "unrecognized targets"
+        [ testCase "rejects an unknown kind" do
+            parseTarget "bogus:myapp" @?= Unrecognized "bogus:myapp"
+        , testCase "rejects a form with extra colons" do
+            parseTarget "lib:a:b" @?= Unrecognized "lib:a:b"
+        ]
+    ]
 
-        it "parses a named lib: target" do
-            parseTarget "lib:myapp-utils" `shouldBe` Qualified Lib "myapp-utils"
 
-        it "parses an flib: target" do
-            parseTarget "flib:myapp-flib" `shouldBe` Qualified FLib "myapp-flib"
-
-        it "parses an exe: target" do
-            parseTarget "exe:myapp-exe" `shouldBe` Qualified Exe "myapp-exe"
-
-        it "parses a test: target" do
-            parseTarget "test:myapp-test" `shouldBe` Qualified Test "myapp-test"
-
-        it "parses a bench: target" do
-            parseTarget "bench:myapp-bench" `shouldBe` Qualified Bench "myapp-bench"
-
-    describe "a name with no kind prefix" do
-        it "parses as bare" do
-            parseTarget "myapp" `shouldBe` Bare "myapp"
-
-    describe "unrecognized targets" do
-        it "rejects an unknown kind" do
-            parseTarget "bogus:myapp" `shouldBe` Unrecognized "bogus:myapp"
-
-        it "rejects a form with extra colons" do
-            parseTarget "lib:a:b" `shouldBe` Unrecognized "lib:a:b"
-
-
-testResolveTargets :: Spec
-testResolveTargets = do
-    describe "when targets are configured" do
-        it "parses and sorts configured targets" do
+testResolveTargets :: [TestTree]
+testResolveTargets =
+    [ testGroup
+        "when targets are configured"
+        [ testCase "parses and sorts configured targets" do
             let actual = resolveTargets [] ["lib:foo", "test:foo-test"]
-            actual `shouldBe` [Qualified Lib "foo", Qualified Test "foo-test"]
-
-    describe "when no targets are configured" do
-        it "auto-detects all components from the cabal file" do
+            actual @?= [Qualified Lib "foo", Qualified Test "foo-test"]
+        ]
+    , testGroup
+        "when no targets are configured"
+        [ testCase "auto-detects all components from the cabal file" do
             -- cabalFixture exposes no Prelude module, so all components sort
             -- alphabetically by their rendered form.
             let actual = resolveTargets singleCabalFile []
             actual
-                `shouldBe` [ PackageQualified "myapp" Bench "myapp-bench"
-                           , PackageQualified "myapp" Exe "myapp-exe"
-                           , PackageQualified "myapp" FLib "myapp-flib"
-                           , PackageQualified "myapp" Lib "myapp"
-                           , PackageQualified "myapp" Lib "myapp-utils"
-                           , PackageQualified "myapp" Test "myapp-test"
-                           ]
-
-        it "surfaces test-suite components so they can be run after a build" do
+                @?= [ PackageQualified "myapp" Bench "myapp-bench"
+                    , PackageQualified "myapp" Exe "myapp-exe"
+                    , PackageQualified "myapp" FLib "myapp-flib"
+                    , PackageQualified "myapp" Lib "myapp"
+                    , PackageQualified "myapp" Lib "myapp-utils"
+                    , PackageQualified "myapp" Test "myapp-test"
+                    ]
+        , testCase "surfaces test-suite components so they can be run after a build" do
             let actual = resolveTargets singleCabalFile []
-            actual `shouldContain` [PackageQualified "myapp" Test "myapp-test"]
-
-        it "returns no targets when there are no cabal files" do
+            assertBool "expected myapp-test among the targets"
+                $ PackageQualified "myapp" Test "myapp-test" `elem` actual
+        , testCase "returns no targets when there are no cabal files" do
             let actual = resolveTargets [] []
-            actual `shouldBe` []
-
-        -- [tag: test_resolve_targest_aggregate]
-        it "aggregates components across every package (regression: was 0)" do
+            actual @?= []
+        , -- [tag: test_resolve_targest_aggregate]
+          testCase "aggregates components across every package (regression: was 0)" do
             let actual = resolveTargets multiCabalFiles []
             actual
-                `shouldMatchList` [ PackageQualified "pkg-a" Test "pkg-a-test"
-                                  , PackageQualified "pkg-b" Test "pkg-b-test"
-                                  , PackageQualified "pkg-a" Lib "pkg-a"
-                                  , PackageQualified "pkg-b" Lib "pkg-b"
-                                  ]
-
-        it "sorts a library exposing a custom Prelude last" do
+                @?= [ PackageQualified "pkg-a" Lib "pkg-a"
+                    , PackageQualified "pkg-a" Test "pkg-a-test"
+                    , PackageQualified "pkg-b" Lib "pkg-b"
+                    , PackageQualified "pkg-b" Test "pkg-b-test"
+                    ]
+        , testCase "sorts a library exposing a custom Prelude last" do
             let cabalFile =
                     CabalFile "/myprelude.cabal"
                         $ fromMaybe (error "libWithPreludeCabal failed to parse")
                         $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
             let actual = resolveTargets [cabalFile] []
             actual
-                `shouldBe` [ PackageQualified "myprelude" Exe "myprelude-exe"
-                           , PackageQualified "myprelude" Lib "myprelude"
-                           ]
+                @?= [ PackageQualified "myprelude" Exe "myprelude-exe"
+                    , PackageQualified "myprelude" Lib "myprelude"
+                    ]
+        ]
+    ]
 
 
-testCompareTargets :: Spec
-testCompareTargets = do
+testCompareTargets :: [TestTree]
+testCompareTargets =
     -- A predicate that stands in for 'definesCustomPrelude': marks lib: targets
     -- as "defines custom Prelude" so the comparison contract is exercised
     -- independently of cabal-file parsing.
-    let defPred (Qualified Lib _) = True
-        defPred _ = False
+    [ testGroup
+        "Ord"
+        [ testGroup
+            "only first target matches the predicate"
+            [ testGroup
+                "first target's render normally sorts as LT"
+                [ testCase "should return GT" do
+                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "b") @?= GT
+                ]
+            , testGroup
+                "both targets have the same render"
+                [ testCase "should return GT" do
+                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "a") @?= GT
+                ]
+            , testGroup
+                "first target's render normally sorts as GT"
+                [ testCase "should return GT" do
+                    compareTargets defPred (Qualified Lib "b") (Qualified Exe "a") @?= GT
+                ]
+            ]
+        , testGroup
+            "only second target matches the predicate"
+            [ testGroup
+                "first target's render normally sorts as LT"
+                [ testCase "should return LT" do
+                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "b") @?= LT
+                ]
+            , testGroup
+                "both targets have the same render"
+                [ testCase "should return LT" do
+                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "a") @?= LT
+                ]
+            , testGroup
+                "first target's render normally sorts as GT"
+                [ testCase "should return LT" do
+                    compareTargets defPred (Qualified Exe "b") (Qualified Lib "a") @?= LT
+                ]
+            ]
+        , testGroup
+            "both targets match the predicate"
+            [ testGroup
+                "first target's render normally sorts as LT"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "b") @?= LT
+                ]
+            , testGroup
+                "both targets have the same render"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "a") @?= EQ
+                ]
+            , testGroup
+                "first target's render normally sorts as GT"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Lib "b") (Qualified Lib "a") @?= GT
+                ]
+            ]
+        , testGroup
+            "neither target matches the predicate"
+            [ testGroup
+                "first target's render normally sorts as LT"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "b") @?= LT
+                ]
+            , testGroup
+                "both targets have the same render"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "a") @?= EQ
+                ]
+            , testGroup
+                "first target's render normally sorts as GT"
+                [ testCase "should sort normally" do
+                    compareTargets defPred (Qualified Exe "b") (Qualified Exe "a") @?= GT
+                ]
+            ]
+        ]
+    ]
+  where
+    defPred (Qualified Lib _) = True
+    defPred _ = False
 
-    describe "Ord" do
-        describe "only first target matches the predicate" do
-            describe "first target's render normally sorts as LT" do
-                it "should return GT" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "b") `shouldBe` GT
-            describe "both targets have the same render" do
-                it "should return GT" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "a") `shouldBe` GT
-            describe "first target's render normally sorts as GT" do
-                it "should return GT" do
-                    compareTargets defPred (Qualified Lib "b") (Qualified Exe "a") `shouldBe` GT
 
-        describe "only second target matches the predicate" do
-            describe "first target's render normally sorts as LT" do
-                it "should return LT" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "b") `shouldBe` LT
-            describe "both targets have the same render" do
-                it "should return LT" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "a") `shouldBe` LT
-            describe "first target's render normally sorts as GT" do
-                it "should return LT" do
-                    compareTargets defPred (Qualified Exe "b") (Qualified Lib "a") `shouldBe` LT
-
-        describe "both targets match the predicate" do
-            describe "first target's render normally sorts as LT" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "b") `shouldBe` LT
-            describe "both targets have the same render" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "a") `shouldBe` EQ
-            describe "first target's render normally sorts as GT" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Lib "b") (Qualified Lib "a") `shouldBe` GT
-
-        describe "neither target matches the predicate" do
-            describe "first target's render normally sorts as LT" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "b") `shouldBe` LT
-            describe "both targets have the same render" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "a") `shouldBe` EQ
-            describe "first target's render normally sorts as GT" do
-                it "should sort normally" do
-                    compareTargets defPred (Qualified Exe "b") (Qualified Exe "a") `shouldBe` GT
-
-
-testAllComponentTargets :: Spec
-testAllComponentTargets = do
-    it "returns every component for the fixture" do
+testAllComponentTargets :: [TestTree]
+testAllComponentTargets =
+    [ testCase "returns every component for the fixture" do
         allComponentTargets gpd
-            `shouldMatchList` [ PackageQualified "myapp" Lib "myapp"
-                              , PackageQualified "myapp" Lib "myapp-utils"
-                              , PackageQualified "myapp" FLib "myapp-flib"
-                              , PackageQualified "myapp" Exe "myapp-exe"
-                              , PackageQualified "myapp" Test "myapp-test"
-                              , PackageQualified "myapp" Bench "myapp-bench"
-                              ]
-    -- This test ensures `allComponentTargets`' part of the aggregate test.
-    -- [ref:test_resolve_targest_aggregate]
-    it "returns every component for test fixures" do
+            @?= [ PackageQualified "myapp" Lib "myapp"
+                , PackageQualified "myapp" Lib "myapp-utils"
+                , PackageQualified "myapp" FLib "myapp-flib"
+                , PackageQualified "myapp" Exe "myapp-exe"
+                , PackageQualified "myapp" Test "myapp-test"
+                , PackageQualified "myapp" Bench "myapp-bench"
+                ]
+    , -- This test ensures `allComponentTargets`' part of the aggregate test.
+      -- [ref:test_resolve_targest_aggregate]
+      testCase "returns every component for test fixures" do
         let actual =
                 allComponentTargets
                     $ fromMaybe (error "failed to parse cabal")
                     $ parseGenericPackageDescriptionMaybe
                     $ libTestCabal "pkg-a"
         actual
-            `shouldMatchList` [ PackageQualified "pkg-a" Lib "pkg-a"
-                              , PackageQualified "pkg-a" Test "pkg-a-test"
-                              ]
+            @?= [ PackageQualified "pkg-a" Lib "pkg-a"
+                , PackageQualified "pkg-a" Test "pkg-a-test"
+                ]
+    ]
 
 
-testDefinesCustomPrelude :: Spec
-testDefinesCustomPrelude = do
-    let preludeCF =
-            CabalFile "/myprelude.cabal"
-                $ fromMaybe (error "libWithPreludeCabal failed to parse")
-                $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
-
-    describe "when the main library exposes Prelude" do
-        it "returns True for Qualified Lib \"\" (unnamed main lib)" do
-            definesCustomPrelude [preludeCF] (Qualified Lib "") `shouldBe` True
-
-        it "returns True for Qualified Lib matching the package name" do
-            definesCustomPrelude [preludeCF] (Qualified Lib "myprelude") `shouldBe` True
-
-        it "returns True for Bare matching the package name" do
-            definesCustomPrelude [preludeCF] (Bare "myprelude") `shouldBe` True
-
-    describe "when no library exposes Prelude" do
-        it "returns False for a lib target in a normal package" do
-            definesCustomPrelude singleCabalFile (Qualified Lib "myapp") `shouldBe` False
-
-        it "returns False for Bare matching the package name" do
-            definesCustomPrelude singleCabalFile (Bare "myapp") `shouldBe` False
-
-    describe "for non-library targets" do
-        it "returns False for Qualified Exe" do
-            definesCustomPrelude [preludeCF] (Qualified Exe "myprelude-exe") `shouldBe` False
-
-        it "returns False for Qualified Test" do
-            definesCustomPrelude singleCabalFile (Qualified Test "myapp-test") `shouldBe` False
-
-        it "returns False for Unrecognized" do
-            definesCustomPrelude [preludeCF] (Unrecognized "library:myprelude") `shouldBe` False
-
-    it "returns False when the cabal file list is empty" do
-        definesCustomPrelude [] (Qualified Lib "anything") `shouldBe` False
+testDefinesCustomPrelude :: [TestTree]
+testDefinesCustomPrelude =
+    [ testGroup
+        "when the main library exposes Prelude"
+        [ testCase "returns True for Qualified Lib \"\" (unnamed main lib)" do
+            definesCustomPrelude [preludeCF] (Qualified Lib "") @?= True
+        , testCase "returns True for Qualified Lib matching the package name" do
+            definesCustomPrelude [preludeCF] (Qualified Lib "myprelude") @?= True
+        , testCase "returns True for Bare matching the package name" do
+            definesCustomPrelude [preludeCF] (Bare "myprelude") @?= True
+        ]
+    , testGroup
+        "when no library exposes Prelude"
+        [ testCase "returns False for a lib target in a normal package" do
+            definesCustomPrelude singleCabalFile (Qualified Lib "myapp") @?= False
+        , testCase "returns False for Bare matching the package name" do
+            definesCustomPrelude singleCabalFile (Bare "myapp") @?= False
+        ]
+    , testGroup
+        "for non-library targets"
+        [ testCase "returns False for Qualified Exe" do
+            definesCustomPrelude [preludeCF] (Qualified Exe "myprelude-exe") @?= False
+        , testCase "returns False for Qualified Test" do
+            definesCustomPrelude singleCabalFile (Qualified Test "myapp-test") @?= False
+        , testCase "returns False for Unrecognized" do
+            definesCustomPrelude [preludeCF] (Unrecognized "library:myprelude") @?= False
+        ]
+    , testCase "returns False when the cabal file list is empty" do
+        definesCustomPrelude [] (Qualified Lib "anything") @?= False
+    ]
+  where
+    preludeCF =
+        CabalFile "/myprelude.cabal"
+            $ fromMaybe (error "libWithPreludeCabal failed to parse")
+            $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")

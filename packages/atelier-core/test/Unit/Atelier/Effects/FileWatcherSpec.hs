@@ -1,13 +1,14 @@
-module Unit.Atelier.Effects.FileWatcherSpec (spec_FileWatcher) where
+module Unit.Atelier.Effects.FileWatcherSpec (test_FileWatcher) where
 
 import Control.Concurrent (forkIO, killThread, newQSem, signalQSem, waitQSem)
 import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.List (isSuffixOf)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Hedgehog (Gen, PropertyT, forAll, (===))
-import Test.Hspec (Spec, describe, it, shouldBe)
-import Test.Hspec.Hedgehog (hedgehog)
+import Hedgehog (Gen, PropertyT, forAll, property, (===))
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.Hedgehog (testProperty)
 
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
@@ -25,69 +26,74 @@ import Atelier.Effects.FileWatcher
     )
 
 
-spec_FileWatcher :: Spec
-spec_FileWatcher = do
-    describe "deduplicateDirs" do
-        describe "properties" do
-            it "result is an antichain: no element is an ancestor of another"
-                $ hedgehog propAntichain
-            it "result covers all inputs: every input has an ancestor-or-equal in the result"
-                $ hedgehog propCoverage
-            it "is idempotent"
-                $ hedgehog propIdempotent
-            it "result is a subset of the input"
-                $ hedgehog propSubset
-
-        describe "edge cases" do
-            it "returns empty list unchanged" do
-                deduplicateDirs [] `shouldBe` []
-
-            it "does not treat a dir as an ancestor of a similarly named dir" do
-                deduplicateDirs ["/src", "/srcover"] `shouldBe` ["/src", "/srcover"]
-
-    describe "matchesAny" do
-        it "matches a file under a watched directory" do
-            matchesAny [dir "/proj/src"] "/proj/src/Foo.hs"
-                `shouldBe` True
-
-        it "does not match a relative watch dir against an absolute event path" do
-            -- runFileWatcherIO must canonicalize Watch paths to absolute before
-            -- calling matchesAny, because fsnotify always reports absolute paths.
-            matchesAny [dir "src"] "/proj/src/Foo.hs"
-                `shouldBe` False
-
-        it "applies the file predicate" do
-            matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.hs"
-                `shouldBe` True
-            matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.js"
-                `shouldBe` False
-
-    describe "runFileWatcherScripted" testScripted
+test_FileWatcher :: TestTree
+test_FileWatcher =
+    testGroup
+        "FileWatcher"
+        [ testGroup
+            "deduplicateDirs"
+            [ testGroup
+                "properties"
+                [ testProperty "result is an antichain: no element is an ancestor of another"
+                    $ property propAntichain
+                , testProperty "result covers all inputs: every input has an ancestor-or-equal in the result"
+                    $ property propCoverage
+                , testProperty "is idempotent"
+                    $ property propIdempotent
+                , testProperty "result is a subset of the input"
+                    $ property propSubset
+                ]
+            , testGroup
+                "edge cases"
+                [ testCase "returns empty list unchanged" do
+                    deduplicateDirs [] @?= []
+                , testCase "does not treat a dir as an ancestor of a similarly named dir" do
+                    deduplicateDirs ["/src", "/srcover"] @?= ["/src", "/srcover"]
+                ]
+            ]
+        , testGroup
+            "matchesAny"
+            [ testCase "matches a file under a watched directory" do
+                matchesAny [dir "/proj/src"] "/proj/src/Foo.hs"
+                    @?= True
+            , testCase "does not match a relative watch dir against an absolute event path" do
+                -- runFileWatcherIO must canonicalize Watch paths to absolute before
+                -- calling matchesAny, because fsnotify always reports absolute paths.
+                matchesAny [dir "src"] "/proj/src/Foo.hs"
+                    @?= False
+            , testCase "applies the file predicate" do
+                matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.hs"
+                    @?= True
+                matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.js"
+                    @?= False
+            ]
+        , testGroup "runFileWatcherScripted" testScripted
+        ]
 
 
 --------------------------------------------------------------------------------
 -- Scripted interpreter tests
 --------------------------------------------------------------------------------
 
-testScripted :: Spec
-testScripted = do
-    describe "watchFilePaths" do
-        it "calls the callback with the scripted path" do
+testScripted :: [TestTree]
+testScripted =
+    [ testGroup
+        "watchFilePaths"
+        [ testCase "calls the callback with the scripted path" do
             paths <- collectPaths ["/src/Foo.hs"]
-            paths `shouldBe` ["/src/Foo.hs"]
-
-        it "calls the callback with each path in order" do
+            paths @?= ["/src/Foo.hs"]
+        , testCase "calls the callback with each path in order" do
             paths <- collectPaths ["/src/Foo.hs", "/src/Bar.hs"]
-            paths `shouldBe` ["/src/Foo.hs", "/src/Bar.hs"]
-
-        it "ignores the watch specification" do
+            paths @?= ["/src/Foo.hs", "/src/Bar.hs"]
+        , testCase "ignores the watch specification" do
             paths <- collectPathsWith [dir "/any"] ["/src/Foo.hs"]
-            paths `shouldBe` ["/src/Foo.hs"]
-
-        it "passes the full path to the callback unchanged" do
+            paths @?= ["/src/Foo.hs"]
+        , testCase "passes the full path to the callback unchanged" do
             let path = "/home/user/project/src/Some/Deep/Module.hs"
             paths <- collectPaths [path]
-            paths `shouldBe` [path]
+            paths @?= [path]
+        ]
+    ]
 
 
 --------------------------------------------------------------------------------

@@ -1,10 +1,11 @@
-module Unit.Atelier.Effects.PublishingSpec (spec_Publishing) where
+module Unit.Atelier.Effects.PublishingSpec (test_Publishing) where
 
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Data.Time (UTCTime, getCurrentTime)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock, runClockConst)
@@ -21,39 +22,42 @@ data TestEvent = TestEvent Text
     deriving stock (Eq, Show)
 
 
-spec_Publishing :: Spec
-spec_Publishing = do
-    describe "runPubSub" do
-        it "listener receives a published event" do
-            result <- runPubSubTest $ do
-                received <- liftIO newEmptyMVar
-                Sub.forkListener_ @TestEvent \event ->
-                    liftIO $ putMVar received event
-                Pub.publish (TestEvent "hello")
-                liftIO $ takeMVar received
-            result `shouldBe` TestEvent "hello"
-
-        it "event timestamp matches Clock at publish time" do
-            t0 <- getCurrentTime
-            result <- runPubSubTestWithClock t0 $ do
-                received <- liftIO newEmptyMVar
-                Sub.forkListener @TestEvent \ts _event ->
-                    liftIO $ putMVar received ts
-                Pub.publish (TestEvent "hello")
-                liftIO $ takeMVar received
-            result `shouldBe` t0
-
-        it "multiple listeners each receive the published event" do
-            result <- runPubSubTest $ do
-                recv1 <- liftIO newEmptyMVar
-                recv2 <- liftIO newEmptyMVar
-                Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv1 event
-                Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv2 event
-                Pub.publish (TestEvent "hello")
-                e1 <- liftIO $ takeMVar recv1
-                e2 <- liftIO $ takeMVar recv2
-                pure (e1, e2)
-            result `shouldBe` (TestEvent "hello", TestEvent "hello")
+test_Publishing :: TestTree
+test_Publishing =
+    testGroup
+        "Publishing"
+        [ testGroup
+            "runPubSub"
+            [ testCase "listener receives a published event" do
+                result <- runPubSubTest $ do
+                    received <- liftIO newEmptyMVar
+                    Sub.forkListener_ @TestEvent \event ->
+                        liftIO $ putMVar received event
+                    Pub.publish (TestEvent "hello")
+                    liftIO $ takeMVar received
+                result @?= TestEvent "hello"
+            , testCase "event timestamp matches Clock at publish time" do
+                t0 <- getCurrentTime
+                result <- runPubSubTestWithClock t0 $ do
+                    received <- liftIO newEmptyMVar
+                    Sub.forkListener @TestEvent \ts _event ->
+                        liftIO $ putMVar received ts
+                    Pub.publish (TestEvent "hello")
+                    liftIO $ takeMVar received
+                result @?= t0
+            , testCase "multiple listeners each receive the published event" do
+                result <- runPubSubTest $ do
+                    recv1 <- liftIO newEmptyMVar
+                    recv2 <- liftIO newEmptyMVar
+                    Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv1 event
+                    Sub.forkListener_ @TestEvent \event -> liftIO $ putMVar recv2 event
+                    Pub.publish (TestEvent "hello")
+                    e1 <- liftIO $ takeMVar recv1
+                    e2 <- liftIO $ takeMVar recv2
+                    pure (e1, e2)
+                result @?= (TestEvent "hello", TestEvent "hello")
+            ]
+        ]
 
 
 --------------------------------------------------------------------------------

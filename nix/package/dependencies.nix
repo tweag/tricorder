@@ -51,8 +51,6 @@ let
     fsnotify = ">=0.4 && <0.5";
     hashable = ">=1.5 && <1.6";
     hedgehog = ">=1.7 && <1.8";
-    hspec = ">=2.11 && <2.12";
-    hspec-hedgehog = ">=0.3 && <0.4";
     http-api-data = ">=0.5.1 && <0.8";
     http-types = ">=0.12 && <0.13";
     ki = ">=1.0 && <1.1";
@@ -73,7 +71,8 @@ let
     tar = ">=0.6 && <0.8";
     tasty = ">=1.5 && <1.6";
     tasty-discover = ">=5.2 && <5.3";
-    tasty-hspec = ">=1.2 && <1.3";
+    tasty-hedgehog = ">=1.4 && <1.5";
+    tasty-hunit = ">=0.10.2 && < 0.11";
     template-haskell = ">=2.20 && <2.25";
     text = ">=2.1 && <2.2";
     time = ">=1.12 && <1.17";

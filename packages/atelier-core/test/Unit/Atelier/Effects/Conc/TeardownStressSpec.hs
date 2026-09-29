@@ -13,7 +13,7 @@
 -- @ATELIER_CONC_STRESS_N@ (crank it up under @yes@-load to reproduce). Each
 -- test is wrapped in a 'timeout' so a real teardown hang fails loudly instead
 -- of wedging the run.
-module Unit.Atelier.Effects.Conc.TeardownStressSpec (spec_ConcTeardownStress) where
+module Unit.Atelier.Effects.Conc.TeardownStressSpec (test_ConcTeardownStress) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (evaluate)
@@ -22,7 +22,8 @@ import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Concurrent.STM (atomically, retry)
 import System.Environment (lookupEnv)
 import System.Timeout (timeout)
-import Test.Hspec (Spec, describe, it, runIO, shouldBe)
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan, runChan)
 import Atelier.Effects.Clock (Clock, runClock)
@@ -35,74 +36,80 @@ import Atelier.Effects.Iterator qualified as Iter
 import Atelier.Effects.Publishing.Pub qualified as Pub
 
 
-spec_ConcTeardownStress :: Spec
-spec_ConcTeardownStress = do
+test_ConcTeardownStress :: IO TestTree
+test_ConcTeardownStress = do
     iterations <-
-        runIO (fromMaybe defaultIterations . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_N")
+        fromMaybe defaultIterations . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_N"
     timeoutSecs <-
-        runIO (fromMaybe defaultTimeoutSecs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_TIMEOUT_S")
-    runSpin <- runIO (isJust <$> lookupEnv "ATELIER_CONC_SPIN")
+        fromMaybe defaultTimeoutSecs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_TIMEOUT_S"
+    runSpin <- isJust <$> lookupEnv "ATELIER_CONC_SPIN"
 
     publishDelayUs <-
-        runIO
-            (fromMaybe defaultPublishDelayUs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_DELAY_US")
+        fromMaybe defaultPublishDelayUs . (>>= readMaybe) <$> lookupEnv "ATELIER_CONC_STRESS_DELAY_US"
 
     let testTimeoutMicros = timeoutSecs * 1_000_000
 
-    describe "Conc.scoped teardown stress" do
-        it "reaps an STM-blocked fork_ across many scopes" do
-            completed <-
-                timeout testTimeoutMicros
-                    $ runConcTest
-                    $ replicateM_ iterations
-                    $ scoped (void (fork_ blockForever))
-            completed `shouldBe` Just ()
-
-        it "reaps a two-child scope (one parked, one transient) across many scopes" do
-            completed <-
-                timeout testTimeoutMicros
-                    $ runConcTest
-                    $ replicateM_ iterations
-                    $ scoped do
-                        _ <- fork (liftIO (threadDelay 5))
-                        void (fork_ blockForever)
-            completed `shouldBe` Just ()
-
-    -- Faithful repro of the actual full-suite victim: the 'fromEvents' Iterator
-    -- pattern over its real effect stack, looped. The producer's 10us delay is
-    -- the ONLY thing giving the forked listener time to subscribe before the
-    -- first publish; under load that race can drop early events and wedge the
-    -- consumer's 'Iter.next' (it reads exactly as many as were published, so any
-    -- dropped event blocks forever). Also exercises the deep-stack
-    -- 'Conc.scoped' unlift/teardown that the bare tests above strip away.
-    describe "fromEvents Iterator pattern stress (full stack)" do
-        it "drives the producer/listener fromEvents scope across many iterations" do
-            completed <-
-                timeout testTimeoutMicros
-                    $ runIterTest
-                    $ replicateM_ iterations
-                    $ Iter.fromEvents @Int \iter -> do
-                        _ <- fork do
-                            liftIO (threadDelay publishDelayUs)
-                            traverse_ Pub.publish [1, 2, 3 :: Int]
-                        _ <- replicateM 3 (Iter.next iter)
-                        pure ()
-            completed `shouldBe` Just ()
-
-    -- A non-allocating fork_ is UN-KILLABLE under -O: -fomit-yields strips the
-    -- loop's safe point, so the async exception Ki throws at scope close — and
-    -- the one 'timeout' would throw — can never be delivered. It would wedge an
-    -- optimized build permanently and burn a core. Hence opt-in, and only safe
-    -- on a -O0 build (where the boxed-Int loop still allocates and stays
-    -- killable). This is the discriminating probe for the omit-yields theory.
-    when runSpin
-        $ describe "Conc.scoped teardown of a NON-ALLOCATING fork_ (ATELIER_CONC_SPIN=1; -O0 only)" do
-            it "reaps a non-allocating spin at scope exit" do
-                completed <-
-                    timeout testTimeoutMicros
-                        $ runConcTest
-                        $ scoped (void (fork_ nonAllocatingSpin))
-                completed `shouldBe` Just ()
+    pure
+        $ testGroup "ConcTeardownStress"
+        $ [ testGroup
+                "Conc.scoped teardown stress"
+                [ testCase "reaps an STM-blocked fork_ across many scopes" do
+                    completed <-
+                        timeout testTimeoutMicros
+                            $ runConcTest
+                            $ replicateM_ iterations
+                            $ scoped (void (fork_ blockForever))
+                    completed @?= Just ()
+                , testCase "reaps a two-child scope (one parked, one transient) across many scopes" do
+                    completed <-
+                        timeout testTimeoutMicros
+                            $ runConcTest
+                            $ replicateM_ iterations
+                            $ scoped do
+                                _ <- fork (liftIO (threadDelay 5))
+                                void (fork_ blockForever)
+                    completed @?= Just ()
+                ]
+          , -- Faithful repro of the actual full-suite victim: the 'fromEvents' Iterator
+            -- pattern over its real effect stack, looped. The producer's 10us delay is
+            -- the ONLY thing giving the forked listener time to subscribe before the
+            -- first publish; under load that race can drop early events and wedge the
+            -- consumer's 'Iter.next' (it reads exactly as many as were published, so any
+            -- dropped event blocks forever). Also exercises the deep-stack
+            -- 'Conc.scoped' unlift/teardown that the bare tests above strip away.
+            testGroup
+                "fromEvents Iterator pattern stress (full stack)"
+                [ testCase "drives the producer/listener fromEvents scope across many iterations" do
+                    completed <-
+                        timeout testTimeoutMicros
+                            $ runIterTest
+                            $ replicateM_ iterations
+                            $ Iter.fromEvents @Int \iter -> do
+                                _ <- fork do
+                                    liftIO (threadDelay publishDelayUs)
+                                    traverse_ Pub.publish [1, 2, 3 :: Int]
+                                _ <- replicateM 3 (Iter.next iter)
+                                pure ()
+                    completed @?= Just ()
+                ]
+          ]
+            -- A non-allocating fork_ is UN-KILLABLE under -O: -fomit-yields strips the
+            -- loop's safe point, so the async exception Ki throws at scope close — and
+            -- the one 'timeout' would throw — can never be delivered. It would wedge an
+            -- optimized build permanently and burn a core. Hence opt-in, and only safe
+            -- on a -O0 build (where the boxed-Int loop still allocates and stays
+            -- killable). This is the discriminating probe for the omit-yields theory.
+            <> [ testGroup
+                    "Conc.scoped teardown of a NON-ALLOCATING fork_ (ATELIER_CONC_SPIN=1; -O0 only)"
+                    [ testCase "reaps a non-allocating spin at scope exit" do
+                        completed <-
+                            timeout testTimeoutMicros
+                                $ runConcTest
+                                $ scoped (void (fork_ nonAllocatingSpin))
+                        completed @?= Just ()
+                    ]
+               | runSpin
+               ]
   where
     defaultIterations = 300 :: Int
     defaultTimeoutSecs = 15 :: Int

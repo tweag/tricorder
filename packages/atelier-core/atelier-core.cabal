@@ -204,12 +204,11 @@ test-suite atelier-test
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
     , hedgehog ==1.7.*
-    , hspec ==2.11.*
-    , hspec-hedgehog ==0.3.*
     , stm ==2.5.*
     , stm-containers ==1.2.*
     , tasty ==1.5.*
-    , tasty-hspec ==1.2.*
+    , tasty-hedgehog ==1.4.*
+    , tasty-hunit >=0.10.2 && <0.11
     , time >=1.12 && <1.17
   mixins:
       base hiding (Prelude)

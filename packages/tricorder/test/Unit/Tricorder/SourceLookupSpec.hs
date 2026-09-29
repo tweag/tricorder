@@ -1,4 +1,4 @@
-module Unit.Tricorder.SourceLookupSpec (spec_SourceLookup) where
+module Unit.Tricorder.SourceLookupSpec (test_SourceLookup) where
 
 import Atelier.Effects.Cache (Cache, runCacheForever)
 import Atelier.Effects.Env (Env, runEnvConst)
@@ -10,7 +10,8 @@ import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.State.Static.Shared (State, evalState, gets, modify)
 import System.FilePath ((</>))
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 
 import Codec.Archive.Tar qualified as Tar
@@ -35,104 +36,101 @@ import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 
-spec_SourceLookup :: Spec
-spec_SourceLookup = describe "lookupModuleSource" do
-    it "reads the whole module from a cached tarball" do
-        result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                $ lookupModuleSource (wholeModule "Data.Aeson")
-        result `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
-
-    it "slices a symbol (with its doc block) from a cached tarball" do
-        result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                $ lookupModuleSource (symbol "Data.Aeson" "encode")
-        result
-            `shouldBe` SourceFound
-                (symbol "Data.Aeson" "encode")
-                "-- | Encode a value as JSON.\nencode :: Value -> ByteString\nencode = undefined"
-
-    it "returns FunctionNotFound for a symbol absent from the module" do
-        result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                $ lookupModuleSource (symbol "Data.Aeson" "nope")
-        result `shouldBe` FunctionNotFound (symbol "Data.Aeson" "nope")
-
-    it "returns SourceNotFound when the module is in no package" do
-        result <-
-            runTest [NextFindModule Nothing] Map.empty noFetch
-                $ lookupModuleSource (wholeModule "Data.Unknown")
-        result `shouldBe` SourceNotFound (wholeModule "Data.Unknown")
-
-    it "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
-        result <-
-            runTest
-                [NextFindModule (Just "aeson-2.2.5.0")]
-                Map.empty
-                (pure (Success (BSL.toStrict tarballBytes)))
-                $ lookupModuleSource (wholeModule "Data.Aeson")
-        result `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
-
-    it "returns SourceUnavailable when the package is not found on Hackage" do
-        result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
-                $ lookupModuleSource (wholeModule "Data.Aeson")
-        result `shouldBe` SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-
-    it "caches the result so a second lookup needs no further resolution" do
-        -- Only one NextFindModule is scripted; the second lookup must be served
-        -- entirely from cache (module→package and package→source).
-        (r1, r2) <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch $ do
-                r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                r2 <- lookupModuleSource (wholeModule "Data.Aeson")
-                pure (r1, r2)
-        r1 `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
-        r2 `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
-
-    it "caches an unavailable result and does not re-fetch on a repeat lookup" do
-        -- The tarball is absent and every fetch reports the package as not
-        -- found, so the first lookup is SourceUnavailable. A repeat lookup must
-        -- be served from cache — no second Hackage fetch on the (network)
-        -- request path.
-        fetchCount <- IORef.newIORef (0 :: Int)
-        let countingFetch = do
-                liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                noFetch
-        (r1, r2) <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty countingFetch $ do
-                r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                r2 <- lookupModuleSource (wholeModule "Data.Aeson")
-                pure (r1, r2)
-        r1 `shouldBe` SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-        r2 `shouldBe` SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-        fetches <- IORef.readIORef fetchCount
-        fetches `shouldBe` 1
-
-    it "re-fetches after a failed fetch rather than caching the failure" do
-        -- A failed Hackage fetch (offline, DNS failure, 5xx) is transient, so
-        -- the resulting SourceUnavailable must NOT be cached: a repeat lookup
-        -- has to retry the fetch, or a brief network blip pins unavailability
-        -- for the whole cache window.
-        fetchCount <- IORef.newIORef (0 :: Int)
-        let failingFetch = do
-                liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                pure (Failure "network unreachable")
-        (r1, r2) <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
-                r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                r2 <- lookupModuleSource (wholeModule "Data.Aeson")
-                pure (r1, r2)
-        r1 `shouldBe` SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-        r2 `shouldBe` SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-        fetches <- IORef.readIORef fetchCount
-        fetches `shouldBe` 2
-
-    it "finds a tarball in the legacy ~/.cabal cache location" do
-        result <-
-            runTest [NextFindModule (Just "aeson-2.2.5.0")] withLegacyTarball noFetch
-                $ lookupModuleSource (wholeModule "Data.Aeson")
-        result `shouldBe` SourceFound (wholeModule "Data.Aeson") moduleSource
+test_SourceLookup :: TestTree
+test_SourceLookup =
+    testGroup
+        "SourceLookup"
+        [ testGroup
+            "lookupModuleSource"
+            [ testCase "reads the whole module from a cached tarball" do
+                result <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
+                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+            , testCase "slices a symbol (with its doc block) from a cached tarball" do
+                result <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
+                        $ lookupModuleSource (symbol "Data.Aeson" "encode")
+                result
+                    @?= SourceFound
+                        (symbol "Data.Aeson" "encode")
+                        "-- | Encode a value as JSON.\nencode :: Value -> ByteString\nencode = undefined"
+            , testCase "returns FunctionNotFound for a symbol absent from the module" do
+                result <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
+                        $ lookupModuleSource (symbol "Data.Aeson" "nope")
+                result @?= FunctionNotFound (symbol "Data.Aeson" "nope")
+            , testCase "returns SourceNotFound when the module is in no package" do
+                result <-
+                    runTest [NextFindModule Nothing] Map.empty noFetch
+                        $ lookupModuleSource (wholeModule "Data.Unknown")
+                result @?= SourceNotFound (wholeModule "Data.Unknown")
+            , testCase "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
+                result <-
+                    runTest
+                        [NextFindModule (Just "aeson-2.2.5.0")]
+                        Map.empty
+                        (pure (Success (BSL.toStrict tarballBytes)))
+                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+            , testCase "returns SourceUnavailable when the package is not found on Hackage" do
+                result <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
+                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                result @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
+            , testCase "caches the result so a second lookup needs no further resolution" do
+                -- Only one NextFindModule is scripted; the second lookup must be served
+                -- entirely from cache (module→package and package→source).
+                (r1, r2) <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch $ do
+                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        pure (r1, r2)
+                r1 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+                r2 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+            , testCase "caches an unavailable result and does not re-fetch on a repeat lookup" do
+                -- The tarball is absent and every fetch reports the package as not
+                -- found, so the first lookup is SourceUnavailable. A repeat lookup must
+                -- be served from cache — no second Hackage fetch on the (network)
+                -- request path.
+                fetchCount <- IORef.newIORef (0 :: Int)
+                let countingFetch = do
+                        liftIO (IORef.modifyIORef' fetchCount (+ 1))
+                        noFetch
+                (r1, r2) <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty countingFetch $ do
+                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        pure (r1, r2)
+                r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
+                r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
+                fetches <- IORef.readIORef fetchCount
+                fetches @?= 1
+            , testCase "re-fetches after a failed fetch rather than caching the failure" do
+                -- A failed Hackage fetch (offline, DNS failure, 5xx) is transient, so
+                -- the resulting SourceUnavailable must NOT be cached: a repeat lookup
+                -- has to retry the fetch, or a brief network blip pins unavailability
+                -- for the whole cache window.
+                fetchCount <- IORef.newIORef (0 :: Int)
+                let failingFetch = do
+                        liftIO (IORef.modifyIORef' fetchCount (+ 1))
+                        pure (Failure "network unreachable")
+                (r1, r2) <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
+                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        pure (r1, r2)
+                r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
+                r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
+                fetches <- IORef.readIORef fetchCount
+                fetches @?= 2
+            , testCase "finds a tarball in the legacy ~/.cabal cache location" do
+                result <-
+                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withLegacyTarball noFetch
+                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+            ]
+        ]
 
 
 --------------------------------------------------------------------------------
