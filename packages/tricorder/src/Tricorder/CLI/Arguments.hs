@@ -1,7 +1,6 @@
 module Tricorder.CLI.Arguments
     ( Command (..)
     , LogMode (..)
-    , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
     , EvalCommentsOptions (..)
@@ -41,7 +40,6 @@ import Tricorder.CLI.Command
     , EvalCommentsOptions (..)
     , Force (..)
     , LogMode (..)
-    , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
@@ -49,6 +47,8 @@ import Tricorder.CLI.Command
     )
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
 
+import Tricorder.CLI.Arguments.Daemon qualified as Daemon
+import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
 import Tricorder.Version qualified as Version
 
 
@@ -92,6 +92,7 @@ commandParser =
             <> command
                 "eval-comments"
                 (info evalCommentsParser (progDesc "Show eval comments from the latest build"))
+            <> command "daemon" (info (Daemon <$> Daemon.parser) (progDesc "Daemon sub-commands"))
         )
 
 
@@ -113,7 +114,7 @@ statusParser =
     Status
         <$> ( StatusOptions
                 <$> waitParser
-                <*> jsonFormatToggleParser
+                <*> OutputFormat.parser
                 <*> flag
                     Concise
                     Verbose
@@ -171,7 +172,7 @@ evalCommentsParser =
     EvalComments
         <$> ( EvalCommentsOptions
                 <$> waitParser
-                <*> jsonFormatToggleParser
+                <*> OutputFormat.parser
             )
 
 
@@ -182,16 +183,6 @@ waitParser =
         WaitForBuild
         ( long "wait"
             <> help "Block until the current build cycle completes"
-        )
-
-
-jsonFormatToggleParser :: Parser OutputFormat
-jsonFormatToggleParser =
-    flag
-        TextOutput
-        JsonOutput
-        ( long "json"
-            <> help "Output full build state as JSON"
         )
 
 

@@ -40,6 +40,8 @@ library tricorder-internal
       Tricorder.Build.Test
       Tricorder.CLI.App
       Tricorder.CLI.Arguments
+      Tricorder.CLI.Arguments.Daemon
+      Tricorder.CLI.Arguments.OutputFormat
       Tricorder.CLI.Daemon
       Tricorder.CLI.Main
       Tricorder.CLI.Operations

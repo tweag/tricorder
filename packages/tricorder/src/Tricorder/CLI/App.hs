@@ -8,7 +8,7 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
-import Atelier.Effects.Input (Input)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Process (Process)
@@ -21,8 +21,8 @@ import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
+import Tricorder.CLI.Command.Daemon qualified as DaemonCommand
 
-import Tricorder.Build (BuildState (..))
 import Tricorder.CLI.Arguments (Command (..), LogMode (..))
 import Tricorder.CLI.Daemon
     ( restartDaemon
@@ -31,7 +31,8 @@ import Tricorder.CLI.Daemon
     , waitForDaemon
     )
 import Tricorder.CLI.Operations
-    ( showEvalComments
+    ( showDaemonInfo
+    , showEvalComments
     , showLog
     , showSource
     , showStatus
@@ -40,10 +41,10 @@ import Tricorder.CLI.Operations
 import Tricorder.CLI.UI (viewUi)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
-import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
+import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Runtime (LogPath (..), PidFile (..), SocketPath (..))
 import Tricorder.Session.Repl (Repl)
-import Tricorder.Socket.Client (isDaemonRunning, queryStatus)
+import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup (ModuleSourceResult)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
@@ -71,6 +72,7 @@ run
        , GhcPkg :> es
        , Hackage :> es
        , IOE :> es
+       , Input DaemonInfo :> es
        , Input Repl :> es
        , Log :> es
        , PackageStore :> es
@@ -124,18 +126,7 @@ run =
                 else
                     showTests opts
         Log logMode -> do
-            running <- isDaemonRunning
-            logFile <-
-                if running
-                    then do
-                        SocketPath sp <- ask
-                        result <- queryStatus sp
-                        LogPath fallback <- ask
-                        pure $ case result of
-                            Right state -> state.daemonInfo.logFile
-                            Left _ -> fallback
-                    else
-                        asks @LogPath (.getLogPath)
+            logFile <- asks @LogPath (.getLogPath)
             case logMode of
                 ShowLog -> showLog logFile
                 ShowLogPath -> Console.putTextLn (toText logFile)
@@ -157,3 +148,6 @@ run =
                 startDaemon
                 void waitForDaemon
             showEvalComments opts
+        Daemon (DaemonCommand.Info format) -> do
+            daemonInfo <- input
+            showDaemonInfo format daemonInfo

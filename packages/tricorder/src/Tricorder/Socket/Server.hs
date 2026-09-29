@@ -18,7 +18,6 @@ import Data.ByteString.Lazy qualified as BSL
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
-import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Daemon.IdleTimer (IdleTimer)
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Socket.Protocol
@@ -57,7 +56,6 @@ main
        , Exit :> es
        , IdleTimer :> es
        , Input BuildId :> es
-       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
        , Sub BuildPhase :> es
@@ -78,7 +76,6 @@ acceptTrigger
        , Exit :> es
        , IdleTimer :> es
        , Input BuildId :> es
-       , Input DaemonInfo :> es
        , Log :> es
        , Reader SocketPath :> es
        , State BuildPhase :> es
@@ -101,7 +98,6 @@ handleConnection
        , Exit :> es
        , IdleTimer :> es
        , Input BuildId :> es
-       , Input DaemonInfo :> es
        , Log :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -127,7 +123,6 @@ dispatch
     :: ( Conc :> es
        , Exit :> es
        , Input BuildId :> es
-       , Input DaemonInfo :> es
        , Log :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -164,7 +159,6 @@ quit h = \case
 
 respondOnce
     :: ( Input BuildId :> es
-       , Input DaemonInfo :> es
        , State BuildPhase :> es
        , UnixSocket :> es
        )
@@ -177,7 +171,6 @@ respondOnce h = do
 respondWhenDone
     :: ( Conc :> es
        , Input BuildId :> es
-       , Input DaemonInfo :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -202,7 +195,6 @@ respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
 -- | Stream a JSON object after each state change event.
 watchStream
     :: ( Input BuildId :> es
-       , Input DaemonInfo :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
        , UnixSocket :> es
@@ -240,8 +232,7 @@ sendJson :: (ToJSON a, UnixSocket :> es) => Handle -> a -> Eff es ()
 sendJson h val = sendLine h (decodeUtf8 (BSL.toStrict (encode val)))
 
 
-mkBuildState :: (Input BuildId :> es, Input DaemonInfo :> es) => BuildPhase -> Eff es BuildState
+mkBuildState :: (Input BuildId :> es) => BuildPhase -> Eff es BuildState
 mkBuildState phase = do
-    daemonInfo <- input
     buildId <- input
-    pure $ BuildState {daemonInfo, buildId, phase}
+    pure $ BuildState {buildId, phase}

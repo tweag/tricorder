@@ -3,7 +3,6 @@ module Tricorder.CLI.Command
     , EvalCommentsOptions (..)
     , Force (..)
     , LogMode (..)
-    , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
@@ -12,7 +11,12 @@ module Tricorder.CLI.Command
     )
 where
 
+import Tricorder.CLI.Command.Daemon (DaemonCommand)
+import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
+
+import Tricorder.CLI.Command.Daemon qualified as Daemon
+import Tricorder.CLI.Command.OutputFormat qualified as OutputFormat
 
 
 data Force = Force | NoForce
@@ -21,12 +25,6 @@ data Force = Force | NoForce
 data WaitMode
     = ShowCurrent
     | WaitForBuild
-    deriving stock (Eq)
-
-
-data OutputFormat
-    = TextOutput
-    | JsonOutput
     deriving stock (Eq)
 
 
@@ -69,6 +67,7 @@ data Command
     | Source [SourceQuery]
     | Restart Force
     | EvalComments EvalCommentsOptions
+    | Daemon DaemonCommand
 
 
 -- | Render a 'Command' to the argument list the @tricorder@ CLI expects
@@ -83,7 +82,7 @@ commandToArgs (Stop doForce) = "stop" : forceArgs doForce
 commandToArgs (Status (StatusOptions {wait, format, verbosity, expand})) =
     "status"
         : waitArgs wait
-            <> formatArgs format
+            <> OutputFormat.toArgs format
             <> verbosityArgs verbosity
             <> maybe [] (\n -> ["--expand", show n]) expand
 commandToArgs (Test (TestOptions {failedOnly, wait})) =
@@ -94,7 +93,8 @@ commandToArgs (Log ShowLog) = ["log"]
 commandToArgs (Source queries) = "source" : map renderSourceQuery queries
 commandToArgs (Restart doForce) = "restart" : forceArgs doForce
 commandToArgs (EvalComments (EvalCommentsOptions {wait, format})) =
-    "eval-comments" : waitArgs wait <> formatArgs format
+    "eval-comments" : waitArgs wait <> OutputFormat.toArgs format
+commandToArgs (Daemon daemonCommand) = "daemon" : Daemon.toArgs daemonCommand
 
 
 forceArgs :: Force -> [String]
@@ -105,11 +105,6 @@ forceArgs NoForce = []
 waitArgs :: WaitMode -> [String]
 waitArgs WaitForBuild = ["--wait"]
 waitArgs ShowCurrent = []
-
-
-formatArgs :: OutputFormat -> [String]
-formatArgs JsonOutput = ["--json"]
-formatArgs TextOutput = []
 
 
 verbosityArgs :: Verbosity -> [String]

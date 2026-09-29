@@ -77,8 +77,7 @@ import Tricorder.CLI.UI.Route qualified as Route
 -- 'KeyEvent', update that list to match — @tagref check@ flags the dangling
 -- reference if this tag is renamed or dropped without touching the docs.
 data KeyEvent
-    = ToggleDaemonInfoView
-    | ToggleHelp
+    = ToggleHelp
     | CycleTestView
     | ToggleEvalComments
     | RestartDaemon
@@ -104,8 +103,7 @@ textToKeyEvent = (`Map.lookup` keyEventTextMap)
 keys :: KeyEvents KeyEvent
 keys =
     keyEvents
-        [ ("toggle daemon info", ToggleDaemonInfoView)
-        , ("toggle help", ToggleHelp)
+        [ ("toggle help", ToggleHelp)
         , ("cycle test view", CycleTestView)
         , ("toggle eval comments", ToggleEvalComments)
         , ("restart daemon", RestartDaemon)
@@ -118,8 +116,7 @@ keys =
 
 bindings :: [(KeyEvent, [Binding])]
 bindings =
-    [ (ToggleDaemonInfoView, [bind 'g'])
-    , (ToggleHelp, [bind 'h'])
+    [ (ToggleHelp, [bind 'h'])
     , (CycleTestView, [bind 't'])
     , (ToggleEvalComments, [bind 'e'])
     , (RestartDaemon, [bind 'R'])
@@ -181,14 +178,7 @@ dispatcher requestRestart cfg =
     either (error . ("Invalid key dispatcher config: " <>) . stringify) id
         $ keyDispatcher
             cfg
-            [ onEvent ToggleDaemonInfoView "Toggle daemon info view" do
-                modify \s ->
-                    if currentRoute s == Route.DaemonInfo
-                        then
-                            navigate Route.Main s
-                        else
-                            navigate Route.DaemonInfo s
-            , onEvent ToggleHelp "Toggle help" do
+            [ onEvent ToggleHelp "Toggle help" do
                 modify \s ->
                     if currentRoute s == Route.Help
                         then
@@ -263,7 +253,6 @@ viewEventAndTriggers kc eventName triggers =
 keybindForRoute :: KeyConfig KeyEvent -> Route -> Maybe Binding
 keybindForRoute kc = \case
     Route.Main -> Nothing
-    Route.DaemonInfo -> firstActiveBinding kc ToggleDaemonInfoView
     Route.Help -> firstActiveBinding kc ToggleHelp
     Route.Tests -> firstActiveBinding kc CycleTestView
     Route.Evals -> firstActiveBinding kc ToggleEvalComments

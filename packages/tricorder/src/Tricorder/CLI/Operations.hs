@@ -4,6 +4,7 @@ module Tricorder.CLI.Operations
     , showStatus
     , showTests
     , showEvalComments
+    , showDaemonInfo
     )
 where
 
@@ -15,10 +16,11 @@ import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
-import Data.Aeson (encode)
+import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
+import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Console qualified as Console
@@ -31,7 +33,6 @@ import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Arguments
     ( EvalCommentsOptions (..)
-    , OutputFormat (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
@@ -42,6 +43,7 @@ import Tricorder.CLI.Render
     , formatDuration
     , renderSourceResults
     )
+import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.TestTarget (renderTestTarget)
@@ -58,6 +60,7 @@ import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
+import Tricorder.Session.Target qualified as Target
 
 
 -- | Print a build-command failure message and exit non-zero.
@@ -293,6 +296,23 @@ showEvalComments opts = do
         JsonOutput -> displayJsonOutput result
 
 
+showDaemonInfo :: (Console :> es) => OutputFormat -> DaemonInfo -> Eff es ()
+showDaemonInfo format daemonInfo = case format of
+    TextOutput -> text
+    JsonOutput -> json
+  where
+    text = do
+        Console.putTextLn "Targets:"
+        for_ daemonInfo.targets \target ->
+            Console.putTextLn $ "- " <> Target.renderTarget target
+        Console.putTextLn "Watch directories:"
+        for_ daemonInfo.watchDirs \dir ->
+            Console.putTextLn $ "- " <> toText dir
+        Console.putTextLn $ "Socket file path: " <> toText daemonInfo.sockPath
+        Console.putTextLn $ "Log file path: " <> toText daemonInfo.logFile
+    json = putJson daemonInfo
+
+
 displayTextOutput
     :: ( Console :> es
        , Exit :> es
@@ -302,7 +322,7 @@ displayTextOutput = \case
     Left err -> do
         Console.putTextLn $ "Error: " <> err
         exitFailure
-    Right (BuildState _ phase _) -> case phase of
+    Right (BuildState phase _) -> case phase of
         Build.Starting -> Console.putStrLn "Starting..."
         Build.Building _ _ -> Console.putStrLn "Building..."
         Build.PostBuilding _ postBuild -> txtEvalComments postBuild
@@ -357,7 +377,7 @@ displayJsonOutput = \case
     Left err -> do
         putJson $ Eval.Failed err
         exitFailure
-    Right (BuildState _ phase _) -> case phase of
+    Right (BuildState phase _) -> case phase of
         Build.Starting -> putJson Eval.Starting
         Build.Building _ _ -> putJson Eval.Building
         Build.Failed msg -> do
@@ -372,7 +392,10 @@ displayJsonOutput = \case
         Eval.Found comments
             | Eval.anyRunningComments comments -> putJson Eval.Evaluating
             | otherwise -> putJson $ Eval.Done comments
-    putJson = Console.putStrLn . toStrict . encode
+
+
+putJson :: (Console :> es, ToJSON a) => a -> Eff es ()
+putJson = Console.putStrLn . toStrict . encode
 
 
 displayPendingBuildStatus
