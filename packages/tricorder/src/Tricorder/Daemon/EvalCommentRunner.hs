@@ -32,11 +32,11 @@ import Data.Text qualified as T
 import Tricorder.Daemon.GhciSession.GhciParser (LoadedModule (..))
 import Tricorder.Daemon.GhciSession.GhciProcess (execGhci, withGhciProcess)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.Eval (renderEval)
 import Tricorder.Session.CommandTemplate (CommandTemplate)
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Session.Stage qualified as Stage
+import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
 import Tricorder.Session.Target qualified as Target
 
 
@@ -119,7 +119,7 @@ runFileEvals template relPath moduleName comments = do
         wrapForGhci expr
             | T.elem '\n' expr = ":{" <> "\n" <> expr <> "\n" <> ":}"
             | otherwise = expr
-        command = renderEval template [Target.Bare moduleName]
+        command = EvalCommand.render template [Target.Bare moduleName]
     sessionResult <- trySync
         $ withGhciProcess def command projectRoot noProgress noSetup \ghci _ -> do
             _ <- execGhci ghci (":m *" <> moduleName) noProgress

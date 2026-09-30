@@ -19,7 +19,6 @@ import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
 import System.FilePath ((</>))
-import Text.Regex.TDFA.Pattern (showPattern)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem qualified as FileSystem
@@ -28,7 +27,6 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Publishing.Pub qualified as Pub
 import Atelier.Effects.Publishing.Sub qualified as Sub
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
@@ -62,18 +60,14 @@ import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.Command.Build (renderBuild)
 import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
-import Tricorder.Session.Command.Test (renderTest)
-import Tricorder.Session.CommandTemplate (CommandTemplate)
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.Repl (Repl)
-import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
-import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Test.Session (TestSession (..))
+import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
-import Tricorder.Session.WatchDirs (WatchDirs (..))
-import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..))
 import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build qualified as Build
@@ -85,11 +79,11 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
+import Tricorder.Session qualified as Session
 import Tricorder.Session.CommandTemplate qualified as Command
 import Tricorder.Session.Hooks qualified as Hooks
-import Tricorder.Session.Stage qualified as Stage
-import Tricorder.Session.Target qualified as Target
-import Tricorder.Session.TestTarget qualified as TestTarget
+import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
+import Tricorder.Session.Stage.Test.Command qualified as TestCommand
 import Tricorder.Waiters qualified as Waiters
 
 
@@ -182,7 +176,7 @@ withSession session = do
     root <- Reader.ask
     logSession session
 
-    State.put session.build.repl
+    State.put session.buildSession.commandTemplate.repl
     State.put session.idleTimeout
     Conc.fork_ $ watchConfigFile root
     conditionallyWatchStackYaml root
@@ -265,7 +259,7 @@ runBuilder buildId session = do
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hooks.runHook
     startupError <- fmap (either id absurd)
-        $ Pub.map (Build.Building session.testTargets)
+        $ Pub.map (Build.Building session.testSession.targets)
         $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
             whenJust (session.hooks.start >>= (.after)) Hooks.runHook
             processPostBuild session $ Right initialLoad
@@ -287,7 +281,7 @@ runBuilder buildId session = do
 
     Pub.publish $ Build.Failed $ show startupError
   where
-    buildCommand = renderBuild session.build session.buildTargets
+    buildCommand = BuildCommand.render session.buildSession.commandTemplate session.buildSession.targets
 
 
 -- | Handles source changes as they come, determining whether the source change
@@ -399,7 +393,7 @@ runEvalComments session loadResult = do
             let pendingComments =
                     sconcat $ (\(lm, ecs) -> toPending lm.relPath <$> ecs) <$> nonEmptyComments
             Pub.publish $ Eval.Found $ Eval.Comments pendingComments
-            evaluatedComments <- EvalCommentRunner.evaluateComments session.eval nonEmptyComments
+            evaluatedComments <- EvalCommentRunner.evaluateComments session.evalSession nonEmptyComments
             pure $ Eval.Found $ Eval.Comments evaluatedComments
   where
     toPending file comment =
@@ -417,12 +411,11 @@ runTests
        )
     => Session -> BuildResult -> Eff es Test.Suites
 runTests session buildResult
-    | hasTargets session.testTargets && noErrors buildResult.diagnostics =
+    | hasTargets session.testSession.targets && noErrors buildResult.diagnostics =
         runTestsForTargets
-            session.test
+            session.testSession
             session.testMemoryLimit
             session.testTimeout
-            session.testTargets
     | otherwise = pure mempty
   where
     hasTargets = not . null
@@ -434,20 +427,19 @@ runTestsForTargets
        , Pub Test.Suites :> es
        , TestRunner :> es
        )
-    => CommandTemplate 'Stage.Test
+    => TestSession
     -> Maybe ByteSize
     -> TestTimeout
-    -> [TestTarget]
     -> Eff es Test.Suites
-runTestsForTargets testTemplate memoryLimit testTimeout testTargets = do
+runTestsForTargets testSession memoryLimit testTimeout = do
     Pub.publish $ Test.Suites initial
-    Log.info $ "Running " <> show (length testTargets) <> " test suite(s)"
-    fmap Test.Suites . State.execState initial $ traverse_ go testTargets
+    Log.info $ "Running " <> show (length testSession.targets) <> " test suite(s)"
+    fmap Test.Suites . State.execState initial $ traverse_ go testSession.targets
   where
-    initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testTargets
+    initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testSession.targets
     go target = do
         Log.info $ "Running tests: " <> renderTestTarget target
-        let testCommand = renderTest testTemplate memoryLimit target
+        let testCommand = TestCommand.render testSession memoryLimit target
             publishProgress suite = do
                 updated <- State.state $ dup . Map.insert target suite
                 Pub.publish $ Test.Suites updated
@@ -482,27 +474,4 @@ newLoadResultToBuildResult session newLoadResult = do
 
 
 logSession :: (Log :> es) => Session -> Eff es ()
-logSession session =
-    Log.info
-        $ T.intercalate
-            "\n"
-            [ "Loaded session"
-            , "Build command: " <> (renderBuild session.build session.buildTargets).getResolvedCommand
-            , "Test command template: " <> session.test.template
-            , "Eval command template: " <> session.eval.template
-            , "Targets:"
-            , showList Target.renderTarget session.targets
-            , "Test targets:"
-            , showList TestTarget.renderTestTarget session.testTargets
-            , "Watch dirs:"
-            , showList toText session.watchDirs.getWatchDirs
-            , "Watch exclusion patterns:"
-            , showList (toText . showPattern . fst) session.watchExclusionPatterns.getWatchExclusionPatterns
-            , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
-            , -- TODO: Remove " seconds" when TestTimeout is converted to a proper time unit.
-              "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
-            , "Test memory limit: " <> show session.testMemoryLimit
-            , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
-            ]
-  where
-    showList f = T.intercalate "\n" . fmap (("- " <>) . f)
+logSession = Log.info . (<> "\n") . Session.show

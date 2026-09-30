@@ -43,8 +43,9 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand)
+import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
+import Tricorder.Session.Stage.Test.Command (ResolvedTestCommand)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
@@ -58,7 +59,7 @@ data TestRunner :: Effect where
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
         -> TestTimeout
-        -> ResolvedCommand 'Test
+        -> ResolvedTestCommand
         -> TestRunner m Test.Suite
 
 
@@ -83,62 +84,80 @@ run act = do
         RunTestSuite progressHandler testTimeout cmd ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
-                    noProgress _ = pure ()
-                    noReady _ = pure ()
-                ProjectRoot projectRoot <- ask
-                result <- trySync
-                    $ withGhciProcess
-                        def
-                        cmd
-                        projectRoot
-                        onProgress
-                        noReady
-                        \ghci _ ->
-                            case testTimeout of
-                                TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
-                                TestTimeout secs ->
-                                    let duration = fromIntegral secs :: Second
-                                    in  maybeToRight secs
-                                            <$> timeout duration (execGhci ghci ":main" noProgress)
-                case result of
-                    Left ex -> case fromException ex of
-                        Just (e :: GhciProcessError) -> case e of
-                            UnexpectedExit (MkUnexpectedExit marker msg) ->
-                                pure
-                                    $ Test.SuiteErrored
-                                    $ Test.SuiteError
-                                        { message = "Test suite failed while waiting for marker (" <> marker <> "):\n" <> msg
-                                        }
-                            StartupTimeout -> pure $ Test.SuiteErrored $ Test.SuiteError "Test suite timed out before it could finish"
-                            StartupFailed msg ->
-                                pure
-                                    $ Test.SuiteErrored
-                                    $ Test.SuiteError
-                                    $ "Test suite failed on startup, before Tricorder could start running the test suite itself:\n" <> msg
-                        Nothing ->
-                            pure
-                                $ Test.SuiteErrored
-                                $ Test.SuiteError {message = show ex}
-                    Right (Left secs) -> do
-                        pure
-                            $ Test.SuiteErrored
-                            $ Test.SuiteError
-                                { message = "Test suite timed out after " <> show secs <> "s"
-                                }
-                    Right (Right mainLines) ->
-                        pure
-                            $ let output = T.unlines mainLines
-                              in  case detectOutcome output of
-                                    GhciCrashed msg ->
-                                        Test.SuiteErrored $ Test.SuiteError {message = msg}
-                                    outcome ->
-                                        Test.SuiteCompleted
-                                            $ Test.SuiteCompletion
-                                                { passed = outcome == GhciPassed
-                                                , output
-                                                , testCases = parseHspecOutput output
-                                                , duration = parseHspecDuration output
-                                                }
+                runTestSuiteWithGHCi onProgress testTimeout cmd
+
+
+runTestSuiteWithGHCi
+    :: ( Conc :> es
+       , Concurrent :> es
+       , File :> es
+       , Log :> es
+       , Process :> es
+       , Reader ProjectRoot :> es
+       , Timeout :> es
+       )
+    => (GhciLoading -> Eff es ())
+    -> TestTimeout
+    -> ResolvedCommand 'Test
+    -> Eff es Test.Suite
+runTestSuiteWithGHCi onProgress testTimeout cmd = do
+    ProjectRoot projectRoot <- ask
+    result <- trySync
+        $ withGhciProcess
+            def
+            cmd
+            projectRoot
+            onProgress
+            noReady
+            \ghci _ ->
+                case testTimeout of
+                    TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
+                    TestTimeout secs ->
+                        let duration = fromIntegral secs :: Second
+                        in  maybeToRight secs
+                                <$> timeout duration (execGhci ghci ":main" noProgress)
+    case result of
+        Left ex -> case fromException ex of
+            Just (e :: GhciProcessError) -> case e of
+                UnexpectedExit (MkUnexpectedExit marker msg) ->
+                    pure
+                        $ Test.SuiteErrored
+                        $ Test.SuiteError
+                            { message = "Test suite failed while waiting for marker (" <> marker <> "):\n" <> msg
+                            }
+                StartupTimeout -> pure $ Test.SuiteErrored $ Test.SuiteError "Test suite timed out before it could finish"
+                StartupFailed msg ->
+                    pure
+                        $ Test.SuiteErrored
+                        $ Test.SuiteError
+                        $ "Test suite failed on startup, before Tricorder could start running the test suite itself:\n" <> msg
+            Nothing ->
+                pure
+                    $ Test.SuiteErrored
+                    $ Test.SuiteError {message = show ex}
+        Right (Left secs) -> do
+            pure
+                $ Test.SuiteErrored
+                $ Test.SuiteError
+                    { message = "Test suite timed out after " <> show secs <> "s"
+                    }
+        Right (Right mainLines) ->
+            pure
+                $ let output = T.unlines mainLines
+                  in  case detectOutcome output of
+                        GhciCrashed msg ->
+                            Test.SuiteErrored $ Test.SuiteError {message = msg}
+                        outcome ->
+                            Test.SuiteCompleted
+                                $ Test.SuiteCompletion
+                                    { passed = outcome == GhciPassed
+                                    , output
+                                    , testCases = parseHspecOutput output
+                                    , duration = parseHspecDuration output
+                                    }
+  where
+    noReady _ = pure ()
+    noProgress _ = pure ()
 
 
 -- | Scripted interpreter for testing.

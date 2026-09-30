@@ -1,26 +1,27 @@
-module Tricorder.Session.Command.Eval
-    ( renderEval
-    , resolveEvalCommand
+module Tricorder.Session.Stage.Eval.Command
+    ( render
+    , resolve
     )
 where
 
 import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
-import Tricorder.Session.Command.Test (defaultTestTemplate)
+import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetPlaceholder)
-import Tricorder.Session.Config (CommandConfig (..), Config (..))
+import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.Stage (Stage (..))
+import Tricorder.Session.Stage.Test.Session (defaultTestTemplate)
 import Tricorder.Session.Target (Target)
 
 
 -- | Render the @eval@ command for a single source file's short-lived
 -- session: the module being evaluated is substituted as the one target.
-renderEval :: CommandTemplate 'Eval -> [Target] -> ResolvedCommand 'Eval
-renderEval commandTemplate targets = ResolvedCommand $ renderText commandTemplate targets
+render :: CommandTemplate 'Eval -> [Target] -> ResolvedCommand 'Eval
+render commandTemplate targets = ResolvedCommand $ renderText commandTemplate targets
 
 
-resolveEvalCommand :: Repl -> Config -> CommandTemplate 'Eval
-resolveEvalCommand repl cfg =
+resolve :: Repl -> Config -> CommandTemplate 'Eval
+resolve repl cfg =
     CommandTemplate
         { repl
         , template = fromMaybe (defaultEvalTemplate repl) cfg.eval.commandTemplate

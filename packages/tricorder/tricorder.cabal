@@ -74,10 +74,8 @@ library tricorder-internal
       Tricorder.Runtime
       Tricorder.Session
       Tricorder.Session.CabalFile
-      Tricorder.Session.Command.Build
-      Tricorder.Session.Command.Eval
       Tricorder.Session.Command.ResolvedCommand
-      Tricorder.Session.Command.Test
+      Tricorder.Session.CommandConfig
       Tricorder.Session.CommandTemplate
       Tricorder.Session.Config
       Tricorder.Session.GenerateWithHpack
@@ -87,9 +85,17 @@ library tricorder-internal
       Tricorder.Session.ReplBuildDir
       Tricorder.Session.StackProject
       Tricorder.Session.Stage
+      Tricorder.Session.Stage.Build.Command
+      Tricorder.Session.Stage.Build.Session
+      Tricorder.Session.Stage.Eval.Command
+      Tricorder.Session.Stage.Eval.Session
+      Tricorder.Session.Stage.Test.Command
+      Tricorder.Session.Stage.Test.Config
+      Tricorder.Session.Stage.Test.Session
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
       Tricorder.Session.TestTimeout
+      Tricorder.Session.Util
       Tricorder.Session.WatchDirs
       Tricorder.Session.WatchExclusionPatterns
       Tricorder.Socket.Client
@@ -267,12 +273,12 @@ test-suite tricorder-test
       Unit.Tricorder.Daemon.TestRunnerSpec
       Unit.Tricorder.Daemon.WatchSpec
       Unit.Tricorder.Session.CabalFileSpec
-      Unit.Tricorder.Session.Command.BuildSpec
-      Unit.Tricorder.Session.Command.EvalSpec
-      Unit.Tricorder.Session.Command.TestSpec
       Unit.Tricorder.Session.CommandTemplateSpec
       Unit.Tricorder.Session.Helpers
       Unit.Tricorder.Session.ReplSpec
+      Unit.Tricorder.Session.Stage.Build.CommandSpec
+      Unit.Tricorder.Session.Stage.Eval.CommandSpec
+      Unit.Tricorder.Session.Stage.Test.CommandSpec
       Unit.Tricorder.Session.TargetSpec
       Unit.Tricorder.Session.TestTargetSpec
       Unit.Tricorder.Session.WatchDirsSpec

@@ -1,22 +1,23 @@
-module Unit.Tricorder.Session.Command.EvalSpec (test_Eval) where
+module Unit.Tricorder.Session.Stage.Eval.CommandSpec (test_Command) where
 
 import Data.Default (def)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Tricorder.Session.Command.Eval (renderEval, resolveEvalCommand)
 import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
-import Tricorder.Session.Config (CommandConfig (..), Config (..))
+import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage (Stage (..))
+import Tricorder.Session.Stage.Eval.Command (render, resolve)
 import Tricorder.Session.Target (Target (..))
 
 
-test_Eval :: TestTree
-test_Eval =
+test_Command :: TestTree
+test_Command =
     testGroup
-        "Eval"
+        "Tricorder.Session.Stage.Eval.Command"
         [ testGroup "resolveEvalCommand" testResolveEvalCommand
         , testGroup "renderEval" testRenderEval
         ]
@@ -32,22 +33,22 @@ testRenderEval =
             @?= "cabal repl {targets}"
     ]
   where
-    eval template targets = (renderEval template targets).getResolvedCommand
+    eval template targets = (render template targets).getResolvedCommand
 
 
 testResolveEvalCommand :: [TestTree]
 testResolveEvalCommand =
     [ testCase "uses the built-in default template for Cabal when eval.command_template is unset" do
-        (resolveEvalCommand Cabal def).template @?= "cabal repl {target}"
+        (resolve Cabal def).template @?= "cabal repl {target}"
     , testCase "uses eval.command_template when set" do
         let cfg =
                 def
                     { eval = (def :: CommandConfig 'Eval) {commandTemplate = Just "cabal repl --builddir /tmp {target}"}
                     }
-        (resolveEvalCommand Cabal cfg).template @?= "cabal repl --builddir /tmp {target}"
+        (resolve Cabal cfg).template @?= "cabal repl --builddir /tmp {target}"
     , testCase "carries eval.extra_auto_arguments when eval.command_template is unset" do
         let cfg = def {eval = (def :: CommandConfig 'Eval) {extraAutoArguments = ["--flag"]}}
-        (resolveEvalCommand Cabal cfg).arguments @?= ["--flag"]
+        (resolve Cabal cfg).arguments @?= ["--flag"]
     , testCase "ignores eval.extra_auto_arguments when eval.command_template is set" do
         let cfg =
                 def
@@ -57,5 +58,5 @@ testResolveEvalCommand =
                             , extraAutoArguments = ["--flag"]
                             }
                     }
-        (resolveEvalCommand Cabal cfg).arguments @?= []
+        (resolve Cabal cfg).arguments @?= []
     ]

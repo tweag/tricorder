@@ -34,6 +34,7 @@ import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir,
 import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
+import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup.PackageId (PackageId)
 
@@ -80,7 +81,7 @@ main =
         . StackProject.inputWithCache
         . inputCabalFiles
         . runInputEff loadSession
-        . runInputEff ((.build.repl) <$> input)
+        . runInputEff ((.buildSession.commandTemplate.repl) <$> input)
         . runReader @CacheConfig.Config def
         . Cache.runCacheTtl @ModuleName @PackageId
         . Cache.runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult

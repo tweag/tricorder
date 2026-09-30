@@ -9,7 +9,8 @@ where
 
 import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 
-import Tricorder.Session.Config (CommandConfig (..), Config (..))
+import Tricorder.Session.CommandConfig (CommandConfig (..))
+import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..), parseTarget, renderTarget)
 
 
