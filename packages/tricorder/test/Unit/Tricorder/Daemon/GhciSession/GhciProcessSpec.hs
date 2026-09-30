@@ -35,7 +35,7 @@ import System.Process.Typed
     , waitExitCode
     )
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
+import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
@@ -50,6 +50,7 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , GhciProcessError (..)
     , InterruptDecision (..)
     , SessionState (..)
+    , UnexpectedExit (..)
     , decideInterrupt
     , drainUntil
     , execGhci
@@ -138,9 +139,10 @@ testDrainUntil =
             case outcome of
                 Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
                 Left ex -> case fromException ex of
-                    Just (UnexpectedExit m ls) -> do
+                    Just (UnexpectedExit (MkUnexpectedExit m ls)) -> do
                         m @?= finishMarker 1
-                        ls @?= Just "first\nsecond\nthird"
+                        ls
+                            @?= "Reached EOF before reading marker from GHCi.\nWas looking for marker '#~TRI-FINISH-1~#', but no such marker was found.\nAccumulated output from GHCi so far:\nfirst\nsecond\nthird"
                     other -> assertFailure ("expected UnexpectedExit, got: " <> show other)
     , testCase "throws UnexpectedExit with no lines when EOF is reached immediately" do
         (r, w) <- Process.createPipe
@@ -155,9 +157,16 @@ testDrainUntil =
         case outcome of
             Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
             Left ex -> case fromException ex of
-                Just (UnexpectedExit m ls) -> do
+                Just (UnexpectedExit (MkUnexpectedExit m ls)) -> do
                     m @?= finishMarker 1
-                    ls @?= Nothing
+                    let expected =
+                            "Reached EOF before reading marker from GHCi.\nWas looking for marker '#~TRI-FINISH-1~#', but no such marker was found.\nGHCi returned no output before we reached what we believe is EOF.\nGot the following exception when attempting to read from GHCi:\n<file descriptor:"
+                    (expected `T.isPrefixOf` ls)
+                        @? ( "error message does not start with expected prefix\nExpected:\n"
+                                <> show expected
+                                <> "\nActual:\n"
+                                <> show ls
+                           )
                 other -> assertFailure ("expected UnexpectedExit, got: " <> show other)
     , testCase
         "logs an ERROR mentioning the missing marker and the exception when EOF is reached with no output"
