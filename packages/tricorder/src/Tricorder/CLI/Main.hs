@@ -40,7 +40,7 @@ import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
-import Tricorder.Session.StackYaml qualified as StackYaml
+import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 import Tricorder.SourceLookup.Hackage qualified as Hackage
@@ -77,7 +77,7 @@ main =
         . runEnv
         . inputLoadedConfig
         . runLogNoOp
-        . StackYaml.runWithCache
+        . StackProject.inputWithCache
         . inputCabalFiles
         . runInputEff loadSession
         . runInputEff ((.build.repl) <$> input)

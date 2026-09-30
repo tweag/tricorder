@@ -85,7 +85,7 @@ library tricorder-internal
       Tricorder.Session.IdleTimeout
       Tricorder.Session.Repl
       Tricorder.Session.ReplBuildDir
-      Tricorder.Session.StackYaml
+      Tricorder.Session.StackProject
       Tricorder.Session.Stage
       Tricorder.Session.Target
       Tricorder.Session.TestTarget

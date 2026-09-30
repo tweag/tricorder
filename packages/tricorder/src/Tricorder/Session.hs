@@ -99,7 +99,9 @@ loadSession
 loadSession = do
     projectRoot <- ask @ProjectRoot
     loadedCfg <- input
+    Log.debug "Got config file"
     projectFiles <- input
+    Log.debug "Got project files"
 
     let cfgFile = extractConfig @"session" @Config loadedCfg
         rawBuildTargets = fromMaybe cfgFile.targets cfgFile.build.targets
@@ -109,6 +111,7 @@ loadSession = do
         hooks = fromMaybe def cfgFile.hooks
 
     warnDeprecatedConfig cfgFile
+    Log.debug "Warned about deprecated config stuff"
 
     testMemoryLimit <- case cfgFile.testMemoryLimit of
         Nothing -> pure Nothing

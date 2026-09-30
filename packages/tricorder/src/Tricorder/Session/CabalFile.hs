@@ -4,19 +4,20 @@ module Tricorder.Session.CabalFile
     , discoverPackages
     , discoverCabalPackages
     , discoverStackPackages
+    , readProjectFile
     )
 where
 
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, readFileBs)
 import Atelier.Effects.FileSystem.Glob (Glob, globDir1)
-import Atelier.Effects.Input (Input, runInputEff)
+import Atelier.Effects.Input (Input, input, runInputEff)
 import Atelier.Effects.Log (Log)
 import Data.Traversable (for)
 import Distribution.Fields (Field (..), FieldLine (..), Name (..), readFields)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Distribution.Types.GenericPackageDescription (GenericPackageDescription)
-import Effectful.Exception (throwIO)
+import Effectful.Exception (catch, throwIO)
 import Effectful.Reader.Static (Reader, ask)
 import System.FilePath (normalise, takeExtension, (</>))
 import System.FilePath.Glob (compile)
@@ -26,12 +27,11 @@ import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Log qualified as Log
 import Data.ByteString.Char8 qualified as BC
+import Data.List qualified as List
 import Data.Text qualified as T
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.StackYaml (StackYaml)
-
-import Tricorder.Session.StackYaml qualified as StackYaml
+import Tricorder.Session.StackProject (StackProject (..))
 
 
 data CabalFile = CabalFile
@@ -45,31 +45,67 @@ inputCabalFiles
     :: ( Env :> es
        , FileSystem :> es
        , Glob :> es
+       , Input StackProject :> es
        , Log :> es
        , Reader ProjectRoot :> es
-       , StackYaml :> es
        )
     => Eff (Input [CabalFile] : es) a -> Eff es a
-inputCabalFiles = runInputEff do
+inputCabalFiles = runInputEff $ Log.withNamespace "CabalFile" do
     packageRes <- discoverPackages
     case packageRes of
         Left err -> throwIO $ userError $ toString err
         Right projectFilePaths -> do
             (faileds, packageDescriptions) <-
-                partitionEithers <$> for projectFilePaths \p -> do
-                    contents <- readFileBs p
-                    case parseGenericPackageDescriptionMaybe contents of
-                        Nothing -> pure $ Left p
-                        Just gpd -> pure $ Right $ CabalFile p gpd
+                logFailure
+                    $ partitionEithers <$> for projectFilePaths readProjectFile
             unless (null faileds) do
                 Log.warn
                     $ "Failed to parse .cabal files for the following packages: "
                         <> T.intercalate ", " (toText <$> faileds)
             pure $ packageDescriptions
+  where
+    logFailure =
+        ( `catch`
+            \(e :: SomeException) -> do
+                Log.err $ "Failed to read package descriptions"
+                Log.err $ show e
+                throwIO e
+        )
+
+
+readProjectFile
+    :: (FileSystem :> es)
+    => FilePath -> Eff es (Either FilePath CabalFile)
+readProjectFile projectFilePath = do
+    fileExists <- FileSystem.doesFileExist projectFilePath
+    if fileExists
+        then readFile projectFilePath
+        else do
+            dirExists <- FileSystem.doesDirectoryExist projectFilePath
+            if dirExists
+                then do
+                    files <- FileSystem.listDirectory projectFilePath
+                    let mCabalFile = find (".cabal" `List.isSuffixOf`) files
+                    case mCabalFile of
+                        Nothing -> pure $ Left projectFilePath
+                        Just cabalFile -> readFile $ projectFilePath </> cabalFile
+                else
+                    pure $ Left projectFilePath
+  where
+    readFile path = do
+        contents <- readFileBs path
+        case parseGenericPackageDescriptionMaybe contents of
+            Nothing -> pure $ Left path
+            Just gpd -> pure $ Right $ CabalFile path gpd
 
 
 discoverPackages
-    :: (Env :> es, FileSystem :> es, Glob :> es, Reader ProjectRoot :> es, StackYaml :> es)
+    :: ( Env :> es
+       , FileSystem :> es
+       , Glob :> es
+       , Input StackProject :> es
+       , Reader ProjectRoot :> es
+       )
     => Eff es (Either Text [FilePath])
 discoverPackages = do
     ProjectRoot projectRoot <- ask
@@ -124,14 +160,12 @@ discoverCabalPackages = do
 
 
 discoverStackPackages
-    :: (Reader ProjectRoot :> es, StackYaml :> es)
+    :: (Input StackProject :> es, Reader ProjectRoot :> es)
     => Eff es (Either Text [FilePath])
 discoverStackPackages = do
     ProjectRoot projectRoot <- ask
-    mProject <- StackYaml.readProject
-    case mProject of
-        Left err -> pure $ Left $ "Failed to read project file: " <> err
-        Right project -> pure $ Right $ normalise . (projectRoot </>) <$> project.packages
+    project <- input
+    pure $ Right $ normalise . (projectRoot </>) <$> project.packages
 
 
 -- | List the @.cabal@ files directly inside a directory.
