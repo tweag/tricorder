@@ -2,6 +2,7 @@ module Tricorder.Daemon.GhciSession.GhciProcess
     ( Config (..)
     , GhciProcess (..)
     , GhciProcessError (..)
+    , UnexpectedExit (..)
     , SessionState (..)
     , InterruptDecision (..)
     , decideInterrupt
@@ -120,12 +121,19 @@ data GhciProcess = GhciProcess
 -- | Errors that can occur during GHCi process management.
 data GhciProcessError
     = StartupTimeout
-    | UnexpectedExit Text (Maybe Text)
+    | UnexpectedExit UnexpectedExit
     | -- | The build command exited (or printed nothing parseable) before GHCi
       -- produced its version banner. The 'Text' is the captured stderr+stdout
       -- output so callers can surface a useful error (e.g. cabal's dependency
       -- resolution failure).
       StartupFailed Text
+    deriving stock (Eq, Show)
+
+
+data UnexpectedExit = MkUnexpectedExit
+    { marker :: Text
+    , errorMessage :: Text
+    }
     deriving stock (Eq, Show)
 
 
@@ -381,32 +389,31 @@ drainUntil h marker onLine = go mempty
         case result of
             Left ex -> do
                 let accumulatedLines = T.intercalate "\n" $ toList acc
-                Log.err
-                    $ T.intercalate
-                        "\n"
-                        [ "Reached EOF before reading marker from GHCi."
-                        , "Was looking for marker '" <> marker <> "', but no such marker was found."
-                        , ""
-                        ]
-                        <> if T.null accumulatedLines
-                            then
-                                T.intercalate
-                                    "\n"
-                                    [ "GHCi returned no output before we reached what we believe is EOF."
-                                    , "Got the following exception when attempting to read from GHCi:"
-                                    , toText $ displayException ex
-                                    ]
-                            else
-                                T.intercalate
-                                    "\n"
-                                    [ "Accumulated output from GHCi so far:"
-                                    , accumulatedLines
-                                    ]
+                    errorMessage =
+                        T.intercalate
+                            "\n"
+                            [ "Reached EOF before reading marker from GHCi."
+                            , "Was looking for marker '" <> marker <> "', but no such marker was found."
+                            , ""
+                            ]
+                            <> if T.null accumulatedLines
+                                then
+                                    T.intercalate
+                                        "\n"
+                                        [ "GHCi returned no output before we reached what we believe is EOF."
+                                        , "Got the following exception when attempting to read from GHCi:"
+                                        , toText $ displayException ex
+                                        ]
+                                else
+                                    T.intercalate
+                                        "\n"
+                                        [ "Accumulated output from GHCi so far:"
+                                        , accumulatedLines
+                                        ]
+                Log.err errorMessage
                 throwIO
-                    $ UnexpectedExit marker
-                    $ if T.null accumulatedLines
-                        then Nothing
-                        else Just accumulatedLines
+                    $ UnexpectedExit
+                    $ MkUnexpectedExit {marker, errorMessage}
             Right line
                 | marker `T.isInfixOf` line -> pure $ toList acc
                 -- A stale marker from an interrupted command: drop it, keep going.

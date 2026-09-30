@@ -106,13 +106,11 @@ viewRouteTab kc ws route =
 
 
 viewTests :: State -> Widget Viewports
-viewTests ws =
-    withBuildState ws (viewTestResultsPanel ws)
+viewTests ws = withBuildState ws (viewTestResultsPanel ws)
 
 
 viewEvals :: State -> Widget Viewports
-viewEvals ws =
-    withBuildState ws $ viewEvalCommentsPanel ws
+viewEvals ws = withBuildState ws $ viewEvalCommentsPanel ws
 
 
 viewMain :: State -> Widget Viewports

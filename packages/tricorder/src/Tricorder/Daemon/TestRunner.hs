@@ -37,7 +37,9 @@ import Data.Text qualified as T
 
 import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..))
 import Tricorder.Daemon.GhciSession.GhciProcess
-    ( execGhci
+    ( GhciProcessError (..)
+    , UnexpectedExit (..)
+    , execGhci
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
@@ -99,10 +101,24 @@ run act = do
                                     in  maybeToRight secs
                                             <$> timeout duration (execGhci ghci ":main" noProgress)
                 case result of
-                    Left ex ->
-                        pure
-                            $ Test.SuiteErrored
-                            $ Test.SuiteError {message = show ex}
+                    Left ex -> case fromException ex of
+                        Just (e :: GhciProcessError) -> case e of
+                            UnexpectedExit (MkUnexpectedExit marker msg) ->
+                                pure
+                                    $ Test.SuiteErrored
+                                    $ Test.SuiteError
+                                        { message = "Test suite failed while waiting for marker (" <> marker <> "):\n" <> msg
+                                        }
+                            StartupTimeout -> pure $ Test.SuiteErrored $ Test.SuiteError "Test suite timed out before it could finish"
+                            StartupFailed msg ->
+                                pure
+                                    $ Test.SuiteErrored
+                                    $ Test.SuiteError
+                                    $ "Test suite failed on startup, before Tricorder could start running the test suite itself:\n" <> msg
+                        Nothing ->
+                            pure
+                                $ Test.SuiteErrored
+                                $ Test.SuiteError {message = show ex}
                     Right (Left secs) -> do
                         pure
                             $ Test.SuiteErrored
