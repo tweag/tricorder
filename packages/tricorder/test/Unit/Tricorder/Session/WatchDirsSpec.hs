@@ -7,10 +7,11 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..))
-import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs, sourceDirsForTarget)
+import Tricorder.Session.WatchDirs (WatchDirs (..), sourceDirsForTarget)
 import Unit.Tricorder.Session.Helpers (gpd, multiCabalFiles, singleCabalFile)
 
 import Tricorder.Session.Target qualified as Target
+import Tricorder.Session.WatchDirs qualified as WatchDirs
 
 
 test_WatchDirs :: TestTree
@@ -28,35 +29,35 @@ testResolveWatchDirs =
         "when watch_dirs is set in config"
         [ testCase "uses config dirs relative to project root" do
             let WatchDirs actual =
-                    resolveWatchDirs pr [] def {watchDirs = ["src", "test"]} []
+                    WatchDirs.resolve pr [] def {watchDirs = ["src", "test"]} []
             actual @?= ["/src", "/test"]
         ]
     , testGroup
         "when watch_dirs is not set"
         [ testCase "falls back to [\".\"] when targets list is empty" do
-            let WatchDirs actual = resolveWatchDirs pr [] def []
+            let WatchDirs actual = WatchDirs.resolve pr [] def []
             actual @?= ["."]
         , testCase "infers source dirs from resolved targets" do
             let WatchDirs actual =
-                    resolveWatchDirs pr singleCabalFile def (mkTargets ["lib:myapp", "test:myapp-test"])
+                    WatchDirs.resolve pr singleCabalFile def (mkTargets ["lib:myapp", "test:myapp-test"])
             actual @?= ["/src", "/test"]
         , testCase "falls back to [\".\"] when there are no cabal files" do
             let WatchDirs actual =
-                    resolveWatchDirs pr [] def (mkTargets ["lib:myapp"])
+                    WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
             actual @?= ["."]
         , -- Sharp edge: an unparseable .cabal yields no source dirs, so resolution
           -- falls back to watching the whole project root. This pins the current
           -- behavior; if it ever changes to something narrower, update this test.
           testCase "falls back to [\".\"] when no cabal files are found or parsed" do
             let WatchDirs actual =
-                    resolveWatchDirs pr [] def (mkTargets ["lib:myapp"])
+                    WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
             actual @?= ["."]
         ]
     , testGroup
         "when the project is a multi-package cabal.project"
         [ testCase "infers per-package source dirs, scoped to each package's directory" do
             let WatchDirs actual =
-                    resolveWatchDirs
+                    WatchDirs.resolve
                         pr
                         multiCabalFiles
                         def
@@ -65,7 +66,7 @@ testResolveWatchDirs =
                 @?= ["/pkg-a/src", "/pkg-a/test", "/pkg-b/src", "/pkg-b/test"]
         , testCase "scopes a bare package-name target to that package, ignoring siblings" do
             let WatchDirs actual =
-                    resolveWatchDirs pr multiCabalFiles def (mkTargets ["pkg-a"])
+                    WatchDirs.resolve pr multiCabalFiles def (mkTargets ["pkg-a"])
             actual @?= ["/pkg-a/src", "/pkg-a/test"]
         ]
     ]

@@ -41,7 +41,7 @@ import Tricorder.Session.Target (definesCustomPrelude)
 import Tricorder.Session.TestTarget (getTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Session.Util (indent, showList)
-import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs)
+import Tricorder.Session.WatchDirs (WatchDirs (..))
 import Tricorder.Session.WatchExclusionPatterns
     ( WatchExclusionPatterns (..)
     , resolveWatchExclusionPatterns
@@ -53,6 +53,7 @@ import Tricorder.Session.Stage.Build.Session qualified as BuildSession
 import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
 import Tricorder.Session.Stage.Eval.Session qualified as EvalSession
 import Tricorder.Session.Stage.Test.Session qualified as TestSession
+import Tricorder.Session.WatchDirs qualified as WatchDirs
 
 
 data Session = Session
@@ -136,7 +137,7 @@ loadSession = do
     let testSession = TestSession.resolve repl buildSession.targets cfgFile
         evalSession = EvalCommand.resolve repl cfgFile
         effectiveTargets = buildSession.targets <> (getTestTarget <$> testSession.targets)
-        watchDirs = resolveWatchDirs projectRoot projectFiles cfgFile effectiveTargets
+        watchDirs = WatchDirs.resolve projectRoot projectFiles cfgFile effectiveTargets
 
     when (not (null effectiveTargets) && all (definesCustomPrelude projectFiles) effectiveTargets)
         $ Log.warn
