@@ -5,8 +5,9 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Session.Config (Config (..))
-import Tricorder.Session.Target (parseTarget)
-import Tricorder.Session.TestTarget (parseTestTargets, resolveTestTargets)
+
+import Tricorder.Session.Target qualified as Target
+import Tricorder.Session.TestTarget qualified as TestTarget
 
 
 test_TestTarget :: TestTree
@@ -21,24 +22,24 @@ testResolveTestTargets :: [TestTree]
 testResolveTestTargets =
     [ testCase "infers test: components from targets when testTargets is absent" do
         let cfg = def :: Config
-        resolveTestTargets cfg (mkTargets ["lib:mylib", "test:mylib-test"])
-            @?= parseTestTargets ["test:mylib-test"]
+        TestTarget.resolve cfg (mkTargets ["lib:mylib", "test:mylib-test"])
+            @?= TestTarget.parse ["test:mylib-test"]
     , testCase "returns empty list when no test: components in targets" do
         let cfg = def :: Config
-        resolveTestTargets cfg (mkTargets ["lib:mylib", "exe:myapp"])
-            @?= parseTestTargets []
+        TestTarget.resolve cfg (mkTargets ["lib:mylib", "exe:myapp"])
+            @?= TestTarget.parse []
     , testCase "uses explicit testTargets list when set" do
         let cfg = def {testTargets = Just ["test:b-test"]} :: Config
-        resolveTestTargets cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
-            @?= parseTestTargets ["test:b-test"]
+        TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
+            @?= TestTarget.parse ["test:b-test"]
     , testCase "returns empty list when testTargets is explicitly empty" do
         let cfg = def {testTargets = Just []} :: Config
-        resolveTestTargets cfg (mkTargets ["lib:a", "test:a-test"])
-            @?= parseTestTargets []
+        TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test"])
+            @?= TestTarget.parse []
     , testCase "infers multiple test: components" do
         let cfg = def :: Config
-        resolveTestTargets cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
-            @?= parseTestTargets ["test:a-test", "test:b-test"]
+        TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
+            @?= TestTarget.parse ["test:a-test", "test:b-test"]
     ]
   where
-    mkTargets = fmap parseTarget
+    mkTargets = fmap Target.parse

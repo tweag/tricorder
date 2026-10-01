@@ -59,7 +59,6 @@ import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
-import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Waiters (Waiters)
 
@@ -77,6 +76,7 @@ import Tricorder.Session.CommandTemplate qualified as Command
 import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
 import Tricorder.Session.Stage.Test.Command qualified as TestCommand
+import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
 
 
@@ -431,24 +431,26 @@ runTestsForTargets testSession memoryLimit testTimeout = do
   where
     initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testSession.targets
     go target = do
-        Log.info $ "Running tests: " <> renderTestTarget target
+        Log.info $ "Running tests: " <> renderedTarget
         let testCommand = TestCommand.render testSession memoryLimit target
             publishProgress suite = do
                 updated <- State.state $ dup . Map.insert target suite
                 Pub.publish $ Test.Suites updated
         Log.info
             $ "Test suite "
-                <> renderTestTarget target
+                <> renderedTarget
                 <> " command:\n"
                 <> show testCommand.command
         finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->
-                Log.warn $ "Test suite " <> renderTestTarget target <> "failed: " <> message
+                Log.warn $ "Test suite " <> renderedTarget <> "failed: " <> message
             _ ->
                 pure ()
         updated <- State.state $ dup . Map.insert target finishedSuite
         Pub.publish $ Test.Suites updated
+      where
+        renderedTarget = TestTarget.render target
 
 
 newLoadResultToBuildResult

@@ -6,9 +6,11 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Config (Config (..))
-import Tricorder.Session.Target (ComponentKind (..), Target (..), parseTarget)
+import Tricorder.Session.Target (ComponentKind (..), Target (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs, sourceDirsForTarget)
 import Unit.Tricorder.Session.Helpers (gpd, multiCabalFiles, singleCabalFile)
+
+import Tricorder.Session.Target qualified as Target
 
 
 test_WatchDirs :: TestTree
@@ -161,4 +163,4 @@ testSourceDirsForTarget =
 
 
 mkTargets :: [Text] -> [Target]
-mkTargets = fmap parseTarget
+mkTargets = fmap Target.parse
