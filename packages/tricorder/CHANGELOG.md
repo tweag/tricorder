@@ -13,10 +13,16 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `session.build`, `session.test`, and `session.eval` config sections, each
   independently configuring the command used to build the project, run test
   suites, and evaluate eval comments. See
-  [Configuring Tricorder](/docs/configuring-tricorder.md) for a complete,
+  [Configuring Tricorder] for a complete,
   up-to-date description of these options.
 - `tricorder daemon info` subcommand showing daemon info. This information was
   moved from `tricorder ui`.
+- Tricorder now supports running tests with regular `cabal test` or
+  `stack test`. Tricorder will automatically detect whether the tests are ran
+  in GHCi or through a regular `cabal/stack test` by inspecting the configured
+  `session.test.command_template`. You can force the output mode to use by
+  setting `session.test.output_mode`. See [Configuring Tricorder] for more
+  information.
 
 ### Changed
 
@@ -257,3 +263,4 @@ ghci` is not compatible with the form `kind:name` (but `cabal repl` is), but
   (fixes ghcid's crash-on-file-removal bug).
 
 [Features of Tricorder - Eval Comments]: ../docs/features-of-tricorder.md#eval-comments
+[Configuring Tricorder]: /docs/configuring-tricorder.md

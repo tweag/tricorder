@@ -40,15 +40,8 @@ import Tricorder.Daemon.Builder
     , NewLoadResult
     , compileBuildResults
     )
-import Tricorder.Daemon.Dispatch
-    ( BuilderState (..)
-    , DispatchAction
-    , emptyBuilderState
-    )
-import Tricorder.Daemon.EvalCommentRunner
-    ( EvalCommentRunner
-    , findEvalCommentsInModules
-    )
+import Tricorder.Daemon.Dispatch (BuilderState (..), DispatchAction, emptyBuilderState)
+import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
 import Tricorder.Daemon.GhciSession (GhciSession)
 import Tricorder.Daemon.GhciSession.GhciParser
     ( LoadResult
@@ -64,6 +57,7 @@ import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
@@ -446,7 +440,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
             $ "Test suite "
                 <> renderTestTarget target
                 <> " command:\n"
-                <> show testCommand
+                <> show testCommand.command
         finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->

@@ -10,7 +10,11 @@ import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
-import Tricorder.Session.Stage.Test.Command (render)
+import Tricorder.Session.Stage.Test.Command
+    ( RenderedTestCommand (..)
+    , render
+    )
+import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..), resolve)
 import Tricorder.Session.Target (parseTarget)
 import Tricorder.Session.TestTarget (TestTarget (..))
@@ -57,7 +61,7 @@ testRenderTest =
   where
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
-        (render (TestSession template []) mMemoryLimit target).getRenderedCommand
+        (render (TestSession template [] def) mMemoryLimit target).command.getRenderedCommand
     testTarget = TestTarget (parseTarget "test:foo")
     oneByte = ByteSize 1 B
 
@@ -75,21 +79,27 @@ testResolveTestSession =
                     def
                         { test =
                             def
-                                { CommandConfig.commandTemplate = Just "cabal repl --repl-options=-fno-code {target}"
+                                { commandConfig =
+                                    def
+                                        { CommandConfig.commandTemplate = Just "cabal repl --repl-options=-fno-code {target}"
+                                        }
                                 }
                         }
             (resolve Cabal [] cfg).commandTemplate.template
                 @?= "cabal repl --repl-options=-fno-code {target}"
         , testCase "carries test.extra_auto_arguments when test.command_template is unset" do
-            let cfg = def {test = def {extraAutoArguments = ["--flag"]}}
+            let cfg = def {test = def {commandConfig = def {extraAutoArguments = ["--flag"]}}}
             (resolve Cabal [] cfg).commandTemplate.arguments @?= ["--flag"]
         , testCase "ignores test.extra_auto_arguments when test.command_template is set" do
             let cfg =
                     def
                         { test =
                             def
-                                { commandTemplate = Just "cabal repl {target}"
-                                , extraAutoArguments = ["--flag"]
+                                { commandConfig =
+                                    def
+                                        { commandTemplate = Just "cabal repl {target}"
+                                        , extraAutoArguments = ["--flag"]
+                                        }
                                 }
                         }
             (resolve Cabal [] cfg).commandTemplate.arguments @?= []

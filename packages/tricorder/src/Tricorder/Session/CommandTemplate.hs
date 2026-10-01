@@ -64,7 +64,7 @@ instance Default (CommandTemplate 'Eval) where
 -- then append 'arguments'. Not exported — each phase renders differently (a
 -- memory-limit flag for test), so use 'renderBuild'\/'renderTest'\/'renderEval'
 -- instead, which return the phase-tagged
--- 'Tricorder.Session.Command.ResolvedCommand.ResolvedCommand'.
+-- 'Tricorder.Session.Command.RenderedCommand.RenderedCommand'.
 renderText :: CommandTemplate stage -> [Target] -> Text
 renderText commandTemplate targets =
     T.unwords $ substituted <> commandTemplate.arguments
