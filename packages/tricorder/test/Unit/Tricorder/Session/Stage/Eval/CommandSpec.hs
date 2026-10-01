@@ -4,7 +4,7 @@ import Data.Default (def)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -33,7 +33,7 @@ testRenderEval =
             @?= "cabal repl {targets}"
     ]
   where
-    eval template targets = (render template targets).getResolvedCommand
+    eval template targets = (render template targets).getRenderedCommand
 
 
 testResolveEvalCommand :: [TestTree]

@@ -10,7 +10,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetsPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -67,7 +67,7 @@ testRenderBuild =
             @?= "cabal repl {target}"
     ]
   where
-    build template targets = (render template targets).getResolvedCommand
+    build template targets = (render template targets).getRenderedCommand
 
 
 testResolveBuildCommand :: [TestTree]
@@ -162,7 +162,7 @@ testResolveBuildCommand =
 -- then 'renderBuild' the two together).
 renderBuildFor :: [(FilePath, ByteString)] -> Config -> [Target] -> Text
 renderBuildFor files cfg targets =
-    (uncurry render $ withFiles files $ resolveBuild cfg targets).getResolvedCommand
+    (uncurry render $ withFiles files $ resolveBuild cfg targets).getRenderedCommand
 
 
 -- | Run a 'FileSystem'-using computation against a faked in-memory

@@ -5,7 +5,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Build.ByteSize (ByteSize (..), Unit (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -57,7 +57,7 @@ testRenderTest =
   where
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
-        (render (TestSession template []) mMemoryLimit target).getResolvedCommand
+        (render (TestSession template []) mMemoryLimit target).getRenderedCommand
     testTarget = TestTarget (parseTarget "test:foo")
     oneByte = ByteSize 1 B
 

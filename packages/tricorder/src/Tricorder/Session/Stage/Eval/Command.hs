@@ -4,7 +4,7 @@ module Tricorder.Session.Stage.Eval.Command
     )
 where
 
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -16,8 +16,8 @@ import Tricorder.Session.Target (Target)
 
 -- | Render the @eval@ command for a single source file's short-lived
 -- session: the module being evaluated is substituted as the one target.
-render :: CommandTemplate 'Eval -> [Target] -> ResolvedCommand 'Eval
-render commandTemplate targets = ResolvedCommand $ renderText commandTemplate targets
+render :: CommandTemplate 'Eval -> [Target] -> RenderedCommand 'Eval
+render commandTemplate targets = RenderedCommand $ renderText commandTemplate targets
 
 
 resolve :: Repl -> Config -> CommandTemplate 'Eval

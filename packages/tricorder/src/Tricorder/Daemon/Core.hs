@@ -60,7 +60,6 @@ import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.Repl (Repl)
@@ -447,7 +446,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
             $ "Test suite "
                 <> renderTestTarget target
                 <> " command:\n"
-                <> testCommand.getResolvedCommand
+                <> show testCommand
         finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->

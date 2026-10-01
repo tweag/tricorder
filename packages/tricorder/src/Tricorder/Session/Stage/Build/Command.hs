@@ -11,7 +11,7 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.List qualified as List
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetsPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -22,8 +22,8 @@ import Tricorder.Session.Target (Target (..))
 
 -- | Render the @build@ command: every target goes into the one invocation
 -- that covers all of them.
-render :: CommandTemplate 'Build -> [Target] -> ResolvedCommand 'Build
-render commandTemplate targets = ResolvedCommand $ renderText commandTemplate targets
+render :: CommandTemplate 'Build -> [Target] -> RenderedCommand 'Build
+render commandTemplate targets = RenderedCommand $ renderText commandTemplate targets
 
 
 resolve

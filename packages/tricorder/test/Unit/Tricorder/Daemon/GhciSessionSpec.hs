@@ -20,7 +20,7 @@ import Tricorder.Daemon.GhciSession
     , withGhci
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 
 
@@ -98,8 +98,8 @@ testScripted =
 -- Helpers
 --------------------------------------------------------------------------------
 
-cmd :: ResolvedCommand 'Build
-cmd = ResolvedCommand "cabal repl lib:foo"
+cmd :: RenderedCommand 'Build
+cmd = RenderedCommand "cabal repl lib:foo"
 
 
 boom :: ErrorCall

@@ -43,7 +43,7 @@ import Tricorder.Daemon.GhciSession.GhciProcess
     , withGhciProcess
     )
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Test.Command (ResolvedTestCommand)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
@@ -98,7 +98,7 @@ runTestSuiteWithGHCi
        )
     => (GhciLoading -> Eff es ())
     -> TestTimeout
-    -> ResolvedCommand 'Test
+    -> RenderedCommand 'Test
     -> Eff es Test.Suite
 runTestSuiteWithGHCi onProgress testTimeout cmd = do
     ProjectRoot projectRoot <- ask

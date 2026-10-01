@@ -74,7 +74,7 @@ library tricorder-internal
       Tricorder.Runtime
       Tricorder.Session
       Tricorder.Session.CabalFile
-      Tricorder.Session.Command.ResolvedCommand
+      Tricorder.Session.Command.RenderedCommand
       Tricorder.Session.CommandConfig
       Tricorder.Session.CommandTemplate
       Tricorder.Session.Config
