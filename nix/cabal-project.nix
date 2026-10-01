@@ -28,10 +28,6 @@ let
     pkgs.haskell-nix.cabalProject' {
       inherit compiler-nix-name;
       src = ../.;
-      cabalProjectLocal = ''
-        allow-newer: 
-          config-ini:containers
-      '';
 
       # Package-specific configuration
       modules = [
