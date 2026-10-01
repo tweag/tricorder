@@ -1,6 +1,7 @@
 module Unit.Tricorder.Daemon.TestRunnerSpec (test_TestRunner) where
 
 import Control.Exception (ErrorCall (..))
+import Data.Default (def)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Exception (try)
@@ -14,10 +15,12 @@ import Tricorder.Daemon.TestRunner
     , runTestSuite
     )
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
+import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.TestRunner qualified as TestRunner
+import Tricorder.Session.Stage qualified as Stage
 
 
 test_TestRunner :: TestTree
@@ -105,6 +108,7 @@ testScripted =
         result <-
             runScripted [Right passingRun]
                 $ runTestSuite noProgress testTimeout
+                $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:foo"
         result @?= passingRun
@@ -112,6 +116,7 @@ testScripted =
         result <-
             runScripted [Right failingRun]
                 $ runTestSuite noProgress testTimeout
+                $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:anything"
         result @?= failingRun
@@ -120,6 +125,7 @@ testScripted =
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
                 $ runTestSuite noProgress testTimeout
+                $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:foo"
         result @?= Left boom
@@ -129,10 +135,12 @@ testScripted =
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
                 a <-
                     runTestSuite noProgress testTimeout
+                        $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:foo"
                 b <-
                     runTestSuite noProgress testTimeout
+                        $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:bar"
                 pure (a, b)
@@ -143,10 +151,12 @@ testScripted =
                 r1 <-
                     try @ErrorCall
                         $ runTestSuite noProgress testTimeout
+                        $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:foo"
                 r2 <-
                     runTestSuite noProgress testTimeout
+                        $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:bar"
                 pure (r1, r2)
@@ -188,6 +198,10 @@ failingRun =
 
 runScripted :: [Either SomeException Test.Suite] -> Eff '[TestRunner, Concurrent, IOE] a -> IO a
 runScripted results = runEff . runConcurrent . TestRunner.runScripted results
+
+
+mkResolved :: RenderedCommand 'Stage.Test -> RenderedTestCommand
+mkResolved cmd = RenderedTestCommand cmd def
 
 
 testTimeout :: TestTimeout

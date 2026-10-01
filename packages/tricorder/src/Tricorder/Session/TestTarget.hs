@@ -11,6 +11,7 @@ import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.Config (Config (..))
+import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..), parseTarget, renderTarget)
 
 
@@ -48,6 +49,6 @@ projectTestTargets = mapMaybe mkTestTarget
 -- ever names test suites [ref:test_targets_invariant]. With neither source
 -- set, falls back to deriving test targets from the build 'targets'.
 resolveTestTargets :: Config -> [Target] -> [TestTarget]
-resolveTestTargets cfg targets = case cfg.test.targets <|> cfg.testTargets of
+resolveTestTargets cfg targets = case cfg.test.commandConfig.targets <|> cfg.testTargets of
     Just explicit -> parseTestTargets explicit
     Nothing -> projectTestTargets targets

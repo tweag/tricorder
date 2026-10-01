@@ -23,6 +23,7 @@ session:
     command_template: "cabal repl {target}"
     targets: [test:foo]
     extra_auto_arguments: []
+    output_mode: ReplMode
   eval:
     command_template: "cabal repl {target}"
     extra_auto_arguments: []
@@ -104,6 +105,11 @@ session:
     neither `test.targets` nor `test_targets` is set.
   - `test_targets`: Equivalent to `test.targets`. Ignored if `test.targets`
     is set.
+
+- `test.output_mode`: Force Tricorder to treat the command in
+  `command_template` as either a GHCi instance with `ReplMode` or as a regular
+  command emitting the test results to `stdout` with `StdoutMode`. Defaults to
+  `ReplMode`.
 
 - `watch_dirs`: Directories to watch. When a file is changed in a watched
   directory, Tricorder will attempt to rebuild all targets. If not specified,

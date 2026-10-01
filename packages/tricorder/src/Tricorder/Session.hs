@@ -35,6 +35,7 @@ import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Tricorder.Session.Repl (resolveRepl)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.Target (definesCustomPrelude)
 import Tricorder.Session.TestTarget (getTestTarget)
@@ -145,7 +146,7 @@ loadSession = do
             \not define its own Prelude, or set an explicit command in your \
             \tricorder configuration."
 
-    warnMissingTargetPlaceholder "test" cfgFile.test.commandTemplate
+    warnMissingTargetPlaceholder "test" cfgFile.test.commandConfig.commandTemplate
     warnMissingTargetPlaceholder "eval" cfgFile.eval.commandTemplate
 
     warnIgnoredextraAutoArguments
@@ -154,8 +155,8 @@ loadSession = do
         cfgFile.build.extraAutoArguments
     warnIgnoredextraAutoArguments
         "test"
-        cfgFile.test.commandTemplate
-        cfgFile.test.extraAutoArguments
+        cfgFile.test.commandConfig.commandTemplate
+        cfgFile.test.commandConfig.extraAutoArguments
     warnIgnoredextraAutoArguments "eval" cfgFile.eval.commandTemplate cfgFile.eval.extraAutoArguments
 
     pure

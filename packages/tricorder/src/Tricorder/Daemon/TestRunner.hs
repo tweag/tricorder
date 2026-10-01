@@ -19,23 +19,41 @@ where
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Process (Process)
+import Atelier.Effects.Process
+    ( Process
+    , createPipe
+    , getStderr
+    , getStdin
+    , getStdout
+    , setStderr
+    , setStdin
+    , setStdout
+    , setWorkingDir
+    , shell
+    )
 import Atelier.Effects.Timeout (Timeout, timeout)
+import Control.Concurrent.STM (modifyTVar')
 import Control.Exception (throwIO)
 import Data.Default (def)
+import Data.Sequence ((|>))
 import Data.Time.Units (Second)
 import Effectful (Effect, IOE, Limit (..), Persistence (..), UnliftStrategy (ConcUnlift))
 import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent.STM (atomically, newTVarIO, readTVarIO)
 import Effectful.Dispatch.Dynamic (interpretWith, localUnlift, reinterpret_)
 import Effectful.Exception (trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, evalState, get, put)
 import Effectful.TH (makeEffect)
+import System.Exit (ExitCode (..))
 
+import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.File qualified as File
+import Atelier.Effects.Process qualified as Process
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..))
+import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..), parseProgressLine)
 import Tricorder.Daemon.GhciSession.GhciProcess
     ( GhciProcessError (..)
     , UnexpectedExit (..)
@@ -45,7 +63,9 @@ import Tricorder.Daemon.GhciSession.GhciProcess
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
-import Tricorder.Session.Stage.Test.Command (ResolvedTestCommand)
+import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
+import Tricorder.Session.Stage.Test.Config (OutputMode (..))
+import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
@@ -59,7 +79,7 @@ data TestRunner :: Effect where
         :: (Test.Suite -> m ())
         -- ^ Handler for test run progress
         -> TestTimeout
-        -> ResolvedTestCommand
+        -> RenderedTestCommand
         -> TestRunner m Test.Suite
 
 
@@ -84,7 +104,83 @@ run act = do
         RunTestSuite progressHandler testTimeout cmd ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
-                runTestSuiteWithGHCi onProgress testTimeout cmd
+                case cmd.options.outputMode of
+                    ReplOutput -> runTestSuiteWithGHCi onProgress testTimeout cmd.command
+                    StdoutOutput -> runTestSuiteWithStdout onProgress testTimeout cmd.command
+
+
+runTestSuiteWithStdout
+    :: ( Conc :> es
+       , Concurrent :> es
+       , File :> es
+       , Process :> es
+       , Reader ProjectRoot :> es
+       , Timeout :> es
+       )
+    => (GhciLoading -> Eff es ())
+    -> TestTimeout
+    -> RenderedCommand 'Test
+    -> Eff es Test.Suite
+runTestSuiteWithStdout onProgress testTimeout cmd = do
+    ProjectRoot projectRoot <- ask
+    -- Lines from both streams, in the order they arrived.
+    outputVar <- newTVarIO (mempty :: Seq Text)
+    let processConfig =
+            setStdin createPipe
+                $ setStdout createPipe
+                $ setStderr createPipe
+                $ setWorkingDir projectRoot
+                $ shell
+                $ toString cmd.getRenderedCommand
+
+        drain h =
+            unlessM (File.hIsEOF h) do
+                line <- File.hGetLine h
+                atomically $ modifyTVar' outputVar (|> line)
+                traverse_ onProgress (parseProgressLine line)
+                drain h
+
+        runToCompletion p = do
+            -- The suite gets no input; close stdin so it sees EOF if it reads.
+            File.hClose (getStdin p)
+            Conc.scoped do
+                stdoutThread <- Conc.fork $ drain (getStdout p)
+                stderrThread <- Conc.fork $ drain (getStderr p)
+                Conc.await stdoutThread
+                Conc.await stderrThread
+            Process.waitExitCode p
+
+    result <- trySync
+        $ Process.withProcessGroup processConfig \p ->
+            case testTimeout of
+                TestTimeout secs | secs <= 0 -> Right <$> runToCompletion p
+                TestTimeout secs ->
+                    let duration = fromIntegral secs :: Second
+                    in  maybeToRight secs <$> timeout duration (runToCompletion p)
+    output <- T.unlines . toList <$> readTVarIO outputVar
+    let completed passed =
+            Test.SuiteCompleted
+                $ Test.SuiteCompletion
+                    { passed
+                    , output
+                    , testCases = parseHspecOutput output
+                    , duration = parseHspecDuration output
+                    }
+    pure $ case result of
+        Left ex ->
+            Test.SuiteErrored
+                $ Test.SuiteError
+                    { message = "Test suite failed to run:\n" <> show ex
+                    }
+        Right (Left secs) ->
+            Test.SuiteErrored
+                $ Test.SuiteError
+                    { message = "Test suite timed out after " <> show secs <> "s"
+                    }
+        Right (Right ExitSuccess) -> completed True
+        Right (Right (ExitFailure _)) -> case detectOutcome output of
+            GhciCrashed msg -> Test.SuiteErrored $ Test.SuiteError {message = msg}
+            _ -> completed False
 
 
 runTestSuiteWithGHCi
