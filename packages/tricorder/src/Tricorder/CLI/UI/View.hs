@@ -44,7 +44,7 @@ import Tricorder.CLI.UI.State
     , Viewports (..)
     , currentRoute
     )
-import Tricorder.Session.TestTarget (TestTarget, renderTestTarget)
+import Tricorder.Session.TestTarget (TestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
@@ -52,6 +52,7 @@ import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.CLI.UI.Route qualified as Route
+import Tricorder.Session.TestTarget qualified as TestTarget
 
 
 mkAttrMap :: State -> AttrMap
@@ -245,7 +246,7 @@ viewPendingTestTargets [] = emptyWidget
 viewPendingTestTargets tgts =
     vBox
         . ([txt "Pending test suites:"] <>)
-        . fmap (subtle . txt . renderTestTarget)
+        . fmap (subtle . txt . TestTarget.render)
         $ tgts
 
 
@@ -329,7 +330,7 @@ viewTestRuns suites = vBox $ uncurry viewTestRun <$> Map.toList suites.getSuites
 
 viewTestRun :: TestTarget -> Test.Suite -> Widget n
 viewTestRun tgt run =
-    hBox $ [txt $ renderTestTarget tgt, txt "  "] <> status
+    hBox $ [txt $ TestTarget.render tgt, txt "  "] <> status
   where
     status = case run of
         Test.SuiteRunning Nothing ->
@@ -466,7 +467,7 @@ viewTestRunDetail tvf tgt = \case
             , viewTestOutput tvf c
             ]
   where
-    t = renderTestTarget tgt
+    t = TestTarget.render tgt
 
 
 viewTestOutput :: TestFilter -> Test.SuiteCompletion -> Widget n

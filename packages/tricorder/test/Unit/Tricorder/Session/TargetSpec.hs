@@ -3,16 +3,17 @@ module Unit.Tricorder.Session.TargetSpec (test_Target) where
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
+import Prelude hiding (compare)
 
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Target
     ( ComponentKind (..)
     , Target (..)
     , allComponentTargets
-    , compareTargets
+    , compare
     , definesCustomPrelude
-    , parseTarget
-    , resolveTargets
+    , parse
+    , resolve
     )
 import Unit.Tricorder.Session.Helpers
     ( gpd
@@ -27,9 +28,9 @@ test_Target :: TestTree
 test_Target =
     testGroup
         "Target"
-        [ testGroup "resolveTargets" testResolveTargets
-        , testGroup "parseTarget" testParseTarget
-        , testGroup "compareTargets" testCompareTargets
+        [ testGroup "resolve" testResolveTargets
+        , testGroup "parse" testParseTarget
+        , testGroup "compare" testCompareTargets
         , testGroup "allComponentTargets" testAllComponentTargets
         , testGroup "definesCustomPrelude" testDefinesCustomPrelude
         ]
@@ -40,29 +41,29 @@ testParseTarget =
     [ testGroup
         "qualified targets"
         [ testCase "parses lib: as the main library (empty name)" do
-            parseTarget "lib:" @?= Qualified Lib ""
+            parse "lib:" @?= Qualified Lib ""
         , testCase "parses a named lib: target" do
-            parseTarget "lib:myapp-utils" @?= Qualified Lib "myapp-utils"
+            parse "lib:myapp-utils" @?= Qualified Lib "myapp-utils"
         , testCase "parses an flib: target" do
-            parseTarget "flib:myapp-flib" @?= Qualified FLib "myapp-flib"
+            parse "flib:myapp-flib" @?= Qualified FLib "myapp-flib"
         , testCase "parses an exe: target" do
-            parseTarget "exe:myapp-exe" @?= Qualified Exe "myapp-exe"
+            parse "exe:myapp-exe" @?= Qualified Exe "myapp-exe"
         , testCase "parses a test: target" do
-            parseTarget "test:myapp-test" @?= Qualified Test "myapp-test"
+            parse "test:myapp-test" @?= Qualified Test "myapp-test"
         , testCase "parses a bench: target" do
-            parseTarget "bench:myapp-bench" @?= Qualified Bench "myapp-bench"
+            parse "bench:myapp-bench" @?= Qualified Bench "myapp-bench"
         ]
     , testGroup
         "a name with no kind prefix"
         [ testCase "parses as bare" do
-            parseTarget "myapp" @?= Bare "myapp"
+            parse "myapp" @?= Bare "myapp"
         ]
     , testGroup
         "unrecognized targets"
         [ testCase "rejects an unknown kind" do
-            parseTarget "bogus:myapp" @?= Unrecognized "bogus:myapp"
+            parse "bogus:myapp" @?= Unrecognized "bogus:myapp"
         , testCase "rejects a form with extra colons" do
-            parseTarget "lib:a:b" @?= Unrecognized "lib:a:b"
+            parse "lib:a:b" @?= Unrecognized "lib:a:b"
         ]
     ]
 
@@ -72,7 +73,7 @@ testResolveTargets =
     [ testGroup
         "when targets are configured"
         [ testCase "parses and sorts configured targets" do
-            let actual = resolveTargets [] ["lib:foo", "test:foo-test"]
+            let actual = resolve [] ["lib:foo", "test:foo-test"]
             actual @?= [Qualified Lib "foo", Qualified Test "foo-test"]
         ]
     , testGroup
@@ -80,7 +81,7 @@ testResolveTargets =
         [ testCase "auto-detects all components from the cabal file" do
             -- cabalFixture exposes no Prelude module, so all components sort
             -- alphabetically by their rendered form.
-            let actual = resolveTargets singleCabalFile []
+            let actual = resolve singleCabalFile []
             actual
                 @?= [ PackageQualified "myapp" Bench "myapp-bench"
                     , PackageQualified "myapp" Exe "myapp-exe"
@@ -90,15 +91,15 @@ testResolveTargets =
                     , PackageQualified "myapp" Test "myapp-test"
                     ]
         , testCase "surfaces test-suite components so they can be run after a build" do
-            let actual = resolveTargets singleCabalFile []
+            let actual = resolve singleCabalFile []
             assertBool "expected myapp-test among the targets"
                 $ PackageQualified "myapp" Test "myapp-test" `elem` actual
         , testCase "returns no targets when there are no cabal files" do
-            let actual = resolveTargets [] []
+            let actual = resolve [] []
             actual @?= []
         , -- [tag: test_resolve_targest_aggregate]
           testCase "aggregates components across every package (regression: was 0)" do
-            let actual = resolveTargets multiCabalFiles []
+            let actual = resolve multiCabalFiles []
             actual
                 @?= [ PackageQualified "pkg-a" Lib "pkg-a"
                     , PackageQualified "pkg-a" Test "pkg-a-test"
@@ -110,7 +111,7 @@ testResolveTargets =
                     CabalFile "/myprelude.cabal"
                         $ fromMaybe (error "libWithPreludeCabal failed to parse")
                         $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
-            let actual = resolveTargets [cabalFile] []
+            let actual = resolve [cabalFile] []
             actual
                 @?= [ PackageQualified "myprelude" Exe "myprelude-exe"
                     , PackageQualified "myprelude" Lib "myprelude"
@@ -131,17 +132,17 @@ testCompareTargets =
             [ testGroup
                 "first target's render normally sorts as LT"
                 [ testCase "should return GT" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "b") @?= GT
+                    compare defPred (Qualified Lib "a") (Qualified Exe "b") @?= GT
                 ]
             , testGroup
                 "both targets have the same render"
                 [ testCase "should return GT" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Exe "a") @?= GT
+                    compare defPred (Qualified Lib "a") (Qualified Exe "a") @?= GT
                 ]
             , testGroup
                 "first target's render normally sorts as GT"
                 [ testCase "should return GT" do
-                    compareTargets defPred (Qualified Lib "b") (Qualified Exe "a") @?= GT
+                    compare defPred (Qualified Lib "b") (Qualified Exe "a") @?= GT
                 ]
             ]
         , testGroup
@@ -149,17 +150,17 @@ testCompareTargets =
             [ testGroup
                 "first target's render normally sorts as LT"
                 [ testCase "should return LT" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "b") @?= LT
+                    compare defPred (Qualified Exe "a") (Qualified Lib "b") @?= LT
                 ]
             , testGroup
                 "both targets have the same render"
                 [ testCase "should return LT" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Lib "a") @?= LT
+                    compare defPred (Qualified Exe "a") (Qualified Lib "a") @?= LT
                 ]
             , testGroup
                 "first target's render normally sorts as GT"
                 [ testCase "should return LT" do
-                    compareTargets defPred (Qualified Exe "b") (Qualified Lib "a") @?= LT
+                    compare defPred (Qualified Exe "b") (Qualified Lib "a") @?= LT
                 ]
             ]
         , testGroup
@@ -167,17 +168,17 @@ testCompareTargets =
             [ testGroup
                 "first target's render normally sorts as LT"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "b") @?= LT
+                    compare defPred (Qualified Lib "a") (Qualified Lib "b") @?= LT
                 ]
             , testGroup
                 "both targets have the same render"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Lib "a") (Qualified Lib "a") @?= EQ
+                    compare defPred (Qualified Lib "a") (Qualified Lib "a") @?= EQ
                 ]
             , testGroup
                 "first target's render normally sorts as GT"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Lib "b") (Qualified Lib "a") @?= GT
+                    compare defPred (Qualified Lib "b") (Qualified Lib "a") @?= GT
                 ]
             ]
         , testGroup
@@ -185,17 +186,17 @@ testCompareTargets =
             [ testGroup
                 "first target's render normally sorts as LT"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "b") @?= LT
+                    compare defPred (Qualified Exe "a") (Qualified Exe "b") @?= LT
                 ]
             , testGroup
                 "both targets have the same render"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Exe "a") (Qualified Exe "a") @?= EQ
+                    compare defPred (Qualified Exe "a") (Qualified Exe "a") @?= EQ
                 ]
             , testGroup
                 "first target's render normally sorts as GT"
                 [ testCase "should sort normally" do
-                    compareTargets defPred (Qualified Exe "b") (Qualified Exe "a") @?= GT
+                    compare defPred (Qualified Exe "b") (Qualified Exe "a") @?= GT
                 ]
             ]
         ]

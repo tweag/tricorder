@@ -19,7 +19,7 @@ import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage.Test.Config (Options (..), OutputMode (..), TestConfig (..))
 import Tricorder.Session.Target (Target)
-import Tricorder.Session.TestTarget (TestTarget (..), resolveTestTargets)
+import Tricorder.Session.TestTarget (TestTarget (..))
 import Tricorder.Session.Util (indent, showList)
 
 import Tricorder.Session.CommandTemplate qualified as CommandTemplate
@@ -68,7 +68,7 @@ resolve repl buildTargets cfg =
                         cfg.test.commandConfig.commandTemplate
                 , placeholder = targetPlaceholder
                 }
-        , targets = resolveTestTargets cfg buildTargets
+        , targets = TestTarget.resolve cfg buildTargets
         , options =
             ResolvedTestOptions
                 { outputMode = fromMaybe detectedOutputMode cfg.test.options.outputMode
@@ -99,7 +99,7 @@ show cfg =
         [ "Command template:"
         , indent $ CommandTemplate.show cfg.commandTemplate
         , "Test targets:"
-        , indent $ showList TestTarget.renderTestTarget cfg.targets
+        , indent $ showList TestTarget.render cfg.targets
         , "Options:"
         , indent $ showTestOptions cfg.options
         ]

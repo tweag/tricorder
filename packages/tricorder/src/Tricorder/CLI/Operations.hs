@@ -46,7 +46,6 @@ import Tricorder.CLI.Render
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.Repl (Repl)
-import Tricorder.Session.TestTarget (renderTestTarget)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup (ModuleSourceResult, lookupModuleSource)
@@ -61,6 +60,7 @@ import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
 import Tricorder.Session.Target qualified as Target
+import Tricorder.Session.TestTarget qualified as TestTarget
 
 
 -- | Print a build-command failure message and exit non-zero.
@@ -150,7 +150,7 @@ showStatus opts = do
                 mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (T.lines c.output))
             _ -> pure ()
       where
-        t = renderTestTarget tgt
+        t = TestTarget.render tgt
 
     buildHasErrors r = any ((== SError) . (.severity)) r.diagnostics
     buildSummary tz r =
@@ -219,7 +219,7 @@ showTests opts = do
         | Map.null suites = Console.putStrLn "No test results."
         | Map.null filteredSuites = do
             Console.putStrLn "All passed."
-            mapM_ (Console.putTextLn . ("  " <>) . renderTestTarget) $ Map.keys suites
+            mapM_ (Console.putTextLn . ("  " <>) . TestTarget.render) $ Map.keys suites
         | otherwise = do
             mapM_ (uncurry printTestOutput) $ Map.toList filteredSuites
             when (any Test.isFailedRun filteredSuites) exitFailure
@@ -251,7 +251,7 @@ showTests opts = do
                 else
                     mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
       where
-        t = renderTestTarget tgt <> "  "
+        t = TestTarget.render tgt <> "  "
 
     printFailedCase tc = do
         Console.putTextLn $ "  " <> tc.description
@@ -304,7 +304,7 @@ showDaemonInfo format daemonInfo = case format of
     text = do
         Console.putTextLn "Targets:"
         for_ daemonInfo.targets \target ->
-            Console.putTextLn $ "- " <> Target.renderTarget target
+            Console.putTextLn $ "- " <> Target.render target
         Console.putTextLn "Watch directories:"
         for_ daemonInfo.watchDirs \dir ->
             Console.putTextLn $ "- " <> toText dir

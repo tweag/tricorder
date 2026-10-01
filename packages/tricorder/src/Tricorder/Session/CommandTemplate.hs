@@ -84,9 +84,9 @@ renderText commandTemplate targets =
 renderTargetsFor :: Repl -> [Target] -> [Text]
 renderTargetsFor = \case
     Stack -> List.nub . fmap Target.componentName
-    StackMulti -> List.nub . fmap Target.renderTarget
-    Cabal -> fmap Target.renderTarget
-    Unknown -> fmap Target.renderTarget
+    StackMulti -> List.nub . fmap Target.render
+    Cabal -> fmap Target.render
+    Unknown -> fmap Target.render
 
 
 -- | Substitute every unescaped @{<placeholderName>}@ in a template with the

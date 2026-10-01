@@ -17,9 +17,10 @@ import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..), resolveRepl)
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Build.Command (render, resolve)
-import Tricorder.Session.Target (Target, parseTarget)
+import Tricorder.Session.Target (Target)
 
 import Tricorder.Session.Config qualified as Config
+import Tricorder.Session.Target qualified as Target
 
 
 test_Command :: TestTree
@@ -34,25 +35,25 @@ test_Command =
 testRenderBuild :: [TestTree]
 testRenderBuild =
     [ testCase "substitutes {targets} with the rendered target list" do
-        build (CommandTemplate Cabal "cabal repl {targets}" [] targetsPlaceholder) [parseTarget "lib:foo"]
+        build (CommandTemplate Cabal "cabal repl {targets}" [] targetsPlaceholder) [Target.parse "lib:foo"]
             @?= "cabal repl lib:foo"
     , testCase "substitutes every occurrence of {targets}" do
         build
             (CommandTemplate Cabal "echo {targets} && cabal repl {targets}" [] targetsPlaceholder)
-            [parseTarget "lib:foo"]
+            [Target.parse "lib:foo"]
             @?= "echo lib:foo && cabal repl lib:foo"
     , testCase "leaves a template with no placeholder untouched, but still appends arguments" do
         build
             (CommandTemplate Cabal "my-wrapper --repl" ["--flag"] targetsPlaceholder)
-            [parseTarget "lib:foo"]
+            [Target.parse "lib:foo"]
             @?= "my-wrapper --repl --flag"
     , testCase "renders \\{targets} as a literal {targets}, without substitution" do
-        build (CommandTemplate Cabal "echo \\{targets}" [] targetsPlaceholder) [parseTarget "lib:foo"]
+        build (CommandTemplate Cabal "echo \\{targets}" [] targetsPlaceholder) [Target.parse "lib:foo"]
             @?= "echo {targets}"
     , testCase "substitutes an unescaped {targets} while leaving an escaped one literal" do
         build
             (CommandTemplate Cabal "echo \\{targets} && cabal repl {targets}" [] targetsPlaceholder)
-            [parseTarget "lib:foo"]
+            [Target.parse "lib:foo"]
             @?= "echo {targets} && cabal repl lib:foo"
     , testCase "substitutes {targets} with nothing when the target list is empty" do
         build (CommandTemplate Cabal "cabal repl {targets}" [] targetsPlaceholder) []
@@ -60,10 +61,10 @@ testRenderBuild =
     , testCase "appends arguments after the rendered template" do
         build
             (CommandTemplate Cabal "cabal repl {targets}" ["--flag", "value"] targetsPlaceholder)
-            [parseTarget "lib:foo"]
+            [Target.parse "lib:foo"]
             @?= "cabal repl lib:foo --flag value"
     , testCase "does not substitute {target} (singular) when the command uses targetsPlaceholder" do
-        build (CommandTemplate Cabal "cabal repl {target}" [] targetsPlaceholder) [parseTarget "lib:foo"]
+        build (CommandTemplate Cabal "cabal repl {target}" [] targetsPlaceholder) [Target.parse "lib:foo"]
             @?= "cabal repl {target}"
     ]
   where
@@ -85,13 +86,13 @@ testResolveBuildCommand =
                         { command = Just "should be ignored"
                         , build = cfg0.build {commandTemplate = Just "cabal repl {targets}"}
                         }
-            renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"])
+            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl lib:foo"
         ]
     , testGroup
         "explicit targets"
         [ testCase "spell them out verbatim" do
-            renderBuildFor [("/cabal.project", "")] cfg0 (parseTarget <$> ["lib:foo"])
+            renderBuildFor [("/cabal.project", "")] cfg0 (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo"
         ]
     , testGroup
@@ -131,7 +132,7 @@ testResolveBuildCommand =
         "build.extra_auto_arguments"
         [ testCase "is appended after the rendered automatically resolved template" do
             let cfg = cfg0 {build = cfg0.build {extraAutoArguments = ["--extra-flag"]}}
-            renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"])
+            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo --extra-flag"
         , testCase "is ignored when build.command_template is set" do
             let cfg =
@@ -142,7 +143,7 @@ testResolveBuildCommand =
                                 , extraAutoArguments = ["--extra-flag"]
                                 }
                         }
-            renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"])
+            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl lib:foo"
         , testCase "is ignored when the deprecated top-level command is set" do
             let cfg =
@@ -150,7 +151,7 @@ testResolveBuildCommand =
                         { command = Just "cabal repl {targets}"
                         , build = cfg0.build {extraAutoArguments = ["--extra-flag"]}
                         }
-            renderBuildFor [("/cabal.project", "")] cfg (parseTarget <$> ["lib:foo"])
+            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl lib:foo"
         ]
     ]

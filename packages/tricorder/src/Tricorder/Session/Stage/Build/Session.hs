@@ -19,7 +19,7 @@ import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl)
-import Tricorder.Session.Target (Target, resolveTargets)
+import Tricorder.Session.Target (Target)
 import Tricorder.Session.Util (indent, showList)
 
 import Tricorder.Session.CommandTemplate qualified as CommandTemplate
@@ -52,7 +52,7 @@ resolve config repl projectFiles = do
             }
   where
     rawBuildTargets = fromMaybe config.targets config.build.targets
-    effectiveTargets = resolveTargets projectFiles rawBuildTargets
+    effectiveTargets = Target.resolve projectFiles rawBuildTargets
 
 
 show :: BuildSession -> Text
@@ -62,5 +62,5 @@ show cfg =
         [ "Command template:"
         , indent $ CommandTemplate.show cfg.commandTemplate
         , "Targets:"
-        , indent $ showList Target.renderTarget cfg.targets
+        , indent $ showList Target.render cfg.targets
         ]

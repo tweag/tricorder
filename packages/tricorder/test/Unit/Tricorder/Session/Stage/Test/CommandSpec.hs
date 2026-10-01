@@ -16,11 +16,11 @@ import Tricorder.Session.Stage.Test.Command
     )
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..), resolve)
-import Tricorder.Session.Target (parseTarget)
 import Tricorder.Session.TestTarget (TestTarget (..))
 
 import Tricorder.Session.CommandConfig qualified as CommandConfig
 import Tricorder.Session.Stage qualified as Stage
+import Tricorder.Session.Target qualified as Target
 
 
 test_Command :: TestTree
@@ -62,7 +62,7 @@ testRenderTest =
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
         (render (TestSession template [] def) mMemoryLimit target).command.getRenderedCommand
-    testTarget = TestTarget (parseTarget "test:foo")
+    testTarget = TestTarget (Target.parse "test:foo")
     oneByte = ByteSize 1 B
 
 

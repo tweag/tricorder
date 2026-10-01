@@ -1,9 +1,9 @@
 module Tricorder.Session.TestTarget
     ( TestTarget (..)
-    , renderTestTarget
-    , parseTestTargets
-    , resolveTestTargets
-    , projectTestTargets
+    , render
+    , parse
+    , resolve
+    , project
     )
 where
 
@@ -12,7 +12,9 @@ import Data.Aeson (FromJSON (..), FromJSONKey, ToJSON (..), ToJSONKey)
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
-import Tricorder.Session.Target (ComponentKind (..), Target (..), parseTarget, renderTarget)
+import Tricorder.Session.Target (ComponentKind (..), Target (..))
+
+import Tricorder.Session.Target qualified as Target
 
 
 newtype TestTarget = TestTarget {getTestTarget :: Target}
@@ -21,25 +23,25 @@ newtype TestTarget = TestTarget {getTestTarget :: Target}
     deriving (FromJSONKey, ToJSONKey) via Target
 
 
-renderTestTarget :: TestTarget -> Text
-renderTestTarget = renderTarget . getTestTarget
+render :: TestTarget -> Text
+render = Target.render . getTestTarget
 
 
 -- | Parse raw target strings (e.g. the @test_targets@ config) and project them
 -- onto their test suites — non-test entries are dropped.
-parseTestTargets :: [Text] -> [TestTarget]
-parseTestTargets = projectTestTargets . map parseTarget
+parse :: [Text] -> [TestTarget]
+parse = project . map Target.parse
 
 
 -- | [tag:test_targets_invariant] Project a target list onto its test suites —
 -- the only way to build a 'TestTargets', so the @test:@-only invariant holds by
 -- construction.
-projectTestTargets :: [Target] -> [TestTarget]
-projectTestTargets = mapMaybe mkTestTarget
+project :: [Target] -> [TestTarget]
+project = mapMaybe mk
   where
-    mkTestTarget tgt@(Qualified Test _) = Just $ TestTarget tgt
-    mkTestTarget tgt@(PackageQualified _ Test _) = Just $ TestTarget tgt
-    mkTestTarget _ = Nothing
+    mk tgt@(Qualified Test _) = Just $ TestTarget tgt
+    mk tgt@(PackageQualified _ Test _) = Just $ TestTarget tgt
+    mk _ = Nothing
 
 
 -- | Resolve which test suites to run after a clean build. The explicit
@@ -48,7 +50,7 @@ projectTestTargets = mapMaybe mkTestTarget
 -- 'projectTestTargets'), so non-test entries are dropped and the result only
 -- ever names test suites [ref:test_targets_invariant]. With neither source
 -- set, falls back to deriving test targets from the build 'targets'.
-resolveTestTargets :: Config -> [Target] -> [TestTarget]
-resolveTestTargets cfg targets = case cfg.test.commandConfig.targets <|> cfg.testTargets of
-    Just explicit -> parseTestTargets explicit
-    Nothing -> projectTestTargets targets
+resolve :: Config -> [Target] -> [TestTarget]
+resolve cfg targets = case cfg.test.commandConfig.targets <|> cfg.testTargets of
+    Just explicit -> parse explicit
+    Nothing -> project targets

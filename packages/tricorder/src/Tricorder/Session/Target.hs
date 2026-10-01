@@ -1,12 +1,12 @@
 module Tricorder.Session.Target
     ( Target (..)
     , ComponentKind (..)
-    , parseTarget
-    , renderTarget
+    , parse
+    , render
+    , resolve
+    , compare
     , componentName
-    , resolveTargets
     , definesCustomPrelude
-    , compareTargets
     , allComponentTargets
     )
 where
@@ -29,9 +29,11 @@ import Distribution.Types.PackageDescription (package)
 import Distribution.Types.PackageId (pkgName)
 import Distribution.Types.PackageName (unPackageName)
 import Distribution.Types.UnqualComponentName (mkUnqualComponentName, unUnqualComponentName)
+import Prelude hiding (compare)
 
 import Data.Text qualified as T
 import Distribution.Types.BuildInfo.Lens qualified as Lens
+import Prelude qualified as P
 
 import Tricorder.Session.CabalFile (CabalFile (..))
 
@@ -55,11 +57,11 @@ data Target
 
 
 instance ToJSON Target where
-    toJSON = toJSON . renderTarget
+    toJSON = toJSON . render
 
 
 instance FromJSON Target where
-    parseJSON = fmap parseTarget . parseJSON
+    parseJSON = fmap parse . parseJSON
 
 
 instance ToJSONKey Target
@@ -93,29 +95,29 @@ kindPrefix = \case
     Bench -> "bench"
 
 
--- | Parse a kind prefix, derived as the inverse of 'kindPrefix' so the two
--- never drift apart [ref:kind_prefix_sole_source].
-parseKind :: Text -> Maybe ComponentKind
-parseKind = inverseMap kindPrefix
-
-
 -- | Classify a target's textual form. The grammar is @[kind:]name@ where
 -- @kind@ is one of @lib@, @flib@, @exe@, @test@, or @bench@; anything else (an
 -- unknown kind, a cabal alias such as @executable@, or extra colons) is
 -- 'Unrecognized'.
-parseTarget :: Text -> Target
-parseTarget target = case T.splitOn ":" target of
+parse :: Text -> Target
+parse target = case T.splitOn ":" target of
     [packageName, prefix, name] | Just kind <- parseKind prefix -> PackageQualified packageName kind name
     [prefix, name] | Just kind <- parseKind prefix -> Qualified kind name
     [name] -> Bare name
     _ -> Unrecognized target
 
 
+-- | Parse a kind prefix, derived as the inverse of 'kindPrefix' so the two
+-- never drift apart [ref:kind_prefix_sole_source].
+parseKind :: Text -> Maybe ComponentKind
+parseKind = inverseMap kindPrefix
+
+
 -- | Render a 'Target' back to the textual form cabal understands. Inverse of
 -- 'parseTarget' (lossless: @parseTarget . renderTarget == id@). Builds prefixes
 -- via 'kindPrefix' rather than hardcoding them [ref:kind_prefix_sole_source].
-renderTarget :: Target -> Text
-renderTarget = \case
+render :: Target -> Text
+render = \case
     Qualified kind name -> kindPrefix kind <> ":" <> name
     PackageQualified packageName kind name -> packageName <> ":" <> kindPrefix kind <> ":" <> name
     Bare name -> name
@@ -134,14 +136,14 @@ componentName = \case
 -- raw target strings (from config) are parsed into structured 'Target's: the
 -- configured targets are parsed as-is, or all components across every
 -- discovered package are auto-detected when no targets are configured. Either
--- way the result is sorted with 'compareTargets' so libraries exposing a custom
+-- way the result is sorted with 'compare' so libraries exposing a custom
 -- @Prelude@ come last [ref:lib_sort_order].
-resolveTargets :: [CabalFile] -> [Text] -> [Target]
-resolveTargets cabalFiles = \case
-    targets@(_ : _) -> sortTargets $ parseTarget <$> targets
+resolve :: [CabalFile] -> [Text] -> [Target]
+resolve cabalFiles = \case
+    targets@(_ : _) -> sortTargets $ parse <$> targets
     [] -> sortTargets $ foldMap (allComponentTargets . (.projectPackageDescription)) cabalFiles
   where
-    sortTargets = sortBy (compareTargets (definesCustomPrelude cabalFiles))
+    sortTargets = sortBy (compare (definesCustomPrelude cabalFiles))
 
 
 -- | [tag:lib_sort_order] When running @cabal repl <package defining custom
@@ -154,16 +156,16 @@ resolveTargets cabalFiles = \case
 -- 'definesCustomPrelude': only those that expose a @Prelude@ module are sorted
 -- last. This is more precise than sorting every @lib:@ target last — only the
 -- libraries that actually cause the failure are reordered.
-compareTargets :: (Target -> Bool) -> Target -> Target -> Ordering
-compareTargets definesPrelude a b
+compare :: (Target -> Bool) -> Target -> Target -> Ordering
+compare definesPrelude a b
     | definesPrelude a && not (definesPrelude b) = GT
     | not (definesPrelude a) && definesPrelude b = LT
-    | otherwise = compare (renderTarget a) (renderTarget b)
+    | otherwise = P.compare (render a) (render b)
 
 
 -- | Check whether any of the discovered packages' libraries expose a @Prelude@
 -- module for the given target. Used to build the predicate passed to
--- 'compareTargets' so that only the libraries that actually cause the GHCi
+-- 'compare' so that only the libraries that actually cause the GHCi
 -- startup failure are sorted last [ref:lib_sort_order].
 definesCustomPrelude :: [CabalFile] -> Target -> Bool
 definesCustomPrelude cabalFiles target = any check cabalFiles
