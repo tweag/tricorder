@@ -1,6 +1,6 @@
 module Tricorder.Session.WatchDirs
     ( WatchDirs (..)
-    , resolveWatchDirs
+    , resolve
     , sourceDirsForTarget
     )
 where
@@ -51,8 +51,8 @@ instance Default WatchDirs where
 -- 1. @watch_dirs@ from config, if non-empty (used as-is relative to project root)
 -- 2. @hs-source-dirs@ inferred from cabal targets, if targets are set
 -- 3. Falls back to @["."]@ (project root) if neither is available
-resolveWatchDirs :: ProjectRoot -> [CabalFile] -> Config -> [Target] -> WatchDirs
-resolveWatchDirs projectRoot projectFiles cfg targets =
+resolve :: ProjectRoot -> [CabalFile] -> Config -> [Target] -> WatchDirs
+resolve projectRoot projectFiles cfg targets =
     case cfg.watchDirs of
         dirs@(_ : _) -> WatchDirs $ map (coerce projectRoot </>) dirs
         [] -> resolveWatchDirsFromTargets projectFiles targets
