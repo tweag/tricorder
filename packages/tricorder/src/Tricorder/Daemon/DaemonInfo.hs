@@ -13,6 +13,7 @@ import System.FilePath (makeRelative)
 
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..))
+import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Target (Target)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
@@ -41,7 +42,7 @@ load = do
     LogPath logFile <- ask
     pure
         $ DaemonInfo
-            { targets = session.targets
+            { targets = session.buildSession.targets
             , watchDirs = map (makeRelative projectRoot) session.watchDirs.getWatchDirs
             , sockPath
             , logFile

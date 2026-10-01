@@ -1,6 +1,6 @@
-module Tricorder.Session.Command.Build
-    ( renderBuild
-    , resolveBuildCommand
+module Tricorder.Session.Stage.Build.Command
+    ( render
+    , resolve
     )
 where
 
@@ -11,30 +11,29 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.List qualified as List
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
+import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetsPlaceholder)
-import Tricorder.Session.Config (CommandConfig (..), Config (..))
+import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Target (Target (..))
-import Tricorder.Session.TestTarget (TestTarget (..))
 
 
 -- | Render the @build@ command: every target goes into the one invocation
 -- that covers all of them.
-renderBuild :: CommandTemplate 'Build -> [Target] -> ResolvedCommand 'Build
-renderBuild commandTemplate targets = ResolvedCommand $ renderText commandTemplate targets
+render :: CommandTemplate 'Build -> [Target] -> RenderedCommand 'Build
+render commandTemplate targets = RenderedCommand $ renderText commandTemplate targets
 
 
-resolveBuildCommand
+resolve
     :: (FileSystem :> es)
     => ProjectRoot
     -> Config
     -> Repl
     -> [Target]
-    -> [TestTarget]
     -> Eff es (CommandTemplate 'Build, [Target])
-resolveBuildCommand projectRoot cfg repl effectiveTargets testTargets = do
+resolve projectRoot cfg repl effectiveTargets = do
     template <- case customTemplate of
         Just tpl -> pure tpl
         Nothing -> defaultBuildTemplate projectRoot repl cfg.replBuildDir
@@ -47,7 +46,7 @@ resolveBuildCommand projectRoot cfg repl effectiveTargets testTargets = do
             }
         , if not (null effectiveTargets)
             then effectiveTargets
-            else Bare "all" : (getTestTarget <$> testTargets)
+            else [Bare "all"]
         )
   where
     customTemplate = cfg.build.commandTemplate <|> cfg.command

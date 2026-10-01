@@ -60,7 +60,7 @@ import Tricorder.Daemon.GhciSession.GhciParser
     , stripAnsi
     , unattributedFailure
     )
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 
 
 -- | Configuration for GHCi process management.
@@ -229,7 +229,7 @@ setupGhciProcess config p onProgress onReady = do
 withGhciProcess
     :: (Conc :> es, Concurrent :> es, File :> es, Log :> es, Process :> es, Timeout :> es)
     => Config
-    -> ResolvedCommand stage
+    -> RenderedCommand stage
     -> FilePath
     -> (GhciLoading -> Eff es ())
     -> (GhciProcess -> Eff es ())
@@ -246,7 +246,7 @@ withGhciProcess config cmd dir onProgress onReady action =
             $ setStderr createPipe
             $ setWorkingDir dir
             $ shell
-            $ toString cmd.getResolvedCommand
+            $ toString cmd.getRenderedCommand
 
 
 -- | Execute a command in GHCi and return the combined stdout+stderr output

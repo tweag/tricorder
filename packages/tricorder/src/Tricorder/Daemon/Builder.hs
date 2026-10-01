@@ -47,7 +47,7 @@ import Tricorder.Daemon.Dispatch
 import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
 import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand)
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.WatchDirs (WatchDirs)
 
 import Tricorder.Daemon.GhciSession qualified as GhciSession
@@ -88,7 +88,7 @@ with
        , Reader ProjectRoot :> es
        )
     => BuildId
-    -> ResolvedCommand 'Stage.Build
+    -> RenderedCommand 'Stage.Build
     -> WatchDirs
     -> (BuilderState -> NewLoadResult -> Eff (Builder : es) a)
     -> Eff es (Either SomeException a)

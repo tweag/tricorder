@@ -13,7 +13,7 @@ import Tricorder.Daemon.TestRunner
     , detectOutcome
     , runTestSuite
     )
-import Tricorder.Session.Command.ResolvedCommand (ResolvedCommand (..))
+import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 
 import Tricorder.Build.Test qualified as Test
@@ -105,14 +105,14 @@ testScripted =
         result <-
             runScripted [Right passingRun]
                 $ runTestSuite noProgress testTimeout
-                $ ResolvedCommand
+                $ RenderedCommand
                 $ "cabal repl test:foo"
         result @?= passingRun
     , testCase "ignores the target name argument" do
         result <-
             runScripted [Right failingRun]
                 $ runTestSuite noProgress testTimeout
-                $ ResolvedCommand
+                $ RenderedCommand
                 $ "cabal repl test:anything"
         result @?= failingRun
     , testCase "throws when scripted result is Left" do
@@ -120,7 +120,7 @@ testScripted =
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
                 $ runTestSuite noProgress testTimeout
-                $ ResolvedCommand
+                $ RenderedCommand
                 $ "cabal repl test:foo"
         result @?= Left boom
     , testGroup
@@ -129,11 +129,11 @@ testScripted =
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
                 a <-
                     runTestSuite noProgress testTimeout
-                        $ ResolvedCommand
+                        $ RenderedCommand
                         $ "cabal repl test:foo"
                 b <-
                     runTestSuite noProgress testTimeout
-                        $ ResolvedCommand
+                        $ RenderedCommand
                         $ "cabal repl test:bar"
                 pure (a, b)
             a @?= passingRun
@@ -143,11 +143,11 @@ testScripted =
                 r1 <-
                     try @ErrorCall
                         $ runTestSuite noProgress testTimeout
-                        $ ResolvedCommand
+                        $ RenderedCommand
                         $ "cabal repl test:foo"
                 r2 <-
                     runTestSuite noProgress testTimeout
-                        $ ResolvedCommand
+                        $ RenderedCommand
                         $ "cabal repl test:bar"
                 pure (r1, r2)
             fst result @?= Left boom

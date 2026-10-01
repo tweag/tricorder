@@ -2,6 +2,7 @@ module Tricorder.Session
     ( Session (..)
     , loadSession
     , inputSession
+    , show
     )
 where
 
@@ -11,30 +12,34 @@ import Atelier.Effects.Input (Input, input, runInputEff)
 import Atelier.Effects.Log (Log)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader, ask)
+import Text.Regex.TDFA.Pattern (showPattern)
+import Prelude hiding (show)
 
 import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
+import Prelude qualified as P
 
 import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
-import Tricorder.Session.Command.Build (resolveBuildCommand)
-import Tricorder.Session.Command.Eval (resolveEvalCommand)
-import Tricorder.Session.Command.Test (resolveTestCommand)
+import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate
     ( CommandTemplate (..)
     , hasPlaceholder
     , targetPlaceholder
     )
-import Tricorder.Session.Config (CommandConfig (..), Config (..))
+import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.Hooks (Hooks)
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Tricorder.Session.Repl (resolveRepl)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
-import Tricorder.Session.Target (Target, definesCustomPrelude, resolveTargets)
-import Tricorder.Session.TestTarget (TestTarget, resolveTestTargets)
+import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Test.Session (TestSession (..))
+import Tricorder.Session.Target (definesCustomPrelude)
+import Tricorder.Session.TestTarget (getTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
+import Tricorder.Session.Util (indent, showList)
 import Tricorder.Session.WatchDirs (WatchDirs (..), resolveWatchDirs)
 import Tricorder.Session.WatchExclusionPatterns
     ( WatchExclusionPatterns (..)
@@ -43,19 +48,16 @@ import Tricorder.Session.WatchExclusionPatterns
 
 import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Session.Stage qualified as Stage
+import Tricorder.Session.Stage.Build.Session qualified as BuildSession
+import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
+import Tricorder.Session.Stage.Eval.Session qualified as EvalSession
+import Tricorder.Session.Stage.Test.Session qualified as TestSession
 
 
 data Session = Session
-    { build :: CommandTemplate 'Stage.Build
-    , buildTargets :: [Target]
-    -- ^ The target(s) to render 'build' with. Usually equal to 'targets',
-    -- except when that's empty, in which case this falls back to @all@ plus
-    -- the discovered test targets. See
-    -- 'Tricorder.Session.Command.Build.resolveBuildCommand'.
-    , test :: CommandTemplate 'Stage.Test
-    , eval :: CommandTemplate 'Stage.Eval
-    , targets :: [Target]
-    , testTargets :: [TestTarget]
+    { buildSession :: BuildSession
+    , testSession :: TestSession
+    , evalSession :: CommandTemplate 'Stage.Eval
     , testMemoryLimit :: Maybe ByteSize
     , watchDirs :: WatchDirs
     , watchExclusionPatterns :: WatchExclusionPatterns
@@ -71,12 +73,9 @@ data Session = Session
 instance Default Session where
     def =
         Session
-            { build = def
-            , buildTargets = []
-            , test = def
-            , eval = def
-            , targets = []
-            , testTargets = []
+            { buildSession = def
+            , testSession = def
+            , evalSession = def
             , testMemoryLimit = Nothing
             , watchDirs = def
             , watchExclusionPatterns = def
@@ -104,10 +103,6 @@ loadSession = do
     Log.debug "Got project files"
 
     let cfgFile = extractConfig @"session" @Config loadedCfg
-        rawBuildTargets = fromMaybe cfgFile.targets cfgFile.build.targets
-        effectiveTargets = resolveTargets projectFiles rawBuildTargets
-        testTargets = resolveTestTargets cfgFile effectiveTargets
-        watchDirs = resolveWatchDirs projectRoot projectFiles cfgFile effectiveTargets
         hooks = fromMaybe def cfgFile.hooks
 
     warnDeprecatedConfig cfgFile
@@ -135,6 +130,13 @@ loadSession = do
                 pure $ WatchExclusionPatterns []
             Right pts -> pure pts
 
+    repl <- resolveRepl projectRoot
+    buildSession <- BuildSession.resolve cfgFile repl projectFiles
+    let testSession = TestSession.resolve repl buildSession.targets cfgFile
+        evalSession = EvalCommand.resolve repl cfgFile
+        effectiveTargets = buildSession.targets <> (getTestTarget <$> testSession.targets)
+        watchDirs = resolveWatchDirs projectRoot projectFiles cfgFile effectiveTargets
+
     when (not (null effectiveTargets) && all (definesCustomPrelude projectFiles) effectiveTargets)
         $ Log.warn
             "Every resolved target exposes a custom Prelude module. GHCi may \
@@ -143,11 +145,6 @@ loadSession = do
             \not define its own Prelude, or set an explicit command in your \
             \tricorder configuration."
 
-    repl <- resolveRepl projectRoot
-    (build, buildTargets) <- resolveBuildCommand projectRoot cfgFile repl effectiveTargets testTargets
-    let test = resolveTestCommand repl cfgFile
-        eval = resolveEvalCommand repl cfgFile
-
     warnMissingTargetPlaceholder "test" cfgFile.test.commandTemplate
     warnMissingTargetPlaceholder "eval" cfgFile.eval.commandTemplate
 
@@ -155,20 +152,20 @@ loadSession = do
         "build"
         (cfgFile.build.commandTemplate <|> cfgFile.command)
         cfgFile.build.extraAutoArguments
-    warnIgnoredextraAutoArguments "test" cfgFile.test.commandTemplate cfgFile.test.extraAutoArguments
+    warnIgnoredextraAutoArguments
+        "test"
+        cfgFile.test.commandTemplate
+        cfgFile.test.extraAutoArguments
     warnIgnoredextraAutoArguments "eval" cfgFile.eval.commandTemplate cfgFile.eval.extraAutoArguments
 
     pure
         $ Session
-            { targets = effectiveTargets
-            , build
-            , buildTargets
-            , test
-            , eval
+            { buildSession
+            , testSession
+            , evalSession
             , watchDirs
             , watchExclusionPatterns
             , testMemoryLimit
-            , testTargets
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
             , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
@@ -235,3 +232,29 @@ warnMissingTargetPlaceholder section customTemplate =
                         <> section
                         <> " invocation will run the same command."
         _ -> pure ()
+
+
+show :: Session -> Text
+show session =
+    T.intercalate
+        "\n"
+        [ "Loaded session"
+        , "Build configuration:"
+        , indent $ BuildSession.show session.buildSession
+        , "Test configuration:"
+        , indent $ TestSession.show session.testSession
+        , "Eval comments configuration:"
+        , indent $ EvalSession.show session.evalSession
+        , "Watch dirs:"
+        , indent $ showList toText session.watchDirs.getWatchDirs
+        , "Watch exclusion patterns:"
+        , indent
+            $ showList
+                (toText . showPattern . fst)
+                session.watchExclusionPatterns.getWatchExclusionPatterns
+        , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
+        , -- TODO: Remove " seconds" when TestTimeout is converted to a proper time unit.
+          "Test timeout: " <> P.show session.testTimeout.getTestTimeout <> " seconds"
+        , "Test memory limit: " <> P.show session.testMemoryLimit
+        , "Generate with hpack: " <> P.show session.generateWithHpack.getGenerateWithHpack
+        ]
