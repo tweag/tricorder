@@ -74,31 +74,25 @@ in
   flake = {
     overlays = {
       tricorder =
-        final: _:
-        withSystem final.stdenv.hostPlatform.system (
+        _: prev:
+        withSystem prev.stdenv.hostPlatform.system (
           { self', ... }: {
             tricorder = self'.packages.tricorder;
           }
         );
       nix-hpack =
-        final: _:
-        withSystem final.stdenv.hostPlatform.system (
+        _: prev:
+        withSystem prev.stdenv.hostPlatform.system (
           { self', ... }: {
             nix-hpack = self'.packages.nix-hpack;
 
           }
         );
-      default =
-        let
-          overlayNames = builtins.filter (o: o != "default") (builtins.attrNames self.overlays);
-          overlays = builtins.foldl' (
-            prevOverlay: thisOverlay: final: prev:
-            thisOverlay final (prev // prevOverlay final prev)
-          ) (_: _: { }) overlayNames;
-        in
-        overlays;
+      default = inputs.nixpkgs.lib.composeManyExtensions (
+        builtins.attrValues (builtins.removeAttrs self.overlays [ "default" ])
+      );
     };
-    homeManagerModules.default = import ./nix/home-module.nix { inherit self; };
-    nixosModules.default = import ./nix/nixos-module.nix { inherit self; };
+    homeManagerModules.default = import ./home-module.nix { inherit self; };
+    nixosModules.default = import ./nixos-module.nix { inherit self; };
   };
 }
