@@ -7,6 +7,23 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Navigation in `tricorder ui` is now done with the left and right arrow keys
+  (or `h` and `l`), where you switch to the left or right tab accordingly. The
+  previous hotkey-based solution where you had to know which key related to
+  which tab felt antiquated, and less intuitive compared to just moving between
+  them left and right. You will get errors when starting Tricorder with old,
+  unsupported key bindings in your `keybindings` config. These take the following form:
+
+  ```
+  Error(s) encountered when attempting to parse key bindings:
+  Unrecognized key event: foo_bar
+  ```
+
+- Default key binding for the "help" view is now `?`. This key binding is
+  supported as expected on keyboards where `?` is inputted with a modifier key.
+
 ## [0.5.0.0] - 2026-10-02
 
 ### Added
