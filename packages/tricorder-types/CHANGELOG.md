@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.4.2.0] - 2026-10-02
+
+### Added
+
+- `Daemon.Info` command.
+
 ## [0.4.1.0] - 2026-09-17
 
 ### Added
