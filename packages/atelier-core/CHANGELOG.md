@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.7.3.0] - 2026-10-02
+
+### Added
+
+- `Atelier.Effects.FileSystem.getModificationTime`: Lifted `System.Directory.getModificationTime`.
+
 ## [0.7.2.0] - 2026-09-21
 
 ### Added
