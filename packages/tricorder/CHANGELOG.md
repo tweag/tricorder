@@ -29,6 +29,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Deprecate configuration options `session.command`, `session.targets` and
   `session.test_targets` in favor of `session.build.command_template`,
   `session.build.targets` and `session.test.targets`, respectively.
+- Tricorder now uses `brick` `3.0` for its TUI.
 
 ### Fixed
 
