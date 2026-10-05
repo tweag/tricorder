@@ -12,7 +12,7 @@ import Brick
     , vBox
     , viewport
     )
-import Brick.Keybindings (KeyConfig, KeyHandler (..), keyDispatcherToList, ppBinding)
+import Brick.Keybindings (KeyConfig, KeyDispatcher, KeyHandler (..), keyDispatcherToList, ppBinding)
 import Brick.Widgets.Core
     ( Padding (..)
     , emptyWidget
@@ -27,6 +27,7 @@ import Brick.Widgets.Core
     )
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, utcToLocalTime)
 
+import Brick.Keybindings.KeyConfig qualified as KeyConfig
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Graphics.Vty.Attributes qualified as Attr
@@ -34,7 +35,7 @@ import Graphics.Vty.Attributes.Color qualified as Color
 
 import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic, Severity (..))
 import Tricorder.Build.Duration (Duration (..))
-import Tricorder.CLI.UI.Keys (KeyEvent, keybindForRoute, viewKeybindings)
+import Tricorder.CLI.UI.Keys (KeyEvent, viewKeybindings)
 import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
 import Tricorder.CLI.UI.Route (Route)
 import Tricorder.CLI.UI.State
@@ -69,41 +70,35 @@ mkAttrMap =
         )
 
 
-view :: KeyConfig KeyEvent -> State -> [Widget Viewports]
-view kc ws =
+view :: KeyConfig KeyEvent -> KeyDispatcher KeyEvent m -> State -> [Widget Viewports]
+view kc dispatcher ws =
     [ vBoxSpaced
         1
         [ vBox
-            [ viewAppHeader ws
-            , viewTabs kc ws
+            [ viewAppHeader kc ws
+            , viewTabs ws
             ]
-        , case currentRoute ws of
-            Route.Help ->
-                viewHelp kc
-            Route.Tests ->
-                viewTests ws
-            Route.Main ->
-                viewMain ws
-            Route.Evals ->
-                viewEvals ws
+        , if ws.showHelp
+            then viewHelp kc dispatcher
+            else case currentRoute ws of
+                Route.Tests -> viewTests ws
+                Route.Main -> viewMain ws
+                Route.Evals -> viewEvals ws
         ]
     ]
 
 
-viewTabs :: KeyConfig KeyEvent -> State -> Widget n
-viewTabs kc ws =
-    hBoxSpaced 1
-        $ intersperse (subtle $ txt "-")
-        $ viewRouteTab kc ws <$> universe @Route
+viewTabs :: State -> Widget n
+viewTabs ws =
+    hBoxSpaced 1 $ viewRouteTab ws <$> universe @Route
 
 
-viewRouteTab :: KeyConfig KeyEvent -> State -> Route -> Widget n
-viewRouteTab kc ws route =
-    style $ txt $ Route.name route <> keyBind
+viewRouteTab :: State -> Route -> Widget n
+viewRouteTab ws route =
+    style $ txt $ brackets $ Route.name route
   where
+    brackets = if route == currentRoute ws then ("< " <>) . (<> " >") else ("  " <>) . (<> "  ")
     style = if route == currentRoute ws then id else subtle
-    showBinding = (" " <>) . ("[" <>) . (<> "]") . ppBinding
-    keyBind = maybe "" showBinding $ keybindForRoute kc route
 
 
 viewTests :: State -> Widget Viewports
@@ -118,12 +113,12 @@ viewMain :: State -> Widget Viewports
 viewMain ws = withBuildState ws (viewDefaultPanel ws.timeZone)
 
 
-viewHelp :: KeyConfig KeyEvent -> Widget n
-viewHelp kc = viewKeybindings kc handlers
+viewHelp :: KeyConfig KeyEvent -> KeyDispatcher KeyEvent m -> Widget n
+viewHelp kc dispatcher = viewKeybindings kc handlers
   where
     -- The dispatcher is built only to enumerate handler descriptions for the help
     -- view, so the restart action is a no-op here.
-    handlers = (.khHandler) . snd <$> keyDispatcherToList (Keys.dispatcher (pure ()) kc)
+    handlers = (.khHandler) . snd <$> keyDispatcherToList dispatcher
 
 
 withBuildState :: State -> (BuildState -> Widget Viewports) -> Widget Viewports
@@ -137,26 +132,49 @@ withBuildState ws render =
             render bs
 
 
-viewAppHeader :: State -> Widget n
-viewAppHeader ws =
-    ok
-        $ emphasis
-        $ txt
-        $ "Tricorder"
-            <> maybe
-                ""
-                (" - " <>)
-                (viewHeading ws)
+viewAppHeader :: KeyConfig KeyEvent -> State -> Widget n
+viewAppHeader kc ws =
+    hBoxSpaced
+        1
+        [ ok
+            $ emphasis
+            $ txt
+            $ "Tricorder"
+                <> maybe
+                    ""
+                    (" - " <>)
+                    (viewHeading ws)
+        , viewHelpHint kc ws
+        ]
+
+
+viewHelpHint :: KeyConfig KeyEvent -> State -> Widget n
+viewHelpHint kc state
+    | state.showHelp = subtle $ txt $ "Press " <> exitHelpStr <> " to go back"
+    | state.route == Route.Tests =
+        subtle $ txt $ "Press " <> cycleTestFilterStr <> " to cycle between filters"
+    | otherwise = subtle $ txt $ "Press " <> showHelpStr <> " for help"
+  where
+    exitHelpStr = showHint Keys.ToggleHelp
+    showHelpStr = showHint Keys.ToggleHelp
+    cycleTestFilterStr = showHint Keys.CycleTestView
+    showHint = joinWithAndOr "or" . fmap (quote . ppBinding) . KeyConfig.allActiveBindings kc
+    quote = (<> "'") . ("'" <>)
+    joinWithAndOr andOr xs = case splitAt (length xs - 1) xs of
+        ([], [post]) -> post
+        ([pre], []) -> pre
+        (pre, post) -> T.intercalate ", " pre <> " " <> andOr <> " " <> T.intercalate ", " post
 
 
 viewHeading :: State -> Maybe Text
-viewHeading ws = case currentRoute ws of
-    Route.Tests -> case ws.testFilter of
-        TestFilterAll -> Just "Tests"
-        TestFilterFailedOnly -> Just "Tests - Failed only"
-    Route.Help -> Just "Help"
-    Route.Main -> Nothing
-    Route.Evals -> Just "Eval comments"
+viewHeading ws
+    | ws.showHelp = Just "Help"
+    | otherwise = case currentRoute ws of
+        Route.Tests -> case ws.testFilter of
+            TestFilterAll -> Just "Tests"
+            TestFilterFailedOnly -> Just "Tests - Failed only"
+        Route.Main -> Nothing
+        Route.Evals -> Just "Eval comments"
 
 
 viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports

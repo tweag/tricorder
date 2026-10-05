@@ -1,15 +1,15 @@
 module Tricorder.CLI.UI.Keys
-    ( KeyEvent
+    ( KeyEvent (..)
     , Config
     , keys
-    , dispatcher
+    , mkDispatcher
     , viewKeybindings
     , mkKeyConfig
-    , keybindForRoute
     )
 where
 
 import Atelier.Effects.Console (Console)
+import Atelier.Effects.Exit (Exit, exitFailure)
 import Brick
     ( EventM
     , Widget
@@ -39,16 +39,13 @@ import Brick.Keybindings
     , onEvent
     , parseBindingList
     )
-import Brick.Keybindings.KeyConfig (firstActiveBinding)
 import Brick.Keybindings.Pretty (ppBinding)
 import Brick.Widgets.Core (hBox)
 import Control.Monad.State (gets, modify)
 import Data.Aeson (FromJSON (..))
 import Data.Default (Default (..))
-import Effectful.Exception (throwIO)
 import Effectful.Reader.Static (Reader, ask)
 import Graphics.Vty (Key (..))
-import System.IO.Error (userError)
 import Text.Casing (quietSnake)
 
 import Atelier.Effects.Console qualified as Console
@@ -57,14 +54,12 @@ import Data.Set qualified as Set
 import Data.Text qualified as T
 
 import Tricorder.CLI.UI.Misc (warn)
-import Tricorder.CLI.UI.Route (Route)
 import Tricorder.CLI.UI.State
     ( Processed (Waiting)
     , State (..)
     , Viewports (..)
     , currentRoute
     , cycleTestFilter
-    , navigate
     , viewToViewport
     )
 
@@ -77,11 +72,11 @@ import Tricorder.CLI.UI.Route qualified as Route
 -- 'KeyEvent', update that list to match — @tagref check@ flags the dangling
 -- reference if this tag is renamed or dropped without touching the docs.
 data KeyEvent
-    = ToggleHelp
+    = SwitchTabPrev
+    | SwitchTabNext
+    | ToggleHelp
     | CycleTestView
-    | ToggleEvalComments
     | RestartDaemon
-    | ExitView
     | ScrollUp
     | ScrollDown
     | Quit
@@ -100,37 +95,42 @@ textToKeyEvent :: Text -> Maybe KeyEvent
 textToKeyEvent = (`Map.lookup` keyEventTextMap)
 
 
+eventToDesc :: KeyEvent -> Text
+eventToDesc = \case
+    ToggleHelp -> "toggle help"
+    SwitchTabNext -> "switch to next tab"
+    SwitchTabPrev -> "switch to previous tab"
+    CycleTestView -> "cycle test tab views"
+    RestartDaemon -> "restart daemon"
+    ScrollUp -> "scroll up"
+    ScrollDown -> "scroll down"
+    Quit -> "quit"
+
+
 keys :: KeyEvents KeyEvent
-keys =
-    keyEvents
-        [ ("toggle help", ToggleHelp)
-        , ("cycle test view", CycleTestView)
-        , ("toggle eval comments", ToggleEvalComments)
-        , ("restart daemon", RestartDaemon)
-        , ("exit view", ExitView)
-        , ("scroll up", ScrollUp)
-        , ("scroll down", ScrollDown)
-        , ("quit", Quit)
-        ]
+keys = keyEvents $ (\e -> (eventToDesc e, e)) <$> universe
 
 
-bindings :: [(KeyEvent, [Binding])]
-bindings =
-    [ (ToggleHelp, [bind 'h'])
-    , (CycleTestView, [bind 't'])
-    , (ToggleEvalComments, [bind 'e'])
-    , (RestartDaemon, [bind 'R'])
-    , (ExitView, [binding KEsc []])
-    , (ScrollUp, [binding KUp []])
-    , (ScrollDown, [binding KDown []])
-    , (Quit, [bind 'q', ctrl 'c'])
-    ]
+eventToBinding :: KeyEvent -> [Binding]
+eventToBinding = \case
+    ToggleHelp -> [bind '?']
+    SwitchTabPrev -> [bind 'h', binding KLeft []]
+    SwitchTabNext -> [bind 'l', binding KRight []]
+    CycleTestView -> [bind 't']
+    RestartDaemon -> [bind 'R']
+    ScrollUp -> [binding KUp []]
+    ScrollDown -> [binding KDown []]
+    Quit -> [bind 'q', ctrl 'c', binding KEsc []]
 
 
-mkKeyConfig :: (Console :> es, Reader Config :> es) => Eff es (KeyConfig KeyEvent)
+defaultBindings :: [(KeyEvent, [Binding])]
+defaultBindings = (\e -> (e, eventToBinding e)) <$> universe
+
+
+mkKeyConfig :: (Console :> es, Exit :> es, Reader Config :> es) => Eff es (KeyConfig KeyEvent)
 mkKeyConfig = do
     customBindings <- parseCustomBindings
-    pure $ newKeyConfig keys bindings customBindings
+    pure $ newKeyConfig keys defaultBindings customBindings
 
 
 newtype Config = Config (Map Text Text)
@@ -144,6 +144,7 @@ instance Default Config where
 
 parseCustomBindings
     :: ( Console :> es
+       , Exit :> es
        , Reader Config :> es
        )
     => Eff es [(KeyEvent, BindingState)]
@@ -153,7 +154,7 @@ parseCustomBindings = do
     unless (null errors) do
         Console.putTextLn "Error(s) encountered when attempting to parse key bindings:"
         traverse_ (Console.putTextLn . toText) errors
-        throwIO $ userError "Malformed keybindings"
+        exitFailure
     pure customBindings
 
 
@@ -169,62 +170,75 @@ parseKeyEvent :: Text -> Either Text KeyEvent
 parseKeyEvent ev = maybeToRight ("Unrecognized key event: " <> ev) $ textToKeyEvent ev
 
 
+eventToHandler :: IO () -> KeyEvent -> KeyEventHandler KeyEvent (EventM Viewports State)
+eventToHandler requestRestart = \case
+    ToggleHelp -> onEvent ToggleHelp "Toggle help" do
+        modify \s -> s {showHelp = not s.showHelp}
+    SwitchTabNext -> onEvent SwitchTabNext "Switch to next tab" do
+        modify \s ->
+            s
+                { route =
+                    if s.route == maxBound
+                        then minBound
+                        else succ s.route
+                }
+    SwitchTabPrev -> onEvent SwitchTabPrev "Switch to previous tab" do
+        modify \s ->
+            s
+                { route =
+                    if s.route == minBound
+                        then maxBound
+                        else pred s.route
+                }
+    CycleTestView -> onEvent CycleTestView "Cycle between test tab views" do
+        modify \s ->
+            if
+                | s.route /= Route.Tests -> s
+                | otherwise -> s {testFilter = cycleTestFilter s.testFilter}
+    RestartDaemon -> onEvent RestartDaemon "Restart the daemon" do
+        liftIO requestRestart
+        modify \s -> s {buildState = Waiting}
+    ScrollUp -> onEvent ScrollUp "Scroll up" do
+        mvp <- gets (viewToViewport . currentRoute)
+        case mvp of
+            Just vp -> vScrollBy (viewportScroll vp) (-1)
+            Nothing -> pure ()
+    ScrollDown -> onEvent ScrollDown "Scroll down" do
+        mvp <- gets (viewToViewport . currentRoute)
+        case mvp of
+            Just vp ->
+                vScrollBy (viewportScroll vp) 1
+            Nothing -> pure ()
+    Quit -> onEvent Quit "Exit" do
+        halt
+
+
 -- | Build the key dispatcher. @requestRestart@ is run (in 'IO') when the restart
 -- key is pressed; it hands the request off to the worker that owns the daemon
 -- control effects, since brick's 'EventM' cannot run them directly.
-dispatcher :: IO () -> KeyConfig KeyEvent -> KeyDispatcher KeyEvent (EventM Viewports State)
-dispatcher requestRestart cfg =
-    -- TODO: Handle this error more gracefully.
-    either (error . ("Invalid key dispatcher config: " <>) . stringify) id
-        $ keyDispatcher
-            cfg
-            [ onEvent ToggleHelp "Toggle help" do
-                modify \s ->
-                    if currentRoute s == Route.Help
-                        then
-                            navigate Route.Main s
-                        else
-                            navigate Route.Help s
-            , onEvent CycleTestView "Cycle test results view" do
-                modify \s -> case currentRoute s of
-                    Route.Tests ->
-                        if s.testFilter == maxBound
-                            then
-                                navigate Route.Main s {testFilter = minBound}
-                            else
-                                s {testFilter = cycleTestFilter s.testFilter}
-                    _ -> navigate Route.Tests s
-            , onEvent ToggleEvalComments "Toggle eval comments view" do
-                modify \s ->
-                    if currentRoute s == Route.Evals
-                        then
-                            navigate Route.Main s
-                        else
-                            navigate Route.Evals s
-            , onEvent RestartDaemon "Restart the daemon" do
-                liftIO requestRestart
-                modify \s -> s {buildState = Waiting}
-            , onEvent ExitView "Exit or go back" do
-                gets (.route) >>= \case
-                    Route.Main -> halt
-                    _ -> modify $ navigate Route.Main
-            , onEvent ScrollUp "Scroll up" do
-                mvp <- gets (viewToViewport . currentRoute)
-                case mvp of
-                    Just vp -> vScrollBy (viewportScroll vp) (-1)
-                    Nothing -> pure ()
-            , onEvent ScrollDown "Scroll down" do
-                mvp <- gets (viewToViewport . currentRoute)
-                case mvp of
-                    Just vp ->
-                        vScrollBy (viewportScroll vp) 1
-                    Nothing -> pure ()
-            , onEvent Quit "Exit" do
-                halt
-            ]
+mkDispatcher
+    :: (Console :> es, Exit :> es)
+    => IO ()
+    -> KeyConfig KeyEvent
+    -> Eff es (KeyDispatcher KeyEvent (EventM Viewports State))
+mkDispatcher requestRestart cfg =
+    case keyDispatcher cfg $ eventToHandler requestRestart <$> universe of
+        Left collisions -> do
+            Console.putTextLn
+                $ T.intercalate "\n\n"
+                $ "Your key bindings have collisions:"
+                    : (uncurry showCollision <$> collisions)
+            exitFailure
+        Right dispatcher -> pure dispatcher
   where
-    stringify =
-        show . fmap (second $ fmap $ handlerDescription . kehHandler . khHandler)
+    showCollision binding' handlers =
+        T.intercalate "\n"
+            $ ("Key binding: " <> ppBinding binding')
+                : (showCollidingHandler <$> handlers)
+    showCollidingHandler handler =
+        "  " <> case handler.khHandler.kehEventTrigger of
+            ByEvent ev -> toText $ quietSnake $ show ev
+            ByKey k -> show k
 
 
 viewKeybindings :: (Ord k, Show k) => KeyConfig k -> [KeyEventHandler k m] -> Widget n
@@ -248,11 +262,3 @@ viewEventAndTriggers kc eventName triggers =
     getBindings = \case
         ByKey k -> Set.singleton k
         ByEvent e -> Set.fromList $ allActiveBindings kc e
-
-
-keybindForRoute :: KeyConfig KeyEvent -> Route -> Maybe Binding
-keybindForRoute kc = \case
-    Route.Main -> Nothing
-    Route.Help -> firstActiveBinding kc ToggleHelp
-    Route.Tests -> firstActiveBinding kc CycleTestView
-    Route.Evals -> firstActiveBinding kc ToggleEvalComments

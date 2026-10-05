@@ -7,11 +7,12 @@ import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Process (Process, getExecutablePath, proc, runProcess)
-import Brick (App (..), neverShowCursor)
+import Brick (App (..), EventM, neverShowCursor)
 import Brick.BChan (BChan, writeBChanNonBlocking)
-import Brick.Keybindings (KeyConfig)
+import Brick.Keybindings (KeyConfig, KeyDispatcher)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (TVar, atomically, newTVarIO, readTVarIO, writeTVar)
 import Effectful.Exception (bracket_, trySync)
@@ -23,7 +24,7 @@ import Tricorder.CLI.Daemon (waitForDaemon)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
 import Tricorder.CLI.UI.Event (Event (..), handleEvent)
-import Tricorder.CLI.UI.Keys (KeyEvent, dispatcher)
+import Tricorder.CLI.UI.Keys (KeyEvent, mkDispatcher)
 import Tricorder.CLI.UI.State (State (..), Viewports (..))
 import Tricorder.CLI.UI.View (mkAttrMap, view)
 import Tricorder.Runtime (SocketPath (..))
@@ -47,6 +48,7 @@ viewUi
        , Concurrent :> es
        , Console :> es
        , Delay :> es
+       , Exit :> es
        , File :> es
        , Process :> es
        , Reader Keys.Config :> es
@@ -71,10 +73,11 @@ viewUi = do
         _ <- Conc.fork $ restartWorker restartChan restarting
         keyConfig <- Keys.mkKeyConfig
         let requestRestart = void $ writeBChanNonBlocking restartChan ()
+        dispatcher <- mkDispatcher requestRestart keyConfig
         void
             $ Brick.runBrickApp
                 chan
-                (watchApp requestRestart keyConfig)
+                (watchApp keyConfig dispatcher)
                 initialState
 
 
@@ -109,12 +112,15 @@ restartWorker restartChan restarting = forever
             void waitForDaemon
 
 
-watchApp :: IO () -> KeyConfig KeyEvent -> App State Event Viewports
-watchApp requestRestart kc =
+watchApp
+    :: KeyConfig KeyEvent
+    -> KeyDispatcher KeyEvent (EventM Viewports State)
+    -> App State Event Viewports
+watchApp keyConfig dispatcher =
     App
-        { appDraw = view kc
-        , appHandleEvent = handleEvent $ dispatcher requestRestart kc
+        { appDraw = view keyConfig dispatcher
+        , appChooseCursor = neverShowCursor
+        , appHandleEvent = handleEvent dispatcher
         , appStartEvent = pure ()
         , appAttrMap = mkAttrMap
-        , appChooseCursor = neverShowCursor
         }

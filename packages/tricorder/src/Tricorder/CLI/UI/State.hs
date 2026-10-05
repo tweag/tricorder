@@ -35,6 +35,7 @@ data State = State
     , timeZone :: TimeZone
     , route :: Route
     , testFilter :: TestFilter
+    , showHelp :: Bool
     }
 
 
@@ -76,4 +77,5 @@ init = do
             , timeZone = tz
             , route = Route.Main
             , testFilter = minBound
+            , showHelp = False
             }

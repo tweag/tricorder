@@ -89,7 +89,7 @@ in
           }
         );
       default = inputs.nixpkgs.lib.composeManyExtensions (
-        builtins.attrValues (builtins.removeAttrs self.overlays [ "default" ])
+        builtins.attrValues (removeAttrs self.overlays [ "default" ])
       );
     };
     homeManagerModules.default = import ./home-module.nix { inherit self; };

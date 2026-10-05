@@ -178,18 +178,14 @@ The following event names are recognized
 (keep this list in sync with the `KeyEvent` type in
 `tricorder/src/Tricorder/UI/Keys.hs` [ref:keybinding_events]):
 
+- `switch_tab_next`: Switch to next tab.
+- `switch_tab_prev`: Switch to previous tab.
 - `toggle_help`: Toggle displaying the help tab. This tab shows available key
   bindings, including your custom key bindings.
-- `cycle_test_view`: Toggle the tests tab and cycle through test results views.
-  Cycle past the end to go back to the dashboard.
-- `toggle_eval_comments`: Toggle displaying eval comments that have been
-  evaluated.
-- `restart_daemon`: Restart the background daemon — stops it if running, then
-  starts a fresh instance. Bound to `R` by default.
-- `exit_view`: Exit the current view, going back to the dashboard. If you are
-  at the dashboard already, this exits the TUI.
-- `scroll_up`: Scroll up in the diagnostic list.
-- `scroll_down`: Scroll down in the diagnostic list.
+- `cycle_test_view`: Cycle through test results views.
+- `restart_daemon`: Restart the background daemon.
+- `scroll_up`: Scroll up in scrollable views.
+- `scroll_down`: Scroll down in scrollable views.
 - `quit`: Exit the TUI.
 
 Key binds are specified in the format `<modifiers>-<key>`, where `<modifiers>`
@@ -198,6 +194,8 @@ non-modifier key on your keyboard.
 
 Alternatively, the key bind can be `unbound`, which removes default key
 bindings for the given event.
+
+See the help screen in `tricorder ui` for current default key bindings.
 
 The following modifiers are recognized:
 
@@ -243,5 +241,5 @@ keybindings:
   quit: c-q
   scroll_up: k, up
   scroll_down: j, down
-  toggle_daemon_info_view: unbound
+  cycle_test_view: unbound
 ```
