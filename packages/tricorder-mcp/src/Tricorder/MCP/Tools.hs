@@ -237,7 +237,15 @@ toolCommand = \case
                     }
         )
     (Source (SourceOptions {modules, projectRoot})) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Source $ parseSourceQuery <$> modules)
+        ( projectRoot
+        , CLI.commandToArgs
+            $ CLI.Source
+                CLI.SourceOptions
+                    { queries = parseSourceQuery <$> modules
+                    , maxDepth = Nothing
+                    , maxModules = Nothing
+                    }
+        )
     (EvalComments (EvalCommentsOptions {wait, projectRoot})) ->
         ( projectRoot
         , CLI.commandToArgs

@@ -1,6 +1,7 @@
 module Tricorder.CLI.Arguments
     ( Command (..)
     , LogMode (..)
+    , SourceOptions (..)
     , StatusOptions (..)
     , TestOptions (..)
     , EvalCommentsOptions (..)
@@ -33,6 +34,7 @@ import Options.Applicative
     , metavar
     , option
     , progDesc
+    , readerError
     , short
     )
 import Tricorder.CLI.Command
@@ -40,12 +42,15 @@ import Tricorder.CLI.Command
     , EvalCommentsOptions (..)
     , Force (..)
     , LogMode (..)
+    , SourceOptions (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
     , WaitMode (..)
     )
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
+
+import Tricorder.SourceLookup (ReexportLimits (..), defaultReexportLimits)
 
 import Tricorder.CLI.Arguments.Daemon qualified as Daemon
 import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
@@ -150,7 +155,41 @@ testParser =
 sourceParser :: Parser Command
 sourceParser =
     Source
-        <$> some (argument queryReader (metavar "MODULE[#FUNCTION]" <> help "Module or Module#function"))
+        <$> ( SourceOptions
+                <$> some
+                    ( argument
+                        queryReader
+                        (metavar "Module[#function]" <> help "Module or Module#function")
+                    )
+                <*> optional
+                    ( option
+                        nonNegative
+                        ( long "max-depth"
+                            <> metavar "N"
+                            <> help
+                                ( "Follow at most N re-export hops when a symbol is not defined in the queried module (default: "
+                                    <> show defaultReexportLimits.maxDepth
+                                    <> ")"
+                                )
+                        )
+                    )
+                <*> optional
+                    ( option
+                        nonNegative
+                        ( long "max-modules"
+                            <> metavar "N"
+                            <> help
+                                ( "Read at most N modules while following re-exports (default: "
+                                    <> show defaultReexportLimits.maxModules
+                                    <> ")"
+                                )
+                        )
+                    )
+            )
+  where
+    nonNegative = do
+        n <- auto
+        if n < 0 then readerError "must be a non-negative integer" else pure n
 
 
 stopParser :: Parser Command

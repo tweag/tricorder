@@ -59,6 +59,11 @@ renderSourceResults results = mapM_ renderOne results
         when (length results > 1) $ Console.putTextLn $ header query
         Console.putText src
         when (length results > 1) $ Console.putStrLn ""
+    renderOne (SourceReexported query definedIn src) = do
+        when (length results > 1) $ Console.putTextLn $ header query
+        Console.putTextLn $ "-- Re-exported from " <> unModuleName definedIn
+        Console.putText src
+        when (length results > 1) $ Console.putStrLn ""
     renderOne (SourceNotFound query) =
         Console.putTextLn
             $ "Not found: "

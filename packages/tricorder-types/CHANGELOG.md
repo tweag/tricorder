@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `Command`'s `Source` constructor now takes a `SourceOptions`
+  record (`queries`, `maxDepth`, `maxModules`) instead of `[SourceQuery]`.
+  `commandToArgs` renders the limits as `--max-depth` / `--max-modules`.
+
 ## [0.4.2.0] - 2026-10-02
 
 ### Added
