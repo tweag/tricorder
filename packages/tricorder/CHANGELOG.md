@@ -7,6 +7,16 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `tricorder source MODULE#SYMBOL` now follows re-exports: a symbol that
+  `MODULE` re-exports rather than defines (e.g. `Data.Text#pack`, defined in
+  `Data.Text.Internal`) is traced to its defining module, and its source is
+  printed under a `-- Re-exported from <module>` line.
+- `tricorder source` now takes optional `--max-depth N` (re-export hops to
+  follow, default 5; `0` disables following) and `--max-modules N` (modules to
+  read while following, default 24) to bound the re-export search.
+
 ### Changed
 
 - Navigation in `tricorder ui` is now done with the left and right arrow keys

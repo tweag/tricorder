@@ -107,6 +107,7 @@ library tricorder-internal
       Tricorder.SourceLookup.Hackage
       Tricorder.SourceLookup.PackageId
       Tricorder.SourceLookup.PackageStore
+      Tricorder.SourceLookup.Reexport
       Tricorder.SourceLookup.Slice
       Tricorder.SourceLookup.Tarball
       Tricorder.TestOutput
@@ -285,6 +286,7 @@ test-suite tricorder-test
       Unit.Tricorder.SessionSpec
       Unit.Tricorder.SocketSpec
       Unit.Tricorder.SourceLookup.GhcPkgSpec
+      Unit.Tricorder.SourceLookup.ReexportSpec
       Unit.Tricorder.SourceLookup.SliceSpec
       Unit.Tricorder.SourceLookup.TarballSpec
       Unit.Tricorder.SourceLookupSpec

@@ -136,8 +136,8 @@ run =
                 startDaemon
                 void waitForDaemon
             viewUi
-        Source moduleNames -> do
-            showSource moduleNames
+        Source opts -> do
+            showSource opts
         Restart force ->
             restartDaemon force >>= \case
                 Just (Left reasons) -> traverse_ Console.putTextLn reasons

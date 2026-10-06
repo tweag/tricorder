@@ -33,6 +33,7 @@ import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Arguments
     ( EvalCommentsOptions (..)
+    , SourceOptions (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
@@ -48,7 +49,12 @@ import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
-import Tricorder.SourceLookup (ModuleSourceResult, lookupModuleSource)
+import Tricorder.SourceLookup
+    ( ModuleSourceResult
+    , ReexportLimits (..)
+    , defaultReexportLimits
+    , lookupModuleSource
+    )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageId (PackageId)
@@ -272,11 +278,17 @@ showSource
        , Log :> es
        , PackageStore :> es
        )
-    => [SourceQuery]
+    => SourceOptions
     -> Eff es ()
-showSource queries = do
-    results <- mapM lookupModuleSource queries
+showSource opts = do
+    results <- mapM (lookupModuleSource limits) opts.queries
     renderSourceResults results
+  where
+    limits =
+        ReexportLimits
+            { maxDepth = fromMaybe defaultReexportLimits.maxDepth opts.maxDepth
+            , maxModules = fromMaybe defaultReexportLimits.maxModules opts.maxModules
+            }
 
 
 showEvalComments

@@ -3,6 +3,7 @@ module Tricorder.CLI.Command
     , EvalCommentsOptions (..)
     , Force (..)
     , LogMode (..)
+    , SourceOptions (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
@@ -57,6 +58,15 @@ data EvalCommentsOptions = EvalCommentsOptions
     }
 
 
+data SourceOptions = SourceOptions
+    { queries :: [SourceQuery]
+    , maxDepth :: Maybe Word
+    -- ^ Most re-export hops to follow for a symbol query; 'Nothing' is the default.
+    , maxModules :: Maybe Word
+    -- ^ Most modules to read while following re-exports; 'Nothing' is the default.
+    }
+
+
 data Command
     = Start
     | Stop Force
@@ -64,7 +74,7 @@ data Command
     | Test TestOptions
     | UI
     | Log LogMode
-    | Source [SourceQuery]
+    | Source SourceOptions
     | Restart Force
     | EvalComments EvalCommentsOptions
     | Daemon DaemonCommand
@@ -90,7 +100,11 @@ commandToArgs (Test (TestOptions {failedOnly, wait})) =
 commandToArgs UI = ["ui"]
 commandToArgs (Log ShowLogPath) = ["log", "--print-path"]
 commandToArgs (Log ShowLog) = ["log"]
-commandToArgs (Source queries) = "source" : map renderSourceQuery queries
+commandToArgs (Source (SourceOptions {queries, maxDepth, maxModules})) =
+    "source"
+        : maybe [] (\n -> ["--max-depth", show n]) maxDepth
+            <> maybe [] (\n -> ["--max-modules", show n]) maxModules
+            <> map renderSourceQuery queries
 commandToArgs (Restart doForce) = "restart" : forceArgs doForce
 commandToArgs (EvalComments (EvalCommentsOptions {wait, format})) =
     "eval-comments" : waitArgs wait <> OutputFormat.toArgs format

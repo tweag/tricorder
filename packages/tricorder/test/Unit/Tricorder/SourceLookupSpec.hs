@@ -26,6 +26,8 @@ import Data.Text qualified as T
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
+    , ReexportLimits (..)
+    , defaultReexportLimits
     , lookupModuleSource
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
@@ -45,12 +47,12 @@ test_SourceLookup =
             [ testCase "reads the whole module from a cached tarball" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             , testCase "slices a symbol (with its doc block) from a cached tarball" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource (symbol "Data.Aeson" "encode")
+                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Aeson" "encode")
                 result
                     @?= SourceFound
                         (symbol "Data.Aeson" "encode")
@@ -58,12 +60,12 @@ test_SourceLookup =
             , testCase "returns FunctionNotFound for a symbol absent from the module" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource (symbol "Data.Aeson" "nope")
+                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Aeson" "nope")
                 result @?= FunctionNotFound (symbol "Data.Aeson" "nope")
             , testCase "returns SourceNotFound when the module is in no package" do
                 result <-
                     runTest [NextFindModule Nothing] Map.empty noFetch
-                        $ lookupModuleSource (wholeModule "Data.Unknown")
+                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Unknown")
                 result @?= SourceNotFound (wholeModule "Data.Unknown")
             , testCase "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
                 result <-
@@ -71,20 +73,20 @@ test_SourceLookup =
                         [NextFindModule (Just "aeson-2.2.5.0")]
                         Map.empty
                         (pure (Success (BSL.toStrict tarballBytes)))
-                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             , testCase "returns SourceUnavailable when the package is not found on Hackage" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
-                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
             , testCase "caches the result so a second lookup needs no further resolution" do
                 -- Only one NextFindModule is scripted; the second lookup must be served
                 -- entirely from cache (module→package and package→source).
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch $ do
-                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
                 r2 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
@@ -99,8 +101,8 @@ test_SourceLookup =
                         noFetch
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty countingFetch $ do
-                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
                 r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
@@ -117,17 +119,79 @@ test_SourceLookup =
                         pure (Failure "network unreachable")
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
-                        r1 <- lookupModuleSource (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
                 r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
                 fetches <- IORef.readIORef fetchCount
                 fetches @?= 2
+            , testCase "follows a re-export to the defining module" do
+                result <-
+                    runTest
+                        [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
+                        withReexportTarball
+                        noFetch
+                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "pack")
+                result
+                    @?= SourceReexported
+                        (symbol "Data.Reex" "pack")
+                        "Data.Reex.Internal"
+                        "-- | Pack a string.\npack :: String -> Text\npack = undefined"
+            , testCase "follows a re-export into a module ghc-pkg cannot place" do
+                -- A hidden (other-modules) module is not found by ghc-pkg; it is
+                -- looked up in the re-exporting module's package instead.
+                result <-
+                    runTest
+                        [NextFindModule (Just "reex-1.0"), NextFindModule Nothing]
+                        withReexportTarball
+                        noFetch
+                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "pack")
+                result
+                    @?= SourceReexported
+                        (symbol "Data.Reex" "pack")
+                        "Data.Reex.Internal"
+                        "-- | Pack a string.\npack :: String -> Text\npack = undefined"
+            , testCase "follows a chain of re-exports to the defining module" do
+                -- A re-exports foo from B, which re-exports it from C, which defines it.
+                result <-
+                    runTest
+                        (replicate 3 (NextFindModule (Just "chain-1.0")))
+                        withChainTarball
+                        noFetch
+                        $ lookupModuleSource defaultReexportLimits (symbol "A" "foo")
+                result @?= SourceReexported (symbol "A" "foo") "C" "foo :: Int\nfoo = 42"
+            , testGroup
+                "re-export limits"
+                -- The A -> B -> C chain takes 2 hops and reads 2 modules (B and C).
+                [ testCase "finds the definition when the depth covers the chain" do
+                    result <- lookupChain ReexportLimits {maxDepth = 2, maxModules = 24}
+                    result @?= SourceReexported (symbol "A" "foo") "C" "foo :: Int\nfoo = 42"
+                , testCase "stops short of the definition when the depth is too small" do
+                    result <- lookupChain ReexportLimits {maxDepth = 1, maxModules = 24}
+                    result @?= FunctionNotFound (symbol "A" "foo")
+                , testCase "does not follow re-exports at depth 0" do
+                    result <- lookupChain ReexportLimits {maxDepth = 0, maxModules = 24}
+                    result @?= FunctionNotFound (symbol "A" "foo")
+                , testCase "finds the definition when the module budget covers the chain" do
+                    result <- lookupChain ReexportLimits {maxDepth = 5, maxModules = 2}
+                    result @?= SourceReexported (symbol "A" "foo") "C" "foo :: Int\nfoo = 42"
+                , testCase "stops short of the definition when the module budget runs out" do
+                    result <- lookupChain ReexportLimits {maxDepth = 5, maxModules = 1}
+                    result @?= FunctionNotFound (symbol "A" "foo")
+                ]
+            , testCase "returns FunctionNotFound when no re-export defines the symbol" do
+                result <-
+                    runTest
+                        [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
+                        withReexportTarball
+                        noFetch
+                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "unpack")
+                result @?= FunctionNotFound (symbol "Data.Reex" "unpack")
             , testCase "finds a tarball in the legacy ~/.cabal cache location" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withLegacyTarball noFetch
-                        $ lookupModuleSource (wholeModule "Data.Aeson")
+                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             ]
         ]
@@ -176,11 +240,64 @@ withLegacyTarball :: Map FilePath LByteString
 withLegacyTarball = Map.singleton legacyTarballPath tarballBytes
 
 
+-- | A package in which @A@ re-exports @foo@ from @B@, which re-exports it from
+-- @C@, which defines it.
+withChainTarball :: Map FilePath LByteString
+withChainTarball =
+    Map.singleton
+        ("/h/.cache/cabal/packages" </> "hackage.haskell.org/chain/1.0/chain-1.0.tar.gz")
+        $ mkTarballWith
+            [ ("chain-1.0/src/A.hs", T.unlines ["module A (foo) where", "", "import B (foo)"])
+            , ("chain-1.0/src/B.hs", T.unlines ["module B (foo) where", "", "import C"])
+            , ("chain-1.0/src/C.hs", T.unlines ["module C where", "", "foo :: Int", "foo = 42"])
+            ]
+
+
+-- | Look up @A#foo@ in the 'withChainTarball' package under the given limits.
+lookupChain :: ReexportLimits -> IO ModuleSourceResult
+lookupChain limits =
+    runTest (replicate 3 (NextFindModule (Just "chain-1.0"))) withChainTarball noFetch
+        $ lookupModuleSource limits (symbol "A" "foo")
+
+
+-- | A package whose @Data.Reex@ re-exports @pack@ (and claims to re-export
+-- @unpack@) from @Data.Reex.Internal@, which only defines @pack@.
+withReexportTarball :: Map FilePath LByteString
+withReexportTarball =
+    Map.singleton
+        ("/h/.cache/cabal/packages" </> "hackage.haskell.org/reex/1.0/reex-1.0.tar.gz")
+        $ mkTarballWith
+            [
+                ( "reex-1.0/src/Data/Reex.hs"
+                , T.unlines
+                    [ "module Data.Reex (Text, pack, unpack) where"
+                    , ""
+                    , "import Data.Reex.Internal (Text, pack, unpack)"
+                    ]
+                )
+            ,
+                ( "reex-1.0/src/Data/Reex/Internal.hs"
+                , T.unlines
+                    [ "module Data.Reex.Internal where"
+                    , ""
+                    , "-- | Pack a string."
+                    , "pack :: String -> Text"
+                    , "pack = undefined"
+                    ]
+                )
+            ]
+
+
 mkTarball :: FilePath -> Text -> LByteString
-mkTarball entryPath content =
-    GZip.compress (Tar.write [Tar.fileEntry tarPath (BSL.fromStrict (encodeUtf8 content))])
+mkTarball entryPath content = mkTarballWith [(entryPath, content)]
+
+
+mkTarballWith :: [(FilePath, Text)] -> LByteString
+mkTarballWith entries =
+    GZip.compress
+        (Tar.write [Tar.fileEntry (tarPath p) (BSL.fromStrict (encodeUtf8 c)) | (p, c) <- entries])
   where
-    tarPath = either (error . toText) id (Tar.toTarPath False entryPath)
+    tarPath p = either (error . toText) id (Tar.toTarPath False p)
 
 
 wholeModule :: ModuleName -> SourceQuery
