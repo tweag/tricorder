@@ -137,7 +137,11 @@ data UnexpectedExit = MkUnexpectedExit
     deriving stock (Eq, Show)
 
 
-instance Exception GhciProcessError
+instance Exception GhciProcessError where
+    displayException :: GhciProcessError -> String
+    displayException StartupTimeout = "GHCi timed out while starting"
+    displayException (UnexpectedExit unexpected) = toString unexpected.errorMessage
+    displayException (StartupFailed msg) = toString msg
 
 
 -- | Set up the GHCi protocol on an already-started process and return its

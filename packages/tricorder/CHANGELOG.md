@@ -34,6 +34,14 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Default key binding for the "help" view is now `?`. This key binding is
   supported as expected on keyboards where `?` is inputted with a modifier key.
 
+### Fixed
+
+- When the build command exits before GHCi starts, its output is now shown as
+  plain text in `tricorder ui`, `tricorder status` and the JSON output.
+  Previously it was rendered with `show`, so it appeared as
+  `StartupFailed "..."` with line breaks printed as a literal `\n`.
+  ([#542](https://github.com/tweag/tricorder/issues/542))
+
 ## [0.5.0.0] - 2026-10-02
 
 ### Added
