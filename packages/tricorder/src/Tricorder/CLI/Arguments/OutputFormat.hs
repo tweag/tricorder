@@ -1,7 +1,7 @@
 module Tricorder.CLI.Arguments.OutputFormat (parser) where
 
-import Options.Applicative (Parser, flag, help, long)
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
+import Options.Applicative (Parser, flag, help, long, short, showDefaultWith)
+import Tricorder.CLI.Command.OutputFormat (OutputFormat (..), jsonOutputFlagName)
 
 
 parser :: Parser OutputFormat
@@ -9,4 +9,6 @@ parser =
     flag
         TextOutput
         JsonOutput
-        $ long "json" <> help "Output full build state as JSON"
+        $ long jsonOutputFlagName
+            <> short 'j'
+            <> help "Output full build state as JSON"

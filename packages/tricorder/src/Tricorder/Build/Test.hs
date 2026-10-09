@@ -15,8 +15,8 @@ module Tricorder.Build.Test
     )
 where
 
-import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generically (..))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 
 import Data.Map.Strict qualified as Map
 
@@ -26,8 +26,7 @@ import Tricorder.Session.TestTarget (TestTarget)
 
 newtype Suites = Suites {getSuites :: Map TestTarget Suite}
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically Suites
-    deriving (Monoid, Semigroup) via Map TestTarget Suite
+    deriving (FromJSON, Monoid, Semigroup, ToJSON) via Map TestTarget Suite
 
 
 hasFailedTests :: Suites -> Bool
@@ -58,7 +57,7 @@ data Suite
     | SuiteErrored SuiteError
     | SuiteCompleted SuiteCompletion
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via (Generically Suite)
+    deriving (FromJSON, ToJSON) via QuietSnake Suite
 
 
 isFailedRun :: Suite -> Bool
@@ -72,14 +71,14 @@ data Progress = Progress
     , total :: Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically Progress
+    deriving (FromJSON, ToJSON) via QuietSnake Progress
 
 
 data Outcome
     = Passed
     | Failed Text
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via (Generically Outcome)
+    deriving (FromJSON, ToJSON) via QuietSnake Outcome
 
 
 data Case = Case
@@ -87,7 +86,7 @@ data Case = Case
     , outcome :: Outcome
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via (Generically Case)
+    deriving (FromJSON, ToJSON) via QuietSnake Case
 
 
 caseFailed :: Case -> Bool
@@ -99,7 +98,7 @@ newtype SuiteError = SuiteError
     { message :: Text
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via (Generically SuiteError)
+    deriving (FromJSON, ToJSON) via QuietSnake SuiteError
 
 
 data SuiteCompletion = SuiteCompletion
@@ -109,4 +108,4 @@ data SuiteCompletion = SuiteCompletion
     , duration :: Maybe Duration
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via (Generically SuiteCompletion)
+    deriving (FromJSON, ToJSON) via QuietSnake SuiteCompletion

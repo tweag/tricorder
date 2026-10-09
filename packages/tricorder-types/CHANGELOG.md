@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Command`'s `Test` constructor for the `tricorder test` subcommand, with
+  `Tricorder.CLI.Command.FieldMask` for selecting fields of the response.
+  Non-breaking.
+
 ### Changed
 
 - **Breaking:** `Command`'s `Source` constructor now takes a `SourceOptions`

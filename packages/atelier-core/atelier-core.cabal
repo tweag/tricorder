@@ -70,6 +70,9 @@ library
       Atelier.Time
       Atelier.Types.Base64
       Atelier.Types.HttpApiDataReadShow
+      Atelier.Types.JSON.QuietSnake
+      Atelier.Types.JSON.ReadShow
+      Atelier.Types.JSON.StringLiteral
       Atelier.Types.JsonReadShow
       Atelier.Types.QuietSnake
       Atelier.Types.Semaphore

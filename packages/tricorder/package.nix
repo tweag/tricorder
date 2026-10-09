@@ -46,6 +46,7 @@ in
       ++ depList [
         "Cabal"
         "Cabal-syntax"
+        "Glob"
         "aeson"
         "atelier-core"
         "atelier-prelude"
@@ -58,7 +59,6 @@ in
         "effectful"
         "effectful-th"
         "filepath"
-        "Glob"
         "hashable"
         "megaparsec"
         "mtl"
