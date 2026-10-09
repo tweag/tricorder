@@ -272,7 +272,7 @@ runBuilder buildId session = do
                 Conc.restartableFork checkCancel
                     $ waitForReload session event
 
-    Pub.publish $ Build.Failed $ show startupError
+    Pub.publish $ Build.Failed $ toText $ displayException startupError
   where
     buildCommand = BuildCommand.render session.buildSession.commandTemplate session.buildSession.targets
 
