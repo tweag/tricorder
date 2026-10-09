@@ -40,7 +40,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   plain text in `tricorder ui`, `tricorder status` and the JSON output.
   Previously it was rendered with `show`, so it appeared as
   `StartupFailed "..."` with line breaks printed as a literal `\n`.
-  ([#542](https://github.com/tweag/tricorder/issues/542))
+  ([#542](https://github.com/tweag/tricorder/issues/542)) (Thanks @RyosukeDTomita)
 
 ## [0.5.0.0] - 2026-10-02
 
