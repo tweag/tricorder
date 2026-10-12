@@ -1,6 +1,5 @@
 module Tricorder.CLI.App (run) where
 
-import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
@@ -16,7 +15,6 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
-import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
@@ -47,10 +45,8 @@ import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
-import Tricorder.SourceLookup (ModuleSourceResult)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
-import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.CLI.UI.Keys qualified as Keys
@@ -59,8 +55,6 @@ import Tricorder.CLI.UI.Keys qualified as Keys
 run
     :: ( Brick :> es
        , BrickChan :> es
-       , Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
        , Clock :> es
        , Conc :> es
        , Concurrent :> es

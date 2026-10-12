@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Cache (runCacheTtl)
 import Atelier.Effects.Chan (runChan)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
@@ -18,11 +17,8 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
-import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
-import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
-import Atelier.Effects.Cache.Config qualified as CacheConfig
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
@@ -39,7 +35,6 @@ import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
-import Tricorder.SourceLookup.PackageId (PackageId)
 
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
@@ -49,7 +44,6 @@ import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Session.Repl qualified as Repl
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Socket.Server qualified as Server
-import Tricorder.SourceLookup qualified as SourceLookup
 import Tricorder.SourceLookup.Hackage qualified as Hackage
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 import Tricorder.Version qualified as Version
@@ -83,9 +77,6 @@ main =
         . StackProject.inputWithCache
         . inputCabalFiles
         . inputSession
-        . runReader @CacheConfig.Config def
-        . runCacheTtl @ModuleName @PackageId
-        . runCacheTtl @(PackageId, SourceQuery) @SourceLookup.ModuleSourceResult
         . runProcessIO
         . runGhcPkgIO
         . runUnixSocketIO

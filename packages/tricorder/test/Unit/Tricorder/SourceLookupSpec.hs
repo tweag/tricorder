@@ -1,6 +1,5 @@
 module Unit.Tricorder.SourceLookupSpec (test_SourceLookup) where
 
-import Atelier.Effects.Cache (Cache, runCacheForever)
 import Atelier.Effects.Env (Env, runEnvConst)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input, runInputConst)
@@ -19,7 +18,6 @@ import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
-import Data.IORef qualified as IORef
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
@@ -36,7 +34,6 @@ import Tricorder.SourceLookup
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
-import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
@@ -63,7 +60,10 @@ test_SourceLookup =
                         "-- | Encode a value as JSON.\nencode :: Value -> ByteString\nencode = undefined"
             , testCase "returns FunctionNotFound for a symbol absent from the module" do
                 result <-
-                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
+                    runTest
+                        (NextFindModule (Just "aeson-2.2.5.0") : cycle [NextFindModule Nothing])
+                        withTarball
+                        noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Aeson" "nope")
                 result @?= FunctionNotFound (symbol "Data.Aeson" "nope")
             , testCase "returns SourceNotFound when the module is in no package" do
@@ -84,56 +84,10 @@ test_SourceLookup =
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-            , testCase "caches the result so a second lookup needs no further resolution" do
-                -- Only one NextFindModule is scripted; the second lookup must be served
-                -- entirely from cache (module→package and package→source).
-                (r1, r2) <-
-                    runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch $ do
-                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        pure (r1, r2)
-                r1 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
-                r2 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
-            , testCase "caches an unavailable result and does not re-fetch on a repeat lookup" do
-                -- The tarball is absent and every fetch reports the package as not
-                -- found, so the first lookup is SourceUnavailable. A repeat lookup must
-                -- be served from cache — no second Hackage fetch on the (network)
-                -- request path.
-                fetchCount <- IORef.newIORef (0 :: Int)
-                let countingFetch = do
-                        liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                        noFetch
-                (r1, r2) <-
-                    runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty countingFetch $ do
-                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        pure (r1, r2)
-                r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-                r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-                fetches <- IORef.readIORef fetchCount
-                fetches @?= 1
-            , testCase "re-fetches after a failed fetch rather than caching the failure" do
-                -- A failed Hackage fetch (offline, DNS failure, 5xx) is transient, so
-                -- the resulting SourceUnavailable must NOT be cached: a repeat lookup
-                -- has to retry the fetch, or a brief network blip pins unavailability
-                -- for the whole cache window.
-                fetchCount <- IORef.newIORef (0 :: Int)
-                let failingFetch = do
-                        liftIO (IORef.modifyIORef' fetchCount (+ 1))
-                        pure (Failure "network unreachable")
-                (r1, r2) <-
-                    runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
-                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
-                        pure (r1, r2)
-                r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-                r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
-                fetches <- IORef.readIORef fetchCount
-                fetches @?= 2
             , testCase "follows a re-export to the defining module" do
                 result <-
                     runTest
-                        [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
+                        (NextFindModule (Just "reex-1.0") : cycle [NextFindModule (Just "reex-1.0")])
                         withReexportTarball
                         noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "pack")
@@ -147,7 +101,7 @@ test_SourceLookup =
                 -- looked up in the re-exporting module's package instead.
                 result <-
                     runTest
-                        [NextFindModule (Just "reex-1.0"), NextFindModule Nothing]
+                        (NextFindModule (Just "reex-1.0") : cycle [NextFindModule Nothing])
                         withReexportTarball
                         noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "pack")
@@ -160,7 +114,7 @@ test_SourceLookup =
                 -- A re-exports foo from B, which re-exports it from C, which defines it.
                 result <-
                     runTest
-                        (replicate 3 (NextFindModule (Just "chain-1.0")))
+                        (replicate 3 (NextFindModule (Just "chain-1.0")) <> cycle [NextFindModule Nothing])
                         withChainTarball
                         noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "A" "foo")
@@ -187,7 +141,7 @@ test_SourceLookup =
             , testCase "returns FunctionNotFound when no re-export defines the symbol" do
                 result <-
                     runTest
-                        [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
+                        (NextFindModule (Just "reex-1.0") : cycle [NextFindModule Nothing])
                         withReexportTarball
                         noFetch
                         $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "unpack")
@@ -372,7 +326,10 @@ withChainTarball =
 -- | Look up @A#foo@ in the 'withChainTarball' package under the given limits.
 lookupChain :: ReexportLimits -> IO ModuleSourceResult
 lookupChain limits =
-    runTest (replicate 3 (NextFindModule (Just "chain-1.0"))) withChainTarball noFetch
+    runTest
+        (replicate 3 (NextFindModule (Just "chain-1.0")) <> cycle [NextFindModule Nothing])
+        withChainTarball
+        noFetch
         $ lookupModuleSource noProjectDirs limits (symbol "A" "foo")
 
 
@@ -449,12 +406,7 @@ type FetchEffects =
      ]
 
 
-type TestEffects =
-    Cache ModuleName PackageId
-        : Cache (PackageId, SourceQuery) ModuleSourceResult
-        : GhcPkg
-        : Hackage
-        : FetchEffects
+type TestEffects = GhcPkg : Hackage : FetchEffects
 
 
 runTest
@@ -474,8 +426,6 @@ runTest pkgScript initialFs onFetch action =
         . PackageStore.run
         . runHackageWith onFetch
         . runGhcPkgScripted pkgScript
-        . runCacheForever @(PackageId, SourceQuery) @ModuleSourceResult
-        . runCacheForever @ModuleName @PackageId
         $ action
 
 

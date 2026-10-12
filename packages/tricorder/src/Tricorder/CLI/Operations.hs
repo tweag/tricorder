@@ -8,7 +8,6 @@ module Tricorder.CLI.Operations
     )
 where
 
-import Atelier.Effects.Cache (Cache)
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Exit (Exit, exitFailure)
@@ -21,7 +20,6 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
 import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
-import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery)
 
 import Atelier.Effects.Console qualified as Console
 import Data.ByteString.Lazy qualified as BSL
@@ -51,15 +49,13 @@ import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup
-    ( ModuleSourceResult
-    , ReexportLimits (..)
+    ( ReexportLimits (..)
     , defaultReexportLimits
     , lookupModuleSource
     , projectSourceDirs
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
-import Tricorder.SourceLookup.PackageId (PackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.TestOutput (stripGhciNoise)
 
@@ -270,9 +266,7 @@ showTests opts = do
 
 
 showSource
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , Console :> es
+    :: ( Console :> es
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es

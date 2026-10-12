@@ -8,7 +8,6 @@ module Tricorder.SourceLookup
     )
 where
 
-import Atelier.Effects.Cache (Cache, cacheInsert, cacheLookup)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
@@ -118,9 +117,7 @@ data Origin
 -- A symbol the module does not define itself is searched for in the modules it
 -- may re-export it from (see 'followReexports').
 lookupModuleSource
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , FileSystem :> es
+    :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
        , Input Repl :> es
@@ -148,9 +145,7 @@ lookupModuleSource dirs limits query = do
 -- entry) the parent package is used instead. Also returns where the module was
 -- found, if anywhere.
 lookupLocal
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , FileSystem :> es
+    :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
        , Input Repl :> es
@@ -175,12 +170,7 @@ lookupLocal dirs parent query = do
             case mPkg of
                 Nothing -> pure (Nothing, SourceNotFound query)
                 Just p -> do
-                    mCached <- cacheLookup @(PackageId, SourceQuery) @ModuleSourceResult (p, query)
-                    (Just (InPackage p),) <$> case mCached of
-                        Just result -> do
-                            Log.debug $ "Source: " <> unModuleName query.moduleName <> " source hit (cached)"
-                            pure result
-                        Nothing -> serveFromTarball query p
+                    (Just (InPackage p),) <$> serveFromTarball query p
   where
     fallback = case parent of
         InProject -> Nothing
@@ -224,9 +214,7 @@ fromModuleSource query moduleSrc = case query.function of
 -- member of a local type or class (see 'declaresMember'): that module defines
 -- it, so following other imports could only find an unrelated namesake.
 followReexports
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , Cache ModuleName PackageId :> es
-       , FileSystem :> es
+    :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
        , Input Repl :> es
@@ -286,32 +274,23 @@ followReexports dirs limits query symbol origin
 
 -- | Resolve a module to its package, consulting the module -> package cache first.
 resolvePackage
-    :: ( Cache ModuleName PackageId :> es
-       , GhcPkg :> es
+    :: ( GhcPkg :> es
        , Input Repl :> es
        , Log :> es
        )
     => ModuleName
     -> Eff es (Maybe PackageId)
 resolvePackage modName = do
-    mCachedPkg <- cacheLookup @ModuleName @PackageId modName
-    case mCachedPkg of
-        Just p -> do
-            Log.debug $ "Source: " <> unModuleName modName <> " → " <> unPackageId p <> " (cached)"
-            pure (Just p)
-        Nothing -> do
-            repl <- input
-            result <- GhcPkg.findModule repl modName
-            Log.debug $ "Source: find-module " <> unModuleName modName <> " → " <> show result
-            whenJust result (cacheInsert @ModuleName @PackageId modName)
-            pure result
+    repl <- input
+    result <- GhcPkg.findModule repl modName
+    Log.debug $ "Source: find-module " <> unModuleName modName <> " → " <> show result
+    pure result
 
 
 -- | Locate (or fetch) the package's tarball, read the module member, and slice
--- the requested symbol if any. Caches and returns the result.
+-- the requested symbol if any.
 serveFromTarball
-    :: ( Cache (PackageId, SourceQuery) ModuleSourceResult :> es
-       , FileSystem :> es
+    :: ( FileSystem :> es
        , Hackage :> es
        , Log :> es
        , PackageStore :> es
@@ -321,19 +300,8 @@ serveFromTarball
     -> Eff es ModuleSourceResult
 serveFromTarball query p =
     obtainTarball p >>= \case
-        -- A failed `cabal fetch` is transient (offline, stale index), so return
-        -- unavailable WITHOUT caching: a later lookup retries once the network or
-        -- index recovers, rather than serving the negative for the whole window.
-        TarballFetchFailed -> pure (SourceUnavailable query p)
-        -- The package is genuinely absent — a deterministic negative, safe to
-        -- cache alongside the read/slice outcomes below.
-        TarballAbsent -> cacheResult (SourceUnavailable query p)
+        TarballFetchFailed -> pure $ SourceUnavailable query p
+        TarballAbsent -> pure $ SourceUnavailable query p
         TarballAt tarball -> do
             mModuleSrc <- readModuleMember tarball query.moduleName
-            cacheResult $ maybe (SourceUnavailable query p) (fromModuleSource query) mModuleSrc
-  where
-    -- Cache a deterministic outcome so the fetch + read/slice cost is paid at
-    -- most once per (package, query) within the cache window.
-    cacheResult result = do
-        cacheInsert @(PackageId, SourceQuery) @ModuleSourceResult (p, query) result
-        pure result
+            pure $ maybe (SourceUnavailable query p) (fromModuleSource query) mModuleSrc
