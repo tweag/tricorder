@@ -92,7 +92,7 @@ commandParser =
             <> command "log" (info logParser (progDesc "Show daemon log output"))
             <> command
                 "source"
-                (info sourceParser (progDesc "Print the Haskell source of one or more installed modules"))
+                (info sourceParser (progDesc "Print the Haskell source of one or more project or installed modules"))
             <> command "restart" (info restartParser (progDesc "Restart the daemon"))
             <> command
                 "eval-comments"

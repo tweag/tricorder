@@ -25,7 +25,7 @@ tricorder is a daemon-based GHCi build monitor. It exposes build state over a Un
 - `tricorder test-results` — show full output from the latest test run
 - `tricorder test-results --failed` — show output only from failed test suites
 - `tricorder test-results --wait` — block until the current build cycle completes, then show results
-- `tricorder source MODULE...` — print Haskell source for one or more installed modules (e.g. `tricorder source Data.Map.Strict`)
+- `tricorder source MODULE...` — print Haskell source for one or more project or installed modules (e.g. `tricorder source Data.Map.Strict`)
 - `tricorder eval-comments` — print eval comments and their evaluated results from the current build result.
 - `tricorder eval-comments --wait` — print eval comments and their evaluated results, waiting for the current build to finish if it is in-progress
 - `tricorder eval-comments --json` — print eval comments and their evaluated results as JSON

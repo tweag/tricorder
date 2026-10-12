@@ -14,7 +14,7 @@ import Atelier.Effects.Console (Console)
 import Atelier.Effects.Exit (Exit, exitFailure)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
-import Atelier.Effects.Input (Input)
+import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -46,6 +46,7 @@ import Tricorder.CLI.Render
     )
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
@@ -54,6 +55,7 @@ import Tricorder.SourceLookup
     , ReexportLimits (..)
     , defaultReexportLimits
     , lookupModuleSource
+    , projectSourceDirs
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
@@ -275,13 +277,15 @@ showSource
        , GhcPkg :> es
        , Hackage :> es
        , Input Repl :> es
+       , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es
        )
     => SourceOptions
     -> Eff es ()
 showSource opts = do
-    results <- mapM (lookupModuleSource limits) opts.queries
+    dirs <- projectSourceDirs <$> input
+    results <- mapM (lookupModuleSource dirs limits) opts.queries
     renderSourceResults results
   where
     limits =

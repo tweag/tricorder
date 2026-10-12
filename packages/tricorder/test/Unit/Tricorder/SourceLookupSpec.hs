@@ -5,6 +5,7 @@ import Atelier.Effects.Env (Env, runEnvConst)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input, runInputConst)
 import Atelier.Effects.Log (Log, runLogNoOp)
+import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
@@ -23,12 +24,15 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
+import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup
     ( ModuleSourceResult (..)
+    , ProjectSourceDirs (..)
     , ReexportLimits (..)
     , defaultReexportLimits
     , lookupModuleSource
+    , projectSourceDirs
     )
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
@@ -47,12 +51,12 @@ test_SourceLookup =
             [ testCase "reads the whole module from a cached tarball" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             , testCase "slices a symbol (with its doc block) from a cached tarball" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Aeson" "encode")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Aeson" "encode")
                 result
                     @?= SourceFound
                         (symbol "Data.Aeson" "encode")
@@ -60,12 +64,12 @@ test_SourceLookup =
             , testCase "returns FunctionNotFound for a symbol absent from the module" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Aeson" "nope")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Aeson" "nope")
                 result @?= FunctionNotFound (symbol "Data.Aeson" "nope")
             , testCase "returns SourceNotFound when the module is in no package" do
                 result <-
                     runTest [NextFindModule Nothing] Map.empty noFetch
-                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Unknown")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Unknown")
                 result @?= SourceNotFound (wholeModule "Data.Unknown")
             , testCase "fetches from Hackage on a cache miss, then reads the now-fetched tarball" do
                 result <-
@@ -73,20 +77,20 @@ test_SourceLookup =
                         [NextFindModule (Just "aeson-2.2.5.0")]
                         Map.empty
                         (pure (Success (BSL.toStrict tarballBytes)))
-                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             , testCase "returns SourceUnavailable when the package is not found on Hackage" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty noFetch
-                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
             , testCase "caches the result so a second lookup needs no further resolution" do
                 -- Only one NextFindModule is scripted; the second lookup must be served
                 -- entirely from cache (module→package and package→source).
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withTarball noFetch $ do
-                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
                 r2 @?= SourceFound (wholeModule "Data.Aeson") moduleSource
@@ -101,8 +105,8 @@ test_SourceLookup =
                         noFetch
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty countingFetch $ do
-                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
                 r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
@@ -119,8 +123,8 @@ test_SourceLookup =
                         pure (Failure "network unreachable")
                 (r1, r2) <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] Map.empty failingFetch $ do
-                        r1 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
-                        r2 <- lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        r1 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
+                        r2 <- lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                         pure (r1, r2)
                 r1 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
                 r2 @?= SourceUnavailable (wholeModule "Data.Aeson") "aeson-2.2.5.0"
@@ -132,7 +136,7 @@ test_SourceLookup =
                         [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
                         withReexportTarball
                         noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "pack")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "pack")
                 result
                     @?= SourceReexported
                         (symbol "Data.Reex" "pack")
@@ -146,7 +150,7 @@ test_SourceLookup =
                         [NextFindModule (Just "reex-1.0"), NextFindModule Nothing]
                         withReexportTarball
                         noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "pack")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "pack")
                 result
                     @?= SourceReexported
                         (symbol "Data.Reex" "pack")
@@ -159,7 +163,7 @@ test_SourceLookup =
                         (replicate 3 (NextFindModule (Just "chain-1.0")))
                         withChainTarball
                         noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "A" "foo")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "A" "foo")
                 result @?= SourceReexported (symbol "A" "foo") "C" "foo :: Int\nfoo = 42"
             , testGroup
                 "re-export limits"
@@ -186,12 +190,64 @@ test_SourceLookup =
                         [NextFindModule (Just "reex-1.0"), NextFindModule (Just "reex-1.0")]
                         withReexportTarball
                         noFetch
-                        $ lookupModuleSource defaultReexportLimits (symbol "Data.Reex" "unpack")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (symbol "Data.Reex" "unpack")
                 result @?= FunctionNotFound (symbol "Data.Reex" "unpack")
             , testCase "finds a tarball in the legacy ~/.cabal cache location" do
                 result <-
                     runTest [NextFindModule (Just "aeson-2.2.5.0")] withLegacyTarball noFetch
-                        $ lookupModuleSource defaultReexportLimits (wholeModule "Data.Aeson")
+                        $ lookupModuleSource noProjectDirs defaultReexportLimits (wholeModule "Data.Aeson")
+                result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
+            ]
+        , testGroup
+            "project modules"
+            [ testCase "resolves every component's source dirs against the package dir" do
+                projectDirs @?= ProjectSourceDirs ["/p/src", "/p/test"]
+            , testCase "reads a module from the project's source dirs" do
+                result <-
+                    runTest [] projectFiles noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Proj.Types")
+                result @?= SourceFound (wholeModule "Proj.Types") projectTypesSource
+            , testCase "reads a module from a non-library component's source dirs" do
+                result <-
+                    runTest [] projectFiles noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Proj.Helpers")
+                result @?= SourceFound (wholeModule "Proj.Helpers") projectHelpersSource
+            , testCase "slices a symbol from a project module" do
+                result <-
+                    runTest [] projectFiles noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj.Types" "greeting")
+                result
+                    @?= SourceFound
+                        (symbol "Proj.Types" "greeting")
+                        "-- | A greeting.\ngreeting :: Text\ngreeting = \"hi\""
+            , testCase "follows a re-export to another project module" do
+                result <-
+                    runTest [] projectFiles noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj" "greeting")
+                result
+                    @?= SourceReexported
+                        (symbol "Proj" "greeting")
+                        "Proj.Types"
+                        "-- | A greeting.\ngreeting :: Text\ngreeting = \"hi\""
+            , testCase "follows a re-export from a project module into a package" do
+                result <-
+                    runTest
+                        [NextFindModule (Just "aeson-2.2.5.0")]
+                        (projectFiles <> withTarball)
+                        noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj" "encode")
+                result
+                    @?= SourceReexported
+                        (symbol "Proj" "encode")
+                        "Data.Aeson"
+                        "-- | Encode a value as JSON.\nencode :: Value -> ByteString\nencode = undefined"
+            , testCase "falls back to installed packages for a module not in the project" do
+                result <-
+                    runTest
+                        [NextFindModule (Just "aeson-2.2.5.0")]
+                        (projectFiles <> withTarball)
+                        noFetch
+                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             ]
         ]
@@ -240,6 +296,66 @@ withLegacyTarball :: Map FilePath LByteString
 withLegacyTarball = Map.singleton legacyTarballPath tarballBytes
 
 
+-- | A project package with a library under @src@ and a test suite under @test@.
+projectCabalFile :: CabalFile
+projectCabalFile =
+    CabalFile "/p/proj.cabal"
+        . fromMaybe (error "projectCabalFile: unparseable")
+        . parseGenericPackageDescriptionMaybe
+        . encodeUtf8
+        $ T.unlines
+            [ "cabal-version: 3.0"
+            , "name: proj"
+            , "version: 0.1"
+            , "library"
+            , "  hs-source-dirs: src"
+            , "  exposed-modules: Proj, Proj.Types"
+            , "test-suite spec"
+            , "  type: exitcode-stdio-1.0"
+            , "  main-is: Main.hs"
+            , "  hs-source-dirs: test"
+            , "  other-modules: Proj.Helpers"
+            ]
+
+
+projectDirs :: ProjectSourceDirs
+projectDirs = projectSourceDirs [projectCabalFile]
+
+
+noProjectDirs :: ProjectSourceDirs
+noProjectDirs = ProjectSourceDirs []
+
+
+projectTypesSource :: Text
+projectTypesSource =
+    T.unlines
+        [ "module Proj.Types where"
+        , ""
+        , "-- | A greeting."
+        , "greeting :: Text"
+        , "greeting = \"hi\""
+        ]
+
+
+projectHelpersSource :: Text
+projectHelpersSource = T.unlines ["module Proj.Helpers where", "", "helper :: Int", "helper = 1"]
+
+
+-- | The source files of 'projectCabalFile': @Proj@ re-exports @greeting@ from
+-- @Proj.Types@ and @encode@ from the installed @Data.Aeson@.
+projectFiles :: Map FilePath LByteString
+projectFiles =
+    Map.fromList
+        [
+            ( "/p/src/Proj.hs"
+            , encodeUtf8 @Text
+                "module Proj (greeting, encode) where\n\nimport Proj.Types (greeting)\nimport Data.Aeson (encode)\n"
+            )
+        , ("/p/src/Proj/Types.hs", encodeUtf8 projectTypesSource)
+        , ("/p/test/Proj/Helpers.hs", encodeUtf8 projectHelpersSource)
+        ]
+
+
 -- | A package in which @A@ re-exports @foo@ from @B@, which re-exports it from
 -- @C@, which defines it.
 withChainTarball :: Map FilePath LByteString
@@ -257,7 +373,7 @@ withChainTarball =
 lookupChain :: ReexportLimits -> IO ModuleSourceResult
 lookupChain limits =
     runTest (replicate 3 (NextFindModule (Just "chain-1.0"))) withChainTarball noFetch
-        $ lookupModuleSource limits (symbol "A" "foo")
+        $ lookupModuleSource noProjectDirs limits (symbol "A" "foo")
 
 
 -- | A package whose @Data.Reex@ re-exports @pack@ (and claims to re-export
@@ -321,35 +437,31 @@ noFetch :: Eff es Result
 noFetch = pure NotFound
 
 
+type FetchEffects =
+    '[ PackageStore
+     , Env
+     , FileSystem
+     , State (Map FilePath LByteString)
+     , Input Repl
+     , Log
+     , Concurrent
+     , IOE
+     ]
+
+
+type TestEffects =
+    Cache ModuleName PackageId
+        : Cache (PackageId, SourceQuery) ModuleSourceResult
+        : GhcPkg
+        : Hackage
+        : FetchEffects
+
+
 runTest
     :: [GhcPkgScript]
     -> Map FilePath LByteString
-    -> Eff
-        '[ PackageStore
-         , Env
-         , FileSystem
-         , State (Map FilePath LByteString)
-         , Input Repl
-         , Log
-         , Concurrent
-         , IOE
-         ]
-        Result
-    -> Eff
-        '[ Cache ModuleName PackageId
-         , Cache (PackageId, SourceQuery) ModuleSourceResult
-         , GhcPkg
-         , Hackage
-         , PackageStore
-         , Env
-         , FileSystem
-         , State (Map FilePath LByteString)
-         , Input Repl
-         , Log
-         , Concurrent
-         , IOE
-         ]
-        a
+    -> Eff FetchEffects Result
+    -> Eff TestEffects a
     -> IO a
 runTest pkgScript initialFs onFetch action =
     runEff

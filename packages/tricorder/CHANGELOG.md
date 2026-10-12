@@ -16,6 +16,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `tricorder source` now takes optional `--max-depth N` (re-export hops to
   follow, default 5; `0` disables following) and `--max-modules N` (modules to
   read while following, default 24) to bound the re-export search.
+- `tricorder source` now finds modules defined in the project itself, searching
+  the `hs-source-dirs` of every component of every project package before
+  falling back to installed packages.
 
 ### Changed
 

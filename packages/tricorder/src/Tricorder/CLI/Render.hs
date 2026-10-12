@@ -68,7 +68,7 @@ renderSourceResults results = mapM_ renderOne results
         Console.putTextLn
             $ "Not found: "
                 <> unModuleName query.moduleName
-                <> " (module not in any installed package)"
+                <> " (module not in the project or any installed package)"
     renderOne (SourceUnavailable query pkgId) =
         Console.putTextLn
             $ "No source available: "

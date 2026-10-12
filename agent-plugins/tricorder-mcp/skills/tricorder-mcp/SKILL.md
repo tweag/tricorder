@@ -17,7 +17,7 @@ as a Bash command; the MCP server already wraps it.
 - `stop` / `restart` — stop/restart the daemon; pass `force: true` to skip waiting on pending queries
 - `status` — current build status: diagnostics, errors, warnings. Pass `wait: true` to block until an in-progress build finishes, `verbose: true` for full GHC message bodies, or `expand: N` to expand a single diagnostic. Returns JSON.
 - `test_results` — output from the latest test run. Pass `wait: true` to block until the build/test cycle finishes, or `failed: true` to show only failing suites.
-- `source` — Haskell source for one or more installed modules (e.g. `Data.Map.Strict` or `Data.Map.Strict#insert`). Prefer this over downloading tarballs.
+- `source` — Haskell source for one or more project or installed modules (e.g. `Data.Map.Strict` or `Data.Map.Strict#insert`). Prefer this over downloading tarballs.
 - `eval_comments` — eval comments and their evaluated results from the latest build. Pass `wait: true` to block until the build finishes. Returns JSON.
 - `log_contents` / `log_path` — the daemon's log output, or the path to its log file.
 

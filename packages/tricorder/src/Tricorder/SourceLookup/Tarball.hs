@@ -5,6 +5,7 @@ module Tricorder.SourceLookup.Tarball
       TarballOutcome (..)
     , obtainTarball
     , readModuleMember
+    , sourceExtensions
 
       -- * Pure helpers (exposed for testing)
     , tarballPath

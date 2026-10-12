@@ -43,6 +43,7 @@ import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Runtime (LogPath (..), PidFile (..), SocketPath (..))
+import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
@@ -74,6 +75,7 @@ run
        , IOE :> es
        , Input DaemonInfo :> es
        , Input Repl :> es
+       , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es
        , Process :> es

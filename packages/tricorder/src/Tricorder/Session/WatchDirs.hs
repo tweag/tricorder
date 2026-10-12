@@ -2,6 +2,7 @@ module Tricorder.Session.WatchDirs
     ( WatchDirs (..)
     , resolve
     , sourceDirsForTarget
+    , allSourceDirs
     )
 where
 
@@ -151,3 +152,18 @@ sourceDirsForTarget gpd target =
     dirsForComponent components name =
         let ucn = mkUnqualComponentName (toString name)
         in  concatMap (componentDirs . condTreeData . snd) $ filter ((== ucn) . fst) components
+
+
+-- | The @hs-source-dirs@ of every component in the package, relative to the
+-- package's own directory.
+allSourceDirs :: GenericPackageDescription -> [FilePath]
+allSourceDirs gpd =
+    nub
+        . sourceDirsForTarget gpd
+        . Bare
+        . toText
+        . unPackageName
+        . pkgName
+        . package
+        . packageDescription
+        $ gpd

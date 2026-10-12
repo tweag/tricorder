@@ -159,7 +159,7 @@ toolDescriptions =
         , defaultDefinitionOptions
             { optDescription =
                 Just
-                    "Print the Haskell source of one or more installed modules. Prefer this over downloading tarballs."
+                    "Print the Haskell source of one or more project or installed modules. Prefer this over downloading tarballs."
             , optTitle = Just "Lookup source"
             , optFieldDescriptions =
                 [ ("modules", "Module names to look up, e.g. Data.Map.Strict or Data.Map.Strict#insert.")
