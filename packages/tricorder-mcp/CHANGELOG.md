@@ -7,6 +7,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Pre-built binaries on GitHub were built against paths in `/nix/store`, and
+  were not portable to systems that did not have Nix installed. The binaries are
+  now correctly linked to be used on non-Nix machines, and NixOS machines with
+  `nix-ld` enabled.
+
 ## [0.1.3.0] - 2026-09-17
 
 ### Added

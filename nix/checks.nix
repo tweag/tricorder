@@ -11,6 +11,48 @@
     let
       common = import ./package/common.nix;
       unusedConstraints = import ./package/unused-constraints.nix;
+      staticCheck =
+        {
+          binaryName,
+          binary,
+          # Shell snippet to smoke-test the binary after the portability check.
+          # Defaults to --version (suitable for CLI tools).  Pass null to skip
+          # execution entirely, or override for servers that have no --version.
+          runCheck ? ''"${binary}" --version'',
+        }:
+        let
+          portabilityCheck =
+            if pkgs.stdenv.hostPlatform.isLinux then
+              ''
+                if ! file "${binary}" | grep -q "statically linked"; then
+                  echo "ERROR: ${binaryName} is not statically linked:" >&2
+                  file "${binary}" >&2
+                  exit 1
+                fi
+              ''
+            else
+              ''
+                nix_deps=$(otool -L "${binary}" | tail -n +2 | grep '/nix/store' || true)
+                if [ -n "$nix_deps" ]; then
+                  echo "ERROR: ${binaryName} has /nix/store runtime dependencies:" >&2
+                  echo "$nix_deps" >&2
+                  exit 1
+                fi
+              '';
+        in
+        pkgs.runCommand "${binaryName}-portable"
+          {
+            nativeBuildInputs = [
+              pkgs.file
+            ]
+            ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.darwin.cctools ];
+          }
+          ''
+            ${portabilityCheck}
+            ${lib.optionalString (runCheck != null) runCheck}
+            mkdir -p "$out"
+            echo "ok" > "$out/check"
+          '';
     in
     {
       pre-commit.settings.hooks = {
@@ -53,6 +95,20 @@
       };
       checks = {
         tricorder = self'.packages.tricorder;
+
+        tricorder-static-portable = staticCheck {
+          binaryName = "tricorder-static";
+          binary = "${self'.packages.tricorder-static}/bin/tricorder";
+        };
+        tricorder-mcp-static-portable = staticCheck {
+          binaryName = "tricorder-mcp-static";
+          binary = "${self'.packages.tricorder-mcp-static}/bin/tricorder-mcp";
+          # tricorder-mcp is an MCP server with no --version flag; feed it a
+          # closed stdin (its normal shutdown trigger) and suppress the
+          # "stdin closed - shutting down" log so CI output stays clean.
+          runCheck = ''"${self'.packages.tricorder-mcp-static}/bin/tricorder-mcp" </dev/null 2>/dev/null'';
+        };
+
         cabal-check =
           pkgs.runCommand "cabal-check"
             {

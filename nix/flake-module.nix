@@ -27,6 +27,48 @@ in
     }:
     let
       flake = config.legacyPackages.flakes.${config.ghc.names.default};
+
+      staticExeConfig = {
+        configureFlags = [
+          "--disable-executable-dynamic"
+        ]
+        ++ lib.optional pkgs.stdenv.hostPlatform.isLinux "--enable-executable-static";
+        libs =
+          lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+            pkgs.glibc.static
+            pkgs.pkgsStatic.numactl
+          ]
+          ++ [
+            pkgs.pkgsStatic.libffi
+            pkgs.pkgsStatic.gmp
+            pkgs.pkgsStatic.ncurses
+          ];
+      }
+      // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+        # libiconv is always present at /usr/lib/libiconv.2.dylib on every Mac,
+        # but GHC links against the Nix store copy.  Retarget it to the system
+        # path so the binary runs on non-Nix machines.  /usr/bin/{otool,
+        # install_name_tool} are macOS system tools available in Nix builds.
+        postInstall = ''
+          for bin in "$out"/bin/*; do
+            old=$(/usr/bin/otool -L "$bin" | awk 'NR>1 && /libiconv/ {print $1; exit}')
+            [ -n "$old" ] && /usr/bin/install_name_tool -change "$old" /usr/lib/libiconv.2.dylib "$bin"
+          done
+        '';
+      };
+      staticProject = import ./package/mk-project.nix {
+        inherit self pkgs;
+        compiler-nix-name = config.ghc.names.default;
+        doHaddock = false;
+        extraModules = [
+          {
+            packages.tricorder.components.exes.tricorder = staticExeConfig;
+            packages.tricorder.components.exes.tricorder-daemon = staticExeConfig;
+            packages.tricorder-mcp.components.exes.tricorder-mcp = staticExeConfig;
+          }
+        ];
+      };
+      staticFlake = staticProject.flake { };
     in
     {
       _module.args.pkgs =
@@ -60,6 +102,8 @@ in
         default = self'.packages.tricorder;
         tricorder = self'.packages."tricorder:exe:tricorder";
         tricorder-mcp = self'.packages."tricorder-mcp:exe:tricorder-mcp";
+        tricorder-static = staticFlake.packages."tricorder:exe:tricorder";
+        tricorder-mcp-static = staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";
       };
 
       checks = flake.checks;

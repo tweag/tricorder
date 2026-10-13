@@ -37,6 +37,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Default key binding for the "help" view is now `?`. This key binding is
   supported as expected on keyboards where `?` is inputted with a modifier key.
 
+### Fixed
+
+- Pre-built binaries on GitHub were built against paths in `/nix/store`, and
+  were not portable to systems that did not have Nix installed. The binaries are
+  now correctly linked to be used on non-Nix machines, and NixOS machines with
+  `nix-ld` enabled.
+
 ## [0.5.0.0] - 2026-10-02
 
 ### Added
