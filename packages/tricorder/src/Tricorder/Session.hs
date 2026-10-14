@@ -8,13 +8,14 @@ where
 
 import Atelier.Config (LoadedConfig, extractConfig)
 import Atelier.Effects.FileSystem (FileSystem)
-import Atelier.Effects.Input (Input, input, runInputEff)
+import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader, ask)
 import Text.Regex.TDFA.Pattern (showPattern)
 import Prelude hiding (show)
 
+import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
 import Prelude qualified as P
@@ -99,9 +100,9 @@ loadSession
     => Eff es Session
 loadSession = do
     projectRoot <- ask @ProjectRoot
-    loadedCfg <- input
+    loadedCfg <- Input.input
     Log.debug "Got config file"
-    projectFiles <- input
+    projectFiles <- Input.input
     Log.debug "Got project files"
 
     let cfgFile = extractConfig @"session" @Config loadedCfg
@@ -184,7 +185,7 @@ inputSession
        , Reader ProjectRoot :> es
        )
     => Eff (Input Session : es) a -> Eff es a
-inputSession = runInputEff loadSession
+inputSession = Input.withEff loadSession
 
 
 -- | Warn once per session load for each deprecated top-level config key

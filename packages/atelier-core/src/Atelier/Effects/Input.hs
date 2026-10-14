@@ -6,10 +6,12 @@
 module Atelier.Effects.Input
     ( Input
     , input
-    , runInputEff
-    , runInputConst
+    , withEff
+    , withConst
     , toReader
     , fromState
+    , runInputEff
+    , runInputConst
     )
 where
 
@@ -44,14 +46,28 @@ makeEffect ''Input
 
 -- | Runs the passed effectful action every time 'input' is invoked.
 runInputEff :: Eff es i -> Eff (Input i : es) a -> Eff es a
-runInputEff mk = interpret_ \Input -> mk
+runInputEff = withEff
+{-# DEPRECATED runInputEff "Use 'Atelier.Effects.Input.withEff' instead." #-}
+
+
+-- | Runs the passed effectful action every time 'input' is invoked.
+withEff :: Eff es i -> Eff (Input i : es) a -> Eff es a
+withEff mk = interpret_ \Input -> mk
 
 
 -- | Provides the same value for every invocation of the 'input' operation.
 -- This is equivalent to using 'Effectful.Reader.Static' or
 -- 'Effectful.Reader.Local', but is available here for testing.
 runInputConst :: i -> Eff (Input i : es) a -> Eff es a
-runInputConst = runInputEff . pure
+runInputConst = withConst
+{-# DEPRECATED runInputConst "Use 'Atelier.Effects.Input.withConst' instead." #-}
+
+
+-- | Provides the same value for every invocation of the 'input' operation.
+-- This is equivalent to using 'Effectful.Reader.Static' or
+-- 'Effectful.Reader.Local', but is available here for testing.
+withConst :: i -> Eff (Input i : es) a -> Eff es a
+withConst = runInputEff . pure
 
 
 -- | Retrieves the value once, and exposes it as a 'Reader' effect.

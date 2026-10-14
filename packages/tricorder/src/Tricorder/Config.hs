@@ -8,11 +8,12 @@ where
 
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (FileSystem)
-import Atelier.Effects.Input (Input, runInputEff)
+import Atelier.Effects.Input (Input)
 import Effectful.Reader.Static (Reader, ask, runReader)
 import System.FilePath ((</>))
 
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.Effects.Input qualified as Input
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 import Data.Yaml qualified as Yaml
@@ -57,6 +58,6 @@ inputLoadedConfig
        , Reader ProjectRoot :> es
        )
     => Eff (Input LoadedConfig : es) a -> Eff es a
-inputLoadedConfig = runInputEff do
+inputLoadedConfig = Input.withEff do
     ProjectRoot projectRoot <- ask
     loadTricorderConfig projectRoot

@@ -5,11 +5,13 @@ module Tricorder.Daemon.DaemonInfo
     )
 where
 
-import Atelier.Effects.Input (Input, input, runInputEff)
+import Atelier.Effects.Input (Input)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Effectful.Reader.Static (Reader, ask)
 import GHC.Generics (Generically (..))
 import System.FilePath (makeRelative)
+
+import Atelier.Effects.Input qualified as Input
 
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..))
@@ -36,7 +38,7 @@ load
        )
     => Eff es DaemonInfo
 load = do
-    session <- input
+    session <- Input.input
     ProjectRoot projectRoot <- ask
     SocketPath sockPath <- ask
     LogPath logFile <- ask
@@ -56,4 +58,4 @@ runInput
        , Reader SocketPath :> es
        )
     => Eff (Input DaemonInfo : es) a -> Eff es a
-runInput = runInputEff load
+runInput = Input.withEff load

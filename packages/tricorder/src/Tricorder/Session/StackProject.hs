@@ -5,7 +5,7 @@ module Tricorder.Session.StackProject
 where
 
 import Atelier.Effects.FileSystem (FileSystem)
-import Atelier.Effects.Input (Input, runInputEff)
+import Atelier.Effects.Input (Input)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -24,6 +24,7 @@ import System.FilePath ((</>))
 import System.IO.Error (userError)
 
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.Effects.Input qualified as Input
 import Data.Yaml qualified as Yaml
 
 import Tricorder.Runtime (ProjectRoot (..))
@@ -45,7 +46,7 @@ inputWithCache
 inputWithCache act = do
     cache :: TVar StackProject <- newTVarIO $ StackProject []
     lastModified :: TVar UTCTime <- newTVarIO $ posixSecondsToUTCTime 0
-    flip runInputEff act do
+    flip Input.withEff act do
         ProjectRoot projectRoot <- ask
         let stackYamlPath = projectRoot </> "stack.yaml"
         exists <- FileSystem.doesFileExist stackYamlPath

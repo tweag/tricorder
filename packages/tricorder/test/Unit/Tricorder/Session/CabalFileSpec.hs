@@ -2,7 +2,6 @@ module Unit.Tricorder.Session.CabalFileSpec (test_CabalFile) where
 
 import Atelier.Effects.Env (runEnvConst)
 import Atelier.Effects.FileSystem (runFileSystemState)
-import Atelier.Effects.Input (runInputConst)
 import Atelier.Effects.Log (runLogNoOp)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
@@ -11,6 +10,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.FileSystem.Glob qualified as Glob
+import Atelier.Effects.Input qualified as Input
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
@@ -183,7 +183,7 @@ testDiscoverStackPackages =
         runPureEff
             . runReader pr
             . runLogNoOp
-            . runInputConst result
+            . Input.withConst result
 
 
 -- | Pins how a package path resolves to a @.cabal@ file: a directory path

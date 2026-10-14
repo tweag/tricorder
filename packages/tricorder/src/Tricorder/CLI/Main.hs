@@ -10,7 +10,6 @@ import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (runExit)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
-import Atelier.Effects.Input (input, runInputEff)
 import Atelier.Effects.Log (runLogNoOp)
 import Atelier.Effects.Posix.Daemons (runDaemons)
 import Atelier.Effects.Process (runProcessIO)
@@ -20,6 +19,7 @@ import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 
 import Atelier.Effects.FileSystem.Glob qualified as Glob
+import Atelier.Effects.Input qualified as Input
 
 import Tricorder.CLI.Arguments (runArguments)
 import Tricorder.CLI.UI.Brick (runBrick)
@@ -73,8 +73,8 @@ main =
         . runLogNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
-        . runInputEff loadSession
-        . runInputEff ((.buildSession.commandTemplate.repl) <$> input)
+        . Input.withEff loadSession
+        . Input.withEff ((.buildSession.commandTemplate.repl) <$> Input.input)
         . GhcPkg.runGhcPkgIO
         . PackageStore.run
         . Hackage.run

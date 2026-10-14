@@ -16,6 +16,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   with a better name.
 - `Atelier.Types.JSON.QuietSnake`: a copy of `Atelier.Types.QuietSnake`, but
   with a better name.
+- `Atelier.Effects.Input.withEff`: a copy of
+  `Atelier.Effects.Input.runInputEff`, but with a better name.
+- `Atelier.Effects.Input.withConst`: a copy of
+  `Atelier.Effects.Input.runInputConst`, but with a better name.
 - `Atelier.Effects.PubSub`: a copy of
   `Atelier.Effects.Publishing`, but with a better name.
 - `Atelier.Effects.PubSub.Pub`: a copy of
@@ -27,6 +31,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - `Atelier.Types.JsonReadShow`: superseded by `Atelier.Types.JSON.ReadShow`.
 - `Atelier.Types.QuietSnake`: superseded by `Atelier.Types.JSON.QuietSnake`.
+- `Atelier.Effects.Input.runInputEff`: superseded by `Atelier.Effects.Input.withEff`.
+- `Atelier.Effects.Input.runInputConst`: superseded by `Atelier.Effects.Input.withConst`.
 - `Atelier.Effects.Publishing`: superseded by `Atelier.Effects.PubSub`.
 - `Atelier.Effects.Publishing.runPubSub`: superseded by `Atelier.Effects.PubSub.run`.
 - `Atelier.Effects.Publishing.Pub`: superseded by `Atelier.Effects.PubSub.Pub`.

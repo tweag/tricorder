@@ -2,7 +2,6 @@ module Unit.Tricorder.SessionSpec (test_Session) where
 
 import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (runFileSystemState)
-import Atelier.Effects.Input (runInputConst)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Data.Aeson (Value (Null), object, (.=))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
@@ -12,6 +11,8 @@ import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (execWriter)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+
+import Atelier.Effects.Input qualified as Input
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..), loadSession)
@@ -65,9 +66,9 @@ testLoadSession =
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
             . runFileSystemState
-            . runInputConst cabalFiles
+            . Input.withConst cabalFiles
             . runReader (ProjectRoot "/")
-            . runInputConst (LoadedConfig Null)
+            . Input.withConst (LoadedConfig Null)
             $ loadSession
 
 
@@ -108,9 +109,9 @@ testMissingTargetPlaceholder =
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
             . runFileSystemState
-            . runInputConst ([] :: [CabalFile])
+            . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
-            . runInputConst cfg
+            . Input.withConst cfg
             $ loadSession
 
 
@@ -130,7 +131,7 @@ testIdleTimeout =
             . runLogNoOp
             . evalState @(Map FilePath ByteString) mempty
             . runFileSystemState
-            . runInputConst ([] :: [CabalFile])
+            . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
-            . runInputConst cfg
+            . Input.withConst cfg
             $ loadSession

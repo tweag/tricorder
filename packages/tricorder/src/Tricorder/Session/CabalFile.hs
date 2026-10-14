@@ -11,7 +11,7 @@ where
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, listDirectory, readFileBs)
 import Atelier.Effects.FileSystem.Glob (Glob, globDir1)
-import Atelier.Effects.Input (Input, input, runInputEff)
+import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Data.Traversable (for)
 import Distribution.Fields (Field (..), FieldLine (..), Name (..), readFields)
@@ -25,10 +25,12 @@ import System.IO.Error (userError)
 
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.ByteString.Char8 qualified as BC
 import Data.List qualified as List
 import Data.Text qualified as T
+import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.StackProject (StackProject (..))
@@ -50,7 +52,7 @@ inputCabalFiles
        , Reader ProjectRoot :> es
        )
     => Eff (Input [CabalFile] : es) a -> Eff es a
-inputCabalFiles = runInputEff $ Log.withNamespace "CabalFile" do
+inputCabalFiles = Input.withEff $ Log.withNamespace "CabalFile" do
     packageRes <- discoverPackages
     case packageRes of
         Left err -> throwIO $ userError $ toString err
@@ -163,8 +165,8 @@ discoverStackPackages
     :: (Input StackProject :> es, Reader ProjectRoot :> es)
     => Eff es (Either Text [FilePath])
 discoverStackPackages = do
-    ProjectRoot projectRoot <- ask
-    project <- input
+    ProjectRoot projectRoot <- Reader.ask
+    project <- Input.input
     pure $ Right $ normalise . (projectRoot </>) <$> project.packages
 
 
