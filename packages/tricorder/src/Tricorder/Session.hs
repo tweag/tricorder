@@ -1,6 +1,5 @@
 module Tricorder.Session
     ( Session (..)
-    , asInput
     , load
     , show
     )
@@ -88,17 +87,6 @@ instance Default Session where
             , hooks = def
             , idleTimeout = def
             }
-
-
-asInput
-    :: ( FileSystem :> es
-       , Input LoadedConfig :> es
-       , Input [CabalFile] :> es
-       , Log :> es
-       , Reader ProjectRoot :> es
-       )
-    => Eff (Input Session : es) a -> Eff es a
-asInput = Input.withEff load
 
 
 load

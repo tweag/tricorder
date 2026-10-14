@@ -64,6 +64,7 @@ library
       Atelier.Effects.PubSub
       Atelier.Effects.PubSub.Pub
       Atelier.Effects.PubSub.Sub
+      Atelier.Effects.Reader
       Atelier.Effects.Tally
       Atelier.Effects.Timeout
       Atelier.Effects.UUID

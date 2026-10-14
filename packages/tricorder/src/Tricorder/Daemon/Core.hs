@@ -4,26 +4,20 @@ import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Debounce (Debounce)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
-import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
-import Data.List (isSuffixOf)
+import Effectful (inject)
 import Effectful.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
 import Effectful.Concurrent.STM (Concurrent, atomically, newEmptyTMVar, takeTMVar, writeTMVar)
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
-import System.FilePath ((</>))
 
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.FileSystem qualified as FileSystem
-import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Log qualified as Log
-import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Data.Map.Strict qualified as Map
@@ -45,12 +39,9 @@ import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsIn
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Daemon.TestRunner (TestRunner)
-import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
-import Tricorder.Session.IdleTimeout (IdleTimeout)
-import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
@@ -60,7 +51,6 @@ import Tricorder.Waiters (Waiters)
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
-import Tricorder.Config qualified as Config
 import Tricorder.Daemon.Builder qualified as Builder
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
@@ -68,9 +58,6 @@ import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci.LoadResult
 import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
-import Tricorder.Daemon.Watch qualified as Watch
-import Tricorder.Session qualified as Session
-import Tricorder.Session.CommandTemplate qualified as Command
 import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
 import Tricorder.Session.Stage.Test.Command qualified as TestCommand
@@ -78,13 +65,13 @@ import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
 
 
-data ReloadSession = ReloadSession
-
-
-data RestartBuilder = RestartBuilder
-
-
 data ReloadBuilder = ReloadBuilder FilePath FileEvent
+
+
+data Events es = Events
+    { onRestartBuilder :: Eff es () -> Eff es Void
+    , onReloadBuilder :: (FilePath -> FileEvent -> Eff es ()) -> Eff es Void
+    }
 
 
 -- | Top of the build loop. Responsible for handling changes to the Tricorder
@@ -96,136 +83,38 @@ main
        , Concurrent :> es
        , Debounce FilePath :> es
        , EvalCommentRunner :> es
-       , FileSystem :> es
        , FileWatcher :> es
        , Ghci.Session :> es
        , Hpack :> es
-       , Input Session :> es
        , Log :> es
        , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
-       , State IdleTimeout :> es
-       , State Repl :> es
-       , TestRunner :> es
-       , Waiters :> es
-       )
-    => Eff es Void
-main =
-    PubSub.run @ReloadSession
-        . PubSub.run @WatchedFile
-        . PubSub.run @CabalChangeDetected
-        . PubSub.run @SourceChangeDetected
-        . PubSub.run @RestartBuilder
-        . PubSub.run @ReloadBuilder
-        . Conc.restartableFork waitForReloadSession
-        $ do
-            Log.debug "Before session"
-            session <- input
-            Log.debug "After session"
-            withSession session
-  where
-    waitForReloadSession = Waiters.wait $ Sub.listenOnce_ @ReloadSession
-
-
-withSession
-    :: ( Chan :> es
-       , Clock :> es
-       , Conc :> es
-       , Concurrent :> es
-       , Debounce FilePath :> es
-       , EvalCommentRunner :> es
-       , FileSystem :> es
-       , FileWatcher :> es
-       , Ghci.Session :> es
-       , Hpack :> es
-       , Input Session :> es
-       , Log :> es
-       , Process :> es
-       , Pub BuildPhase :> es
-       , Pub CabalChangeDetected :> es
-       , Pub ReloadBuilder :> es
-       , Pub ReloadSession :> es
-       , Pub RestartBuilder :> es
-       , Pub SourceChangeDetected :> es
-       , Pub WatchedFile :> es
-       , Reader ProjectRoot :> es
-       , State BuildId :> es
-       , State IdleTimeout :> es
-       , State Repl :> es
        , Sub CabalChangeDetected :> es
-       , Sub ReloadBuilder :> es
-       , Sub RestartBuilder :> es
        , Sub SourceChangeDetected :> es
-       , Sub WatchedFile :> es
        , TestRunner :> es
        , Waiters :> es
        )
     => Session -> Eff es Void
-withSession session = do
-    root <- Reader.ask
-    logSession session
-
-    State.put session.buildSession.commandTemplate.repl
-    State.put session.idleTimeout
-    Conc.fork_ $ watchConfigFile root
-    conditionallyWatchStackYaml root
-
-    Conc.fork_ $ Watch.files root session
-    Conc.fork_ $ Sub.listen_ Watch.publishChange
-
-    Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) ->
-        ifM
-            (shouldReloadSession session)
-            (Pub.publish ReloadSession)
-            (Pub.publish RestartBuilder)
-
-    Conc.fork_ $ Sub.listen_ \(SourceChangeDetected fp event) ->
-        Pub.publish $ ReloadBuilder fp event
+main session = do
+    let events =
+            Events
+                { onRestartBuilder = \action ->
+                    Sub.listen_ \(CabalChangeDetected _ _) -> action
+                , onReloadBuilder = \action ->
+                    Sub.listen_ \(SourceChangeDetected path event) ->
+                        action path event
+                }
 
     when (coerce session.generateWithHpack)
         $ void
         $ Conc.fork Hpack.main
 
     State.evalState emptyBuilderState do
-        Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
+        Conc.restartableFork (Waiters.wait $ events.onRestartBuilder $ pure ()) do
             buildId <- State.state (\s -> (s, s + 1))
-            runBuilder buildId session
-
-
-shouldReloadSession :: (Input Session :> es) => Session -> Eff es Bool
-shouldReloadSession oldSession = do
-    newSession <- input
-    pure $ newSession /= oldSession
-
-
-watchConfigFile
-    :: ( Debounce FilePath :> es
-       , FileWatcher :> es
-       , Pub ReloadSession :> es
-       )
-    => ProjectRoot -> Eff es Void
-watchConfigFile root = do
-    FileWatcher.watchFilePathsDebounced
-        [FileWatcher.dirWhere root.getProjectRoot (Config.configFileName `isSuffixOf`)]
-        \_ _ -> Pub.publish ReloadSession
-
-
-conditionallyWatchStackYaml
-    :: ( Conc :> es
-       , Debounce FilePath :> es
-       , FileSystem :> es
-       , FileWatcher :> es
-       , Pub RestartBuilder :> es
-       )
-    => ProjectRoot -> Eff es ()
-conditionallyWatchStackYaml root = do
-    exists <- FileSystem.doesFileExist $ root.getProjectRoot </> "stack.yaml"
-    when exists do
-        Conc.fork_ $ FileWatcher.watchFilePathsDebounced
-            [FileWatcher.dirWhere root.getProjectRoot ("stack.yaml" `isSuffixOf`)]
-            \_ _ -> Pub.publish RestartBuilder
+            runBuilder events buildId session
 
 
 -- | Starts the initial build with GHCi, and waits for source changes.
@@ -240,12 +129,11 @@ runBuilder
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
-       , Sub ReloadBuilder :> es
        , TestRunner :> es
        , Waiters :> es
        )
-    => BuildId -> Session -> Eff es ()
-runBuilder buildId session = do
+    => Events es -> BuildId -> Session -> Eff es ()
+runBuilder events buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hooks.runHook
@@ -259,8 +147,8 @@ runBuilder buildId session = do
             cancelSem <- newEmptyMVar
             let requestCancel = tryPutMVar cancelSem ()
                 checkCancel = takeMVar cancelSem
-            Conc.fork_ $ Sub.listen_ @ReloadBuilder \event -> do
-                atomically $ writeTMVar newestReloadEvent event
+            Conc.fork_ $ inject $ events.onReloadBuilder \filePath fileEvent -> do
+                atomically $ writeTMVar newestReloadEvent $ ReloadBuilder filePath fileEvent
                 Waiters.without do
                     Pub.publish Build.Starting
                     Log.debug "Cancelling current build"
@@ -465,7 +353,3 @@ newLoadResultToBuildResult session newLoadResult = do
                     s.diagnosticMap
                     newLoadResult
         in  (buildResult, s {diagnosticMap = newDiagnosticMap})
-
-
-logSession :: (Log :> es) => Session -> Eff es ()
-logSession = Log.info . (<> "\n") . Session.show

@@ -122,6 +122,7 @@ library tricorder-internal
       Tricorder.Session.Stage.Test.Command
       Tricorder.Session.Stage.Test.Config
       Tricorder.Session.Stage.Test.Session
+      Tricorder.Session.State
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
       Tricorder.Session.TestTimeout
