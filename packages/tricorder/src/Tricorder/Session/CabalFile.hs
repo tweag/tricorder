@@ -18,7 +18,7 @@ import Distribution.Fields (Field (..), FieldLine (..), Name (..), readFields)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Distribution.Types.GenericPackageDescription (GenericPackageDescription)
 import Effectful.Exception (catch, throwIO)
-import Effectful.Reader.Static (Reader, ask)
+import Effectful.Reader.Static (Reader)
 import System.FilePath (normalise, takeExtension, (</>))
 import System.FilePath.Glob (compile)
 import System.IO.Error (userError)
@@ -110,7 +110,7 @@ discoverPackages
        )
     => Eff es (Either Text [FilePath])
 discoverPackages = do
-    ProjectRoot projectRoot <- ask
+    ProjectRoot projectRoot <- Reader.ask
     hasStackYaml <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
     if hasStackYaml
         then discoverStackPackages
@@ -127,7 +127,7 @@ discoverCabalPackages
        )
     => Eff es (Either Text [FilePath])
 discoverCabalPackages = do
-    ProjectRoot projectRoot <- ask
+    ProjectRoot projectRoot <- Reader.ask
     homeCabalFiles <- maybe [] (one . (</> ".cabal/config")) <$> Env.lookupEnv "HOME"
     let projectFilePaths = projectCabalFiles projectRoot <> homeCabalFiles
     projectFiles <- filterM doesFileExist projectFilePaths

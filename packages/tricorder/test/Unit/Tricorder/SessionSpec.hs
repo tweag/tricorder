@@ -15,10 +15,11 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Atelier.Effects.Input qualified as Input
 
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session (Session (..), loadSession)
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Unit.Tricorder.Session.Helpers (libWithPreludeCabal, preludeOnlyLibCabal)
+
+import Tricorder.Session qualified as Session
 
 
 test_Session :: TestTree
@@ -69,7 +70,7 @@ testLoadSession =
             . Input.withConst cabalFiles
             . runReader (ProjectRoot "/")
             . Input.withConst (LoadedConfig Null)
-            $ loadSession
+            $ Session.load
 
 
 testMissingTargetPlaceholder :: TestTree
@@ -112,7 +113,7 @@ testMissingTargetPlaceholder =
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
             . Input.withConst cfg
-            $ loadSession
+            $ Session.load
 
 
 testIdleTimeout :: TestTree
@@ -134,4 +135,4 @@ testIdleTimeout =
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
             . Input.withConst cfg
-            $ loadSession
+            $ Session.load

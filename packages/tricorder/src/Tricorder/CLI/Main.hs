@@ -26,7 +26,7 @@ import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
 import Tricorder.Config (inputLoadedConfig, runLoadedConfig)
 import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
-import Tricorder.Session (Session (..), loadSession)
+import Tricorder.Session (Session (..))
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
@@ -35,6 +35,7 @@ import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
+import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 import Tricorder.SourceLookup.Hackage qualified as Hackage
@@ -73,7 +74,7 @@ main =
         . runLogNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
-        . Input.withEff loadSession
+        . Input.withEff Session.load
         . Input.withEff ((.buildSession.commandTemplate.repl) <$> Input.input)
         . GhcPkg.runGhcPkgIO
         . PackageStore.run

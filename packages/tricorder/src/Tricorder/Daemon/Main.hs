@@ -29,7 +29,6 @@ import Tricorder.Config (inputLoadedConfig)
 import Tricorder.Daemon.GhciSession (runGhciSession)
 import Tricorder.Logging (runLogging)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
-import Tricorder.Session (inputSession)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.IdleTimeout (IdleTimeout)
 import Tricorder.Session.Repl (Repl)
@@ -41,6 +40,7 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
+import Tricorder.Session qualified as Session
 import Tricorder.Session.Repl qualified as Repl
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Socket.Server qualified as Server
@@ -76,7 +76,7 @@ main =
         . runChan
         . StackProject.inputWithCache
         . inputCabalFiles
-        . inputSession
+        . Session.asInput
         . runProcessIO
         . runGhcPkgIO
         . runUnixSocketIO

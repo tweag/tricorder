@@ -1,7 +1,7 @@
 module Tricorder.Session
     ( Session (..)
-    , loadSession
-    , inputSession
+    , asInput
+    , load
     , show
     )
 where
@@ -90,7 +90,18 @@ instance Default Session where
             }
 
 
-loadSession
+asInput
+    :: ( FileSystem :> es
+       , Input LoadedConfig :> es
+       , Input [CabalFile] :> es
+       , Log :> es
+       , Reader ProjectRoot :> es
+       )
+    => Eff (Input Session : es) a -> Eff es a
+asInput = Input.withEff load
+
+
+load
     :: ( FileSystem :> es
        , Input LoadedConfig :> es
        , Input [CabalFile] :> es
@@ -98,7 +109,7 @@ loadSession
        , Reader ProjectRoot :> es
        )
     => Eff es Session
-loadSession = do
+load = do
     projectRoot <- ask @ProjectRoot
     loadedCfg <- Input.input
     Log.debug "Got config file"
@@ -175,17 +186,6 @@ loadSession = do
             , hooks
             , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
             }
-
-
-inputSession
-    :: ( FileSystem :> es
-       , Input LoadedConfig :> es
-       , Input [CabalFile] :> es
-       , Log :> es
-       , Reader ProjectRoot :> es
-       )
-    => Eff (Input Session : es) a -> Eff es a
-inputSession = Input.withEff loadSession
 
 
 -- | Warn once per session load for each deprecated top-level config key
