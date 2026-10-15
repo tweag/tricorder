@@ -44,13 +44,16 @@ import Tricorder.Daemon.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Daemon.GhciSession (GhciSession, LoadResult (..))
-import Tricorder.Daemon.GhciSession.GhciParser (resolveKnownTargets)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.WatchDirs (WatchDirs)
 
-import Tricorder.Daemon.GhciSession qualified as GhciSession
+import Tricorder.Daemon.Ghci.Controls qualified as Controls
+import Tricorder.Daemon.Ghci.Controls qualified as Ghci (Controls)
+import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
+import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci.LoadResult
+import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
+import Tricorder.Daemon.Ghci.Session qualified as Ghci.Session
 import Tricorder.Session.Stage qualified as Stage
 
 
@@ -72,7 +75,7 @@ data BuildFailure
 data NewLoadResult = NewLoadResult
     { startTime :: UTCTime
     , endTime :: UTCTime
-    , loadResult :: LoadResult
+    , loadResult :: Ghci.LoadResult
     }
     deriving stock (Eq, Show)
 
@@ -82,7 +85,7 @@ makeEffect ''Builder
 
 with
     :: ( Clock :> es
-       , GhciSession :> es
+       , Ghci.Session :> es
        , Log :> es
        , Pub BuildProgress :> es
        , Reader ProjectRoot :> es
@@ -95,7 +98,7 @@ with
 with buildId command watchDirs action = do
     root <- ask
     startTime <- Clock.currentTime
-    trySync $ GhciSession.withGhciWith Pub.publish command root \initialLoad controls -> do
+    trySync $ Ghci.Session.with Pub.publish command root \initialLoad controls -> do
         endTime <- Clock.currentTime
         let filteredMsgs = filterToWatchDirs root.getProjectRoot watchDirs initialLoad.diagnostics
         Log.info
@@ -109,7 +112,7 @@ with buildId command watchDirs action = do
         let initialLoadResult = NewLoadResult {startTime, endTime, loadResult = initialLoad}
         let initialBuilderState =
                 emptyBuilderState
-                    { loadedModules = resolveKnownTargets Map.empty initialLoad
+                    { loadedModules = Ghci.LoadResult.resolveKnownTargets Map.empty initialLoad
                     , knownTargets = KnownTargetNames (Set.fromList initialLoad.targetNames)
                     }
         reinterpretWith_
@@ -118,7 +121,7 @@ with buildId command watchDirs action = do
             \case
                 Consider fp event -> considerBuild fp event
                 Build dispatchAction ->
-                    buildSource (GhciSession.transformControls inject controls) dispatchAction
+                    buildSource (Controls.lift inject controls) dispatchAction
 
 
 considerBuild
@@ -139,7 +142,7 @@ considerBuild fp event = do
 
 buildSource
     :: (Clock :> es, State BuilderState :> es)
-    => GhciSession.Controls (Eff es)
+    => Ghci.Controls (Eff es)
     -> DispatchAction
     -> Eff es (Either BuildFailure NewLoadResult)
 buildSource controls action = do
@@ -155,7 +158,7 @@ buildSource controls action = do
         Right (startTime, endTime, loadResult) -> do
             modify \s ->
                 s
-                    { loadedModules = resolveKnownTargets s.loadedModules loadResult
+                    { loadedModules = Ghci.LoadResult.resolveKnownTargets s.loadedModules loadResult
                     , knownTargets = KnownTargetNames (Set.fromList loadResult.targetNames)
                     }
             pure $ Right $ NewLoadResult {startTime, endTime, loadResult}
@@ -174,7 +177,7 @@ compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadRes
     merged = mergeDiagnostics diagnosticMap filteredResult
     filteredResult =
         loadResult
-            { GhciSession.diagnostics =
+            { Ghci.LoadResult.diagnostics =
                 preserveFailureVisibility loadResult.diagnostics
                     $ filterToWatchDirs projectRoot watchDirs loadResult.diagnostics
             }
@@ -187,7 +190,7 @@ compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadRes
             }
 
 
-runAction :: GhciSession.Controls (Eff es) -> DispatchAction -> Eff es LoadResult
+runAction :: Ghci.Controls (Eff es) -> DispatchAction -> Eff es Ghci.LoadResult
 runAction controls = \case
     Reload -> controls.reload
     Add fp -> controls.add fp

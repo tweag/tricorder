@@ -16,17 +16,16 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
-import Effectful.State.Static.Shared (evalState)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
+import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId (..), BuildPhase)
 import Tricorder.Config (inputLoadedConfig)
-import Tricorder.Daemon.GhciSession (runGhciSession)
 import Tricorder.Logging (runLogging)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
@@ -37,6 +36,7 @@ import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
+import Tricorder.Daemon.Ghci.Session qualified as Ghci.Session
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
@@ -80,12 +80,12 @@ main =
         . runProcessIO
         . runGhcPkgIO
         . runUnixSocketIO
-        . runGhciSession
-        . evalState (BuildId 1)
+        . Ghci.Session.run
+        . State.evalState (BuildId 1)
         . Input.fromState @BuildId
-        . evalState Repl.Unknown
+        . State.evalState Repl.Unknown
         . Input.fromState @Repl
-        . evalState @IdleTimeout def
+        . State.evalState @IdleTimeout def
         . Input.fromState @IdleTimeout
         . IdleTimer.quitOnTimeout
         . PubSub.run @BuildPhase

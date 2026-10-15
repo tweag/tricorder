@@ -1,4 +1,4 @@
-module Unit.Tricorder.Daemon.GhciSessionSpec (test_GhciSession) where
+module Unit.Tricorder.Daemon.Ghci.SessionSpec (test_Session) where
 
 import Atelier.Effects.PubSub.Pub (Pub)
 import Control.Exception (ErrorCall (..))
@@ -12,23 +12,21 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (BuildProgress, Diagnostic (..), Severity (..))
-import Tricorder.Daemon.GhciSession
-    ( Controls (..)
-    , GhciSession
-    , LoadResult (..)
-    , runGhciSessionScripted
-    , withGhci
-    )
+import Tricorder.Daemon.Ghci.Controls (Controls (..))
+import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
+import Tricorder.Daemon.Ghci.Session (Session)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 
+import Tricorder.Daemon.Ghci.Session qualified as Session
 
-test_GhciSession :: TestTree
-test_GhciSession =
+
+test_Session :: TestTree
+test_Session =
     testGroup
-        "GhciSession"
-        [ testGroup "runGhciSessionScripted" testScripted
+        "Session"
+        [ testGroup "runScripted" testScripted
         ]
 
 
@@ -45,18 +43,18 @@ testScripted =
             [ testCase "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [errMsg]]
-                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
+                        $ Session.with Pub.publish cmd (ProjectRoot "/") \initial _ -> pure initial
                 msgs @?= [errMsg]
             , testCase "returns empty list when scripted result has no messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult []]
-                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
+                        $ Session.with Pub.publish cmd (ProjectRoot "/") \initial _ -> pure initial
                 msgs @?= []
             , testCase "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
-                        $ withGhci cmd (ProjectRoot "/") \initial _ -> pure initial
+                        $ Session.with Pub.publish cmd (ProjectRoot "/") \initial _ -> pure initial
                 result @?= Left boom
             ]
         , testGroup
@@ -64,13 +62,13 @@ testScripted =
             [ testCase "returns scripted messages" do
                 LoadResult {diagnostics = msgs} <-
                     runScripted [simpleResult [warnMsg], simpleResult [errMsg]]
-                        $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
+                        $ Session.with Pub.publish cmd (ProjectRoot "/") \_ controls -> controls.reload
                 msgs @?= [errMsg]
             , testCase "throws when scripted result is Left" do
                 result <-
                     runScripted [Left (toException boom)]
                         $ try @ErrorCall
-                        $ withGhci cmd (ProjectRoot "/") \_ controls -> controls.reload
+                        $ Session.with Pub.publish cmd (ProjectRoot "/") \_ controls -> controls.reload
                 result @?= Left boom
             ]
         ]
@@ -78,15 +76,15 @@ testScripted =
         "sequencing"
         [ testCase "consumes results in order across mixed operations" do
             (a, b) <- runScripted [simpleResult [errMsg], simpleResult [warnMsg]] do
-                withGhci cmd (ProjectRoot "/") \LoadResult {diagnostics = a} controls -> do
+                Session.with Pub.publish cmd (ProjectRoot "/") \LoadResult {diagnostics = a} controls -> do
                     LoadResult {diagnostics = b} <- controls.reload
                     pure (a, b)
             a @?= [errMsg]
             b @?= [warnMsg]
         , testCase "recover scenario: error then success" do
             result <- runScripted [Left (toException boom), simpleResult []] do
-                r1 <- try @ErrorCall $ withGhci cmd (ProjectRoot "/") \i _ -> pure i
-                LoadResult {diagnostics = r2} <- withGhci cmd (ProjectRoot "/") \i _ -> pure i
+                r1 <- try @ErrorCall $ Session.with Pub.publish cmd (ProjectRoot "/") \i _ -> pure i
+                LoadResult {diagnostics = r2} <- Session.with Pub.publish cmd (ProjectRoot "/") \i _ -> pure i
                 pure (r1, r2)
             assertBool "expected Left" $ isLeft (fst result)
             snd result @?= []
@@ -149,6 +147,6 @@ simpleResult msgs =
 
 runScripted
     :: [Either SomeException LoadResult]
-    -> Eff '[GhciSession, Pub BuildProgress, IOE] a
+    -> Eff '[Session, Pub BuildProgress, IOE] a
     -> IO a
-runScripted results = runEff . Pub.runNoOp . runGhciSessionScripted results
+runScripted results = runEff . Pub.runNoOp . Session.runScripted results

@@ -20,14 +20,13 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (Diagnostic (..), Severity (..))
-import Tricorder.Daemon.GhciSession.GhciParser
-    ( LoadResult (..)
-    , LoadedModule (..)
-    , isLocationLess
-    , pathSuffixesAsModuleName
-    , unattributedFailure
-    )
 import Tricorder.Session.WatchDirs (WatchDirs (..))
+
+import Tricorder.Daemon.Ghci.Diagnostic qualified as Ghci.Diagnostic
+import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci
+import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci (LoadedModule)
+import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci.LoadedModule
+import Tricorder.Daemon.Ghci.Path qualified as Ghci.Path
 
 
 -- | The Builder's per-GHCi-session cache: what it last saw from GHCi plus its
@@ -35,7 +34,7 @@ import Tricorder.Session.WatchDirs (WatchDirs (..))
 -- @buildWithGhciOnChange@; 'BuildId' is intentionally /not/ here because it
 -- counts across restarts.
 data BuilderState = BuilderState
-    { loadedModules :: Map FilePath LoadedModule
+    { loadedModules :: Map FilePath Ghci.LoadedModule
     , knownTargets :: KnownTargetNames
     , diagnosticMap :: DiagnosticMap
     }
@@ -66,9 +65,9 @@ type DiagnosticMap = Map FilePath [Diagnostic]
 -- forever once raised. They describe the current load's outcome, so we clear
 -- them every cycle and let this cycle's 'diagnostics' re-add them if the
 -- failure is still present.
-mergeDiagnostics :: DiagnosticMap -> LoadResult -> DiagnosticMap
-mergeDiagnostics prev LoadResult {compiledFiles, diagnostics} =
-    let retained = Map.filterWithKey (\f _ -> not (isLocationLess f)) prev
+mergeDiagnostics :: DiagnosticMap -> Ghci.LoadResult -> DiagnosticMap
+mergeDiagnostics prev Ghci.LoadResult {compiledFiles, diagnostics} =
+    let retained = Map.filterWithKey (\f _ -> not (Ghci.Path.isLocationLess f)) prev
         cleared = foldr Map.delete retained compiledFiles
         newByFile = Map.fromListWith (++) [(d.file, [d]) | d <- diagnostics]
     in  Map.union newByFile cleared
@@ -95,7 +94,7 @@ newtype KnownTargetNames = KnownTargetNames {unKnownTargetNames :: Set Text}
 -- leaving the diagnostic stale.
 fileMatchesAnyTarget :: KnownTargetNames -> FilePath -> Bool
 fileMatchesAnyTarget (KnownTargetNames targets) fp =
-    any (`Set.member` targets) (pathSuffixesAsModuleName fp)
+    any (`Set.member` targets) (Ghci.Path.pathSuffixesAsModuleName fp)
         || any (pathTargetMatches fp . toString) (Set.toList targets)
 
 
@@ -125,7 +124,7 @@ data DispatchAction
 -- stale diagnostics in place.
 dispatch
     :: KnownTargetNames
-    -> Maybe LoadedModule
+    -> Maybe Ghci.LoadedModule
     -> FilePath
     -> FileEvent
     -> Maybe DispatchAction
@@ -160,7 +159,7 @@ dispatch knownTargets known fp event = case known of
 filterToWatchDirs :: FilePath -> WatchDirs -> [Diagnostic] -> [Diagnostic]
 filterToWatchDirs _ (WatchDirs []) diags = diags
 filterToWatchDirs projectRoot (WatchDirs watchDirs) diags =
-    filter (\d -> isLocationLess d.file || isUnderAnyWatchDir d.file) diags
+    filter (\d -> Ghci.Path.isLocationLess d.file || isUnderAnyWatchDir d.file) diags
   where
     absWatchDirs = map toAbsWd watchDirs
     toAbsWd wd
@@ -197,7 +196,7 @@ filterToWatchDirs projectRoot (WatchDirs watchDirs) diags =
 -- post-filter list, with the synthetic failure appended only when needed.
 preserveFailureVisibility :: [Diagnostic] -> [Diagnostic] -> [Diagnostic]
 preserveFailureVisibility raw filtered
-    | any isError raw && not (any isError filtered) = filtered ++ [unattributedFailure]
+    | any isError raw && not (any isError filtered) = filtered ++ [Ghci.Diagnostic.unattributedFailure]
     | otherwise = filtered
   where
     isError d = d.severity == SError

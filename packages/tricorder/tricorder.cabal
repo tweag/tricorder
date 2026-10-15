@@ -74,9 +74,26 @@ library tricorder-internal
       Tricorder.Daemon.DaemonInfo
       Tricorder.Daemon.Dispatch
       Tricorder.Daemon.EvalCommentRunner
-      Tricorder.Daemon.GhciSession
-      Tricorder.Daemon.GhciSession.GhciParser
-      Tricorder.Daemon.GhciSession.GhciProcess
+      Tricorder.Daemon.Ghci.Config
+      Tricorder.Daemon.Ghci.Controls
+      Tricorder.Daemon.Ghci.Diagnostic
+      Tricorder.Daemon.Ghci.InterruptDecision
+      Tricorder.Daemon.Ghci.LineParser
+      Tricorder.Daemon.Ghci.Load
+      Tricorder.Daemon.Ghci.LoadedModule
+      Tricorder.Daemon.Ghci.Loading
+      Tricorder.Daemon.Ghci.LoadOutcome
+      Tricorder.Daemon.Ghci.LoadResult
+      Tricorder.Daemon.Ghci.Message
+      Tricorder.Daemon.Ghci.Output
+      Tricorder.Daemon.Ghci.Path
+      Tricorder.Daemon.Ghci.Position
+      Tricorder.Daemon.Ghci.Process
+      Tricorder.Daemon.Ghci.Result
+      Tricorder.Daemon.Ghci.Session
+      Tricorder.Daemon.Ghci.Session.State
+      Tricorder.Daemon.Ghci.Severity
+      Tricorder.Daemon.Ghci.TextParser
       Tricorder.Daemon.Hpack
       Tricorder.Daemon.Hpack.Effect
       Tricorder.Daemon.IdleTimer
@@ -283,9 +300,11 @@ test-suite tricorder-test
       Unit.Tricorder.Daemon.BuilderSpec
       Unit.Tricorder.Daemon.BuildStateSpec
       Unit.Tricorder.Daemon.DispatchSpec
-      Unit.Tricorder.Daemon.GhciSession.GhciParserSpec
-      Unit.Tricorder.Daemon.GhciSession.GhciProcessSpec
-      Unit.Tricorder.Daemon.GhciSessionSpec
+      Unit.Tricorder.Daemon.Ghci.LoadResultSpec
+      Unit.Tricorder.Daemon.Ghci.OutputSpec
+      Unit.Tricorder.Daemon.Ghci.ProcessSpec
+      Unit.Tricorder.Daemon.Ghci.ResultSpec
+      Unit.Tricorder.Daemon.Ghci.SessionSpec
       Unit.Tricorder.Daemon.TestRunnerSpec
       Unit.Tricorder.Daemon.WatchSpec
       Unit.Tricorder.Session.CabalFileSpec

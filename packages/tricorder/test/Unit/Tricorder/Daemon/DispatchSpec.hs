@@ -14,7 +14,8 @@ import Tricorder.Daemon.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Daemon.GhciSession.GhciParser (LoadResult (..), collectResult)
+import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
+import Tricorder.Daemon.Ghci.Result (collectResult)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 

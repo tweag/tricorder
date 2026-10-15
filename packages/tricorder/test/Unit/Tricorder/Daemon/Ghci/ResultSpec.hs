@@ -1,57 +1,108 @@
-module Unit.Tricorder.Daemon.GhciSession.GhciParserSpec (test_GhciParser) where
+module Unit.Tricorder.Daemon.Ghci.ResultSpec (test_Result) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, testCase, (@?=))
+import Test.Tasty.HUnit (testCase, (@?), (@?=))
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
-import Tricorder.Daemon.GhciSession.GhciParser
-    ( GhciLoad (..)
-    , GhciLoading (..)
-    , GhciMessage (..)
-    , GhciSeverity (..)
-    , LoadOutcome (..)
-    , LoadResult (..)
-    , Position (..)
-    , collectResult
-    , collectResultCustom
-    , parseReload
-    , parseShowModules
-    , parseShowTargets
-    )
+import Tricorder.Build (Severity (..))
+import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
+import Tricorder.Daemon.Ghci.Loading (Loading (..))
+import Tricorder.Daemon.Ghci.Message (Message (..))
+import Tricorder.Daemon.Ghci.Position (Position (..))
+import Tricorder.Daemon.Ghci.Result (collectResult, collectResultCustom, extractTitle, parseReload)
+
+import Tricorder.Build qualified as Build.Diagnostic
+import Tricorder.Daemon.Ghci.Load qualified as Load
+import Tricorder.Daemon.Ghci.LoadOutcome qualified as LoadOutcome
+import Tricorder.Daemon.Ghci.Severity qualified as Severity
 
 
-test_GhciParser :: TestTree
-test_GhciParser =
+test_Result :: TestTree
+test_Result =
     testGroup
-        "GhciParser"
-        [ testGroup
-            "parseReload"
-            [ testGroup "clean build" testCleanBuild
-            , testGroup "with errors and warnings" testErrors
-            , testGroup "with -fhide-source-paths (no Loading items)" testHideSourcePaths
-            , testGroup "with <no location info> errors" testNoLocationInfo
-            , testGroup "with Loaded GHCi configuration" testLoadedConfig
-            ]
-        , testGroup
-            "parseShowModules"
-            [ testGroup "typical output" testShowModules
-            , testGroup "empty / blank input" testShowModulesEmpty
-            ]
-        , testGroup "parseShowTargets" testShowTargets
-        , testGroup
-            "collectResultCustom"
-            [ testGroup "<no location info> plugin load failure" testPluginLoadFailure
-            ]
-        , testGroup
-            "collectResult"
-            [ testGroup "failed load with no located error" testUnattributedFailure
-            ]
+        "Result"
+        [ testGroup "extractTitle" testExtractTitle
+        , testGroup "parseReload" testParseReload
+        , testGroup "collectResultCustom" testCollectResultCustom
+        , testGroup "collectResult" testCollectResult
         ]
 
 
---------------------------------------------------------------------------------
--- parseReload: clean build
---------------------------------------------------------------------------------
+testExtractTitle :: [TestTree]
+testExtractTitle =
+    [ testCase "returns empty string for empty message" do
+        extractTitle [] @?= ""
+    , -- New GHC style: header ends with [GHC-XXXXX], content on body lines.
+      -- Captured from GHC 9.10.2 with -Weverything.
+      testCase "extracts first body line for error with [GHC-XXXXX] code" do
+        extractTitle
+            [ "src/Tricorder/Config.hs:39:20: error: [GHC-83865]"
+            , "    \8226 Couldn't match expected type 'Int' with actual type 'Bool'"
+            , "    \8226 In the expression: True"
+            , "      In an equation for '_deliberateError': _deliberateError = True"
+            , "   |"
+            , "39 | _deliberateError = True"
+            , "   |                    ^^^^"
+            ]
+            @?= "\8226 Couldn't match expected type 'Int' with actual type 'Bool'"
+    , testCase "extracts first body line for warning with [GHC-XXXXX] [-Wfoo] codes" do
+        extractTitle
+            [ "src/Tricorder/Config.hs:38:26: warning: [GHC-55631] [-Wmissing-deriving-strategies]"
+            , "    No deriving strategy specified. Did you want stock, newtype, or anyclass?"
+            , "   |"
+            , "38 | data TestWarn = TestWarn deriving (Eq)"
+            , "   |                          ^^^^^^^^^^^^^"
+            ]
+            @?= "No deriving strategy specified. Did you want stock, newtype, or anyclass?"
+    , -- Old GHC style: message text is inline on the header line.
+      testCase "extracts inline content for old-style single-line error" do
+        extractTitle ["GHCi.hs:70:1: error: Parse error: naked expression at top level"]
+            @?= "Parse error: naked expression at top level"
+    , testCase "extracts inline content for old-style Warning (capital W)" do
+        extractTitle ["GHCi.hs:81:1: Warning: Defined but not used: \8216foo\8217"]
+            @?= "Defined but not used: \8216foo\8217"
+    , -- Multi-line without any inline message: position-only or "Warning:" header.
+      testCase "extracts first body line when header has position only" do
+        extractTitle
+            [ "GHCi.hs:72:13:"
+            , "    No instance for (Num ([String] -> [String]))"
+            , "      arising from the literal '1'"
+            ]
+            @?= "No instance for (Num ([String] -> [String]))"
+    , testCase "extracts first body line when header ends with 'Warning:'" do
+        extractTitle
+            [ "/src/TrieSpec.hs:(192,7)-(193,76): Warning:"
+            , "    A do-notation statement discarded a result of type '[()]'"
+            ]
+            @?= "A do-notation statement discarded a result of type '[()]'"
+    , -- Source display lines (pipe/caret) must be skipped.
+      testCase "skips source display lines when scanning body" do
+        extractTitle
+            [ "file.hs:1:1: error: [GHC-12345]"
+            , "   |"
+            , "1 | foo bar"
+            , "   |     ^^^"
+            , "    actual content here"
+            ]
+            @?= "actual content here"
+    , -- ANSI-escaped header (colour output): strip escapes before searching.
+      testCase "handles ANSI-escaped headers" do
+        extractTitle
+            [ "\ESC[;1msrc/Types.hs:11:1: \ESC[35mwarning:\ESC[0m \ESC[35m[-Wunused-imports]\ESC[0m"
+            , "    The import of 'Data.Data' is redundant"
+            ]
+            @?= "The import of 'Data.Data' is redundant"
+    ]
+
+
+testParseReload :: [TestTree]
+testParseReload =
+    [ testGroup "clean build" testCleanBuild
+    , testGroup "with errors and warnings" testErrors
+    , testGroup "with -fhide-source-paths (no Loading items)" testHideSourcePaths
+    , testGroup "with <no location info> errors" testNoLocationInfo
+    , testGroup "with Loaded GHCi configuration" testLoadedConfig
+    ]
+
 
 testCleanBuild :: [TestTree]
 testCleanBuild =
@@ -63,22 +114,22 @@ testCleanBuild =
                 , "Ok, 3 modules loaded."
                 ]
         parseReload input
-            @?= [ GLoading
-                    GhciLoading
+            @?= [ Load.Loading
+                    Loading
                         { index = 1
                         , total = 3
                         , moduleName = "Tricorder.Build"
                         , sourceFile = "src/Tricorder.Build.hs"
                         }
-                , GLoading
-                    GhciLoading
+                , Load.Loading
+                    Loading
                         { index = 2
                         , total = 3
                         , moduleName = "Tricorder.Session"
                         , sourceFile = "src/Tricorder/Session.hs"
                         }
-                , GLoading GhciLoading {index = 3, total = 3, moduleName = "Main", sourceFile = "app/Main.hs"}
-                , GSummary LoadSucceeded
+                , Load.Loading Loading {index = 3, total = 3, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     , testCase "handles padded module index (e.g. [ 1 of 47])" do
         let input =
@@ -86,29 +137,25 @@ testCleanBuild =
                 , "Ok, 1 module loaded."
                 ]
         parseReload input
-            @?= [ GLoading GhciLoading {index = 1, total = 47, moduleName = "Main", sourceFile = "app/Main.hs"}
-                , GSummary LoadSucceeded
+            @?= [ Load.Loading Loading {index = 1, total = 47, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     , testGroup
         "when only summary line"
         [ testCase "returns the summary outcome" do
-            parseReload ["Ok, 0 modules loaded."] @?= [GSummary LoadSucceeded]
+            parseReload ["Ok, 0 modules loaded."] @?= [Load.Summary LoadOutcome.LoadSucceeded]
         ]
     ]
 
-
---------------------------------------------------------------------------------
--- parseReload: errors and warnings
---------------------------------------------------------------------------------
 
 testErrors :: [TestTree]
 testErrors =
     [ testCase "parses a single-line error" do
         let input = ["src/Foo.hs:10:5: error: Variable not in scope: foo"]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Foo.hs"
                         , startPos = Position 10 5
                         , endPos = Position 10 5
@@ -122,9 +169,9 @@ testErrors =
                 , "    Perhaps you want to remove it."
                 ]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GWarning
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Warning
                         , file = "src/Bar.hs"
                         , startPos = Position 20 3
                         , endPos = Position 20 3
@@ -138,9 +185,9 @@ testErrors =
     , testCase "parses a span position (L:C-C2:)" do
         let input = ["src/Baz.hs:5:1-10: error: Parse error"]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Baz.hs"
                         , startPos = Position 5 1
                         , endPos = Position 5 10
@@ -150,9 +197,9 @@ testErrors =
     , testCase "parses a span position ((L1,C1)-(L2,C2):)" do
         let input = ["src/Qux.hs:(3,1)-(5,20): error: Multi-line error"]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Qux.hs"
                         , startPos = Position 3 1
                         , endPos = Position 5 20
@@ -162,9 +209,9 @@ testErrors =
     , testCase "parses a span position with double-paren end ((L1,C1)-((L2,C2):)" do
         let input = ["src/Qux.hs:(3,1)-((5,20): error: Multi-line error"]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Qux.hs"
                         , startPos = Position 3 1
                         , endPos = Position 5 20
@@ -180,9 +227,9 @@ testErrors =
                 , "    Suggested fix: import Foo"
                 ]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Foo.hs"
                         , startPos = Position 10 5
                         , endPos = Position 10 5
@@ -198,9 +245,9 @@ testErrors =
     , testCase "strips ANSI codes from header for matching but stores original in glMessage" do
         let ansiHeader = "\ESC[1msrc/Foo.hs:10:5:\ESC[0m \ESC[91merror:\ESC[0m Variable not in scope: foo"
         parseReload [ansiHeader]
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Foo.hs"
                         , startPos = Position 10 5
                         , endPos = Position 10 5
@@ -210,9 +257,9 @@ testErrors =
     , testCase "parses a Windows drive-letter path in a diagnostic" do
         let input = ["C:\\path\\file.hs:10:5: error: Variable not in scope: foo"]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "C:\\path\\file.hs"
                         , startPos = Position 10 5
                         , endPos = Position 10 5
@@ -227,24 +274,20 @@ testErrors =
                 , "Failed, 1 module loaded."
                 ]
         parseReload input
-            @?= [ GLoading GhciLoading {index = 1, total = 2, moduleName = "Lib", sourceFile = "src/Lib.hs"}
-                , GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Loading Loading {index = 1, total = 2, moduleName = "Lib", sourceFile = "src/Lib.hs"}
+                , Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "src/Lib.hs"
                         , startPos = Position 5 1
                         , endPos = Position 5 1
                         , messageLines = ["src/Lib.hs:5:1: error: Oops"]
                         }
-                , GLoading GhciLoading {index = 2, total = 2, moduleName = "Main", sourceFile = "app/Main.hs"}
-                , GSummary LoadFailed
+                , Load.Loading Loading {index = 2, total = 2, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Summary LoadOutcome.LoadFailed
                 ]
     ]
 
-
---------------------------------------------------------------------------------
--- parseReload: -fhide-source-paths output
---------------------------------------------------------------------------------
 
 testHideSourcePaths :: [TestTree]
 testHideSourcePaths =
@@ -257,9 +300,9 @@ testHideSourcePaths =
                     , "Failed, one module failed to load."
                     ]
             parseReload input
-                @?= [ GMessage
-                        GhciMessage
-                            { severity = GError
+                @?= [ Load.Message
+                        Message
+                            { severity = Severity.Error
                             , file = "src/Foo.hs"
                             , startPos = Position 10 5
                             , endPos = Position 10 5
@@ -268,21 +311,17 @@ testHideSourcePaths =
                                 , "    Perhaps you meant: 'bar'"
                                 ]
                             }
-                    , GSummary LoadFailed
+                    , Load.Summary LoadOutcome.LoadFailed
                     ]
         ]
     , testGroup
         "when all modules are already up to date"
         [ testCase "returns the summary outcome" do
             -- GHCi with -fhide-source-paths and nothing to recompile
-            parseReload ["Ok, 5 modules loaded."] @?= [GSummary LoadSucceeded]
+            parseReload ["Ok, 5 modules loaded."] @?= [Load.Summary LoadOutcome.LoadSucceeded]
         ]
     ]
 
-
---------------------------------------------------------------------------------
--- parseReload: <no location info> errors
---------------------------------------------------------------------------------
 
 testNoLocationInfo :: [TestTree]
 testNoLocationInfo =
@@ -292,9 +331,9 @@ testNoLocationInfo =
                 , "    Module `Tricorder.Missing' is not loaded."
                 ]
         parseReload input
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "<no location info>"
                         , startPos = Position 0 0
                         , endPos = Position 0 0
@@ -306,9 +345,9 @@ testNoLocationInfo =
                 ]
     , testCase "handles <no location info>: error: with no continuation" do
         parseReload ["<no location info>: error: some error"]
-            @?= [ GMessage
-                    GhciMessage
-                        { severity = GError
+            @?= [ Load.Message
+                    Message
+                        { severity = Severity.Error
                         , file = "<no location info>"
                         , startPos = Position 0 0
                         , endPos = Position 0 0
@@ -318,18 +357,14 @@ testNoLocationInfo =
     ]
 
 
---------------------------------------------------------------------------------
--- parseReload: Loaded GHCi configuration
---------------------------------------------------------------------------------
-
 testLoadedConfig :: [TestTree]
 testLoadedConfig =
     [ testCase "parses a GHCi configuration line" do
         parseReload ["Loaded GHCi configuration from /home/user/project/.ghci"]
-            @?= [GLoadConfig "/home/user/project/.ghci"]
+            @?= [Load.LoadConfig "/home/user/project/.ghci"]
     , testCase "parses a Windows-style GHCi configuration path" do
         parseReload ["Loaded GHCi configuration from C:\\Users\\user\\project\\.ghci"]
-            @?= [GLoadConfig "C:\\Users\\user\\project\\.ghci"]
+            @?= [Load.LoadConfig "C:\\Users\\user\\project\\.ghci"]
     , testCase "handles config line mixed with other output" do
         let input =
                 [ "Loaded GHCi configuration from .ghci"
@@ -337,80 +372,18 @@ testLoadedConfig =
                 , "Ok, 1 module loaded."
                 ]
         parseReload input
-            @?= [ GLoadConfig ".ghci"
-                , GLoading GhciLoading {index = 1, total = 1, moduleName = "Main", sourceFile = "app/Main.hs"}
-                , GSummary LoadSucceeded
+            @?= [ Load.LoadConfig ".ghci"
+                , Load.Loading Loading {index = 1, total = 1, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     ]
 
 
---------------------------------------------------------------------------------
--- parseShowModules
---------------------------------------------------------------------------------
-
-testShowModules :: [TestTree]
-testShowModules =
-    [ testCase "parses typical :show modules output" do
-        let input =
-                [ "Tricorder.Build     ( src/Tricorder.Build.hs, interpreted )"
-                , "Tricorder.Session        ( src/Tricorder/Session.hs, interpreted )"
-                , "Main                     ( app/Main.hs, interpreted )"
-                ]
-        parseShowModules input
-            @?= [ ("Tricorder.Build", "src/Tricorder.Build.hs")
-                , ("Tricorder.Session", "src/Tricorder/Session.hs")
-                , ("Main", "app/Main.hs")
-                ]
-    , testCase "parses absolute paths" do
-        parseShowModules ["Lib ( /home/user/project/src/Lib.hs, interpreted )"]
-            @?= [("Lib", "/home/user/project/src/Lib.hs")]
-    , testCase "strips ANSI codes before parsing" do
-        parseShowModules ["\ESC[1mMain\ESC[0m                     ( app/Main.hs, interpreted )"]
-            @?= [("Main", "app/Main.hs")]
+testCollectResultCustom :: [TestTree]
+testCollectResultCustom =
+    [ testGroup "<no location info> plugin load failure" testPluginLoadFailure
     ]
 
-
-testShowModulesEmpty :: [TestTree]
-testShowModulesEmpty =
-    [ testCase "returns empty list for empty input" do
-        parseShowModules [] @?= []
-    , testCase "returns empty list for blank lines" do
-        parseShowModules ["", "   ", "\t"] @?= []
-    , testCase "skips lines without '( '" do
-        parseShowModules ["just some random text"] @?= []
-    ]
-
-
---------------------------------------------------------------------------------
--- parseShowTargets
---------------------------------------------------------------------------------
-
-testShowTargets :: [TestTree]
-testShowTargets =
-    [ testCase "parses module names emitted by cabal repl --enable-multi-repl" do
-        parseShowTargets
-            [ "Atelier.Effects.Cache"
-            , "Atelier.Effects.Chan"
-            , "Paths_tricorder"
-            ]
-            @?= ["Atelier.Effects.Cache", "Atelier.Effects.Chan", "Paths_tricorder"]
-    , testCase "parses file-path targets emitted by plain ghci" do
-        parseShowTargets ["src/Foo.hs", "test/Bar.hs"]
-            @?= ["src/Foo.hs", "test/Bar.hs"]
-    , testCase "strips the leading '*' marker for the active interactive target" do
-        parseShowTargets ["*Main", "Foo.Bar"] @?= ["Main", "Foo.Bar"]
-    , testCase "strips ANSI escape sequences" do
-        parseShowTargets ["\ESC[1mFoo.Bar\ESC[0m"] @?= ["Foo.Bar"]
-    , testCase "skips blank and whitespace-only lines" do
-        parseShowTargets ["", "   ", "\t", "Real.Target"] @?= ["Real.Target"]
-    , testCase "returns empty list for empty input" do
-        parseShowTargets [] @?= []
-    ]
-
-
---------------------------------------------------------------------------------
--- collectResultCustom: <no location info> plugin load failure
---------------------------------------------------------------------------------
 
 -- | Regression test for the \"All good\" bug with home-unit GHC plugins.
 --
@@ -426,11 +399,10 @@ testPluginLoadFailure =
     -- executable loads a home-unit GHC plugin: the plugin package's modules
     -- compile, then the unit using the plugin fails with a location-less error.
     [ testCase "surfaces the plugin load failure as an error diagnostic" do
-        assertBool "expected an error diagnostic"
-            $ SError `elem` map (.severity) result.diagnostics
+        Build.Diagnostic.SError `elem` map (.severity) result.diagnostics @? "expected an error diagnostic"
     , testCase "carries the plugin error message in the diagnostic title" do
-        assertBool "expected the plugin error message in a diagnostic title"
-            $ "Could not load module \8216My.Plugin\8217." `elem` map (.title) result.diagnostics
+        "Could not load module \8216My.Plugin\8217." `elem` map (.title) result.diagnostics
+            @? "expected the plugin error message in a diagnostic title"
     ]
   where
     reloadOutput =
@@ -447,9 +419,11 @@ testPluginLoadFailure =
     result = collectResultCustom "/project" (parseReload reloadOutput) [] []
 
 
---------------------------------------------------------------------------------
--- collectResult: failed load with no located error
---------------------------------------------------------------------------------
+testCollectResult :: [TestTree]
+testCollectResult =
+    [ testGroup "failed load with no located error" testUnattributedFailure
+    ]
+
 
 -- 'collectResult' is the safety net: GHCi can end a load with @Failed, …@
 -- without emitting any error that carries a source span. The build must never

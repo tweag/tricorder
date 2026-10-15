@@ -53,13 +53,7 @@ import Atelier.Effects.Process qualified as Process
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.Daemon.GhciSession.GhciParser (GhciLoading (..), parseProgressLine)
-import Tricorder.Daemon.GhciSession.GhciProcess
-    ( GhciProcessError (..)
-    , UnexpectedExit (..)
-    , execGhci
-    , withGhciProcess
-    )
+import Tricorder.Daemon.Ghci.Loading (Loading (..))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
@@ -70,6 +64,9 @@ import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
 import Tricorder.Build.Test qualified as Test
+import Tricorder.Daemon.Ghci.Loading qualified as Ghci (Loading)
+import Tricorder.Daemon.Ghci.Process qualified as Ghci.Process
+import Tricorder.Daemon.Ghci.Result qualified as Ghci.Result
 
 
 data TestRunner :: Effect where
@@ -117,7 +114,7 @@ runTestSuiteWithStdout
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => (GhciLoading -> Eff es ())
+    => (Ghci.Loading -> Eff es ())
     -> TestTimeout
     -> RenderedCommand 'Test
     -> Eff es Test.Suite
@@ -137,7 +134,7 @@ runTestSuiteWithStdout onProgress testTimeout cmd = do
             unlessM (File.hIsEOF h) do
                 line <- File.hGetLine h
                 atomically $ modifyTVar' outputVar (|> line)
-                traverse_ onProgress (parseProgressLine line)
+                traverse_ onProgress (Ghci.Result.parseProgressLine line)
                 drain h
 
         runToCompletion p = do
@@ -192,14 +189,14 @@ runTestSuiteWithGHCi
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => (GhciLoading -> Eff es ())
+    => (Ghci.Loading -> Eff es ())
     -> TestTimeout
     -> RenderedCommand 'Test
     -> Eff es Test.Suite
 runTestSuiteWithGHCi onProgress testTimeout cmd = do
     ProjectRoot projectRoot <- ask
     result <- trySync
-        $ withGhciProcess
+        $ Ghci.Process.with
             def
             cmd
             projectRoot
@@ -207,22 +204,22 @@ runTestSuiteWithGHCi onProgress testTimeout cmd = do
             noReady
             \ghci _ ->
                 case testTimeout of
-                    TestTimeout secs | secs <= 0 -> Right <$> execGhci ghci ":main" noProgress
+                    TestTimeout secs | secs <= 0 -> Right <$> Ghci.Process.exec ghci ":main" noProgress
                     TestTimeout secs ->
                         let duration = fromIntegral secs :: Second
                         in  maybeToRight secs
-                                <$> timeout duration (execGhci ghci ":main" noProgress)
+                                <$> timeout duration (Ghci.Process.exec ghci ":main" noProgress)
     case result of
         Left ex -> case fromException ex of
-            Just (e :: GhciProcessError) -> case e of
-                UnexpectedExit (MkUnexpectedExit marker msg) ->
+            Just (e :: Ghci.Process.Error) -> case e of
+                Ghci.Process.UnexpectedExit (Ghci.Process.MkUnexpectedExit marker msg) ->
                     pure
                         $ Test.SuiteErrored
                         $ Test.SuiteError
                             { message = "Test suite failed while waiting for marker (" <> marker <> "):\n" <> msg
                             }
-                StartupTimeout -> pure $ Test.SuiteErrored $ Test.SuiteError "Test suite timed out before it could finish"
-                StartupFailed msg ->
+                Ghci.Process.StartupTimeout -> pure $ Test.SuiteErrored $ Test.SuiteError "Test suite timed out before it could finish"
+                Ghci.Process.StartupFailed msg ->
                     pure
                         $ Test.SuiteErrored
                         $ Test.SuiteError
@@ -279,7 +276,7 @@ runScripted results =
             Right r : rest -> put rest >> pure r
 
 
-loadingToProgress :: GhciLoading -> Test.Suite
+loadingToProgress :: Ghci.Loading -> Test.Suite
 loadingToProgress loading =
     Test.SuiteRunning
         $ Just

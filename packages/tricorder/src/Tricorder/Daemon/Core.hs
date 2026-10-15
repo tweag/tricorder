@@ -42,12 +42,7 @@ import Tricorder.Daemon.Builder
     )
 import Tricorder.Daemon.Dispatch (BuilderState (..), DispatchAction, emptyBuilderState)
 import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
-import Tricorder.Daemon.GhciSession (GhciSession)
-import Tricorder.Daemon.GhciSession.GhciParser
-    ( LoadResult
-    , LoadedModule (..)
-    , resolveKnownTargets
-    )
+import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Daemon.Watch (WatchedFile)
@@ -68,6 +63,9 @@ import Tricorder.Build.Test qualified as Test
 import Tricorder.Config qualified as Config
 import Tricorder.Daemon.Builder qualified as Builder
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
+import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
+import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci.LoadResult
+import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
@@ -100,7 +98,7 @@ main
        , EvalCommentRunner :> es
        , FileSystem :> es
        , FileWatcher :> es
-       , GhciSession :> es
+       , Ghci.Session :> es
        , Hpack :> es
        , Input Session :> es
        , Log :> es
@@ -140,7 +138,7 @@ withSession
        , EvalCommentRunner :> es
        , FileSystem :> es
        , FileWatcher :> es
-       , GhciSession :> es
+       , Ghci.Session :> es
        , Hpack :> es
        , Input Session :> es
        , Log :> es
@@ -236,7 +234,7 @@ runBuilder
        , Conc :> es
        , Concurrent :> es
        , EvalCommentRunner :> es
-       , GhciSession :> es
+       , Ghci.Session :> es
        , Log.Log :> es
        , Process :> es
        , Pub BuildPhase :> es
@@ -374,11 +372,12 @@ runEvalComments
        , Pub Eval.Phase :> es
        , State BuilderState :> es
        )
-    => Session -> LoadResult -> Eff es Eval.Phase
+    => Session -> Ghci.LoadResult -> Eff es Eval.Phase
 runEvalComments session loadResult = do
     builderState <- State.get @BuilderState
     evalComments <-
-        findEvalCommentsInModules $ resolveKnownTargets builderState.loadedModules loadResult
+        findEvalCommentsInModules
+            $ Ghci.LoadResult.resolveKnownTargets builderState.loadedModules loadResult
 
     case nonEmpty evalComments of
         Nothing -> pure Eval.NoneFound

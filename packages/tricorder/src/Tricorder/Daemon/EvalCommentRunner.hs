@@ -29,12 +29,13 @@ import Atelier.Effects.Log qualified as Log
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
-import Tricorder.Daemon.GhciSession.GhciParser (LoadedModule (..))
-import Tricorder.Daemon.GhciSession.GhciProcess (execGhci, withGhciProcess)
+import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate)
 
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci (LoadedModule)
+import Tricorder.Daemon.Ghci.Process qualified as Ghci.Process
 import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
 import Tricorder.Session.Target qualified as Target
@@ -45,13 +46,13 @@ data EvalCommentRunner :: Effect where
     -- in a fresh GHCi session started in that file's module context.
     EvaluateComments
         :: CommandTemplate 'Stage.Eval
-        -> NonEmpty (LoadedModule, NonEmpty Eval.Comment)
+        -> NonEmpty (Ghci.LoadedModule, NonEmpty Eval.Comment)
         -> EvalCommentRunner m (NonEmpty Eval.Evaluation)
     -- | Extract eval comments from provided source files. Returns a map of all
     -- files that have at least 1 eval comment.
     FindEvalCommentsInModules
-        :: Map FilePath LoadedModule
-        -> EvalCommentRunner m [(LoadedModule, NonEmpty Eval.Comment)]
+        :: Map FilePath Ghci.LoadedModule
+        -> EvalCommentRunner m [(Ghci.LoadedModule, NonEmpty Eval.Comment)]
 
 
 makeEffect ''EvalCommentRunner
@@ -121,10 +122,10 @@ runFileEvals template relPath moduleName comments = do
             | otherwise = expr
         command = EvalCommand.render template [Target.Bare moduleName]
     sessionResult <- trySync
-        $ withGhciProcess def command projectRoot noProgress noSetup \ghci _ -> do
-            _ <- execGhci ghci (":m *" <> moduleName) noProgress
+        $ Ghci.Process.with def command projectRoot noProgress noSetup \ghci _ -> do
+            _ <- Ghci.Process.exec ghci (":m *" <> moduleName) noProgress
             for comments \comment -> do
-                outputResult <- trySync $ execGhci ghci (wrapForGhci comment.expression) noProgress
+                outputResult <- trySync $ Ghci.Process.exec ghci (wrapForGhci comment.expression) noProgress
                 pure
                     Eval.Evaluation
                         { file = relPath

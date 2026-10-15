@@ -1,4 +1,4 @@
-module Unit.Tricorder.Daemon.GhciSession.GhciProcessSpec (test_GhciProcess) where
+module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)
@@ -45,23 +45,18 @@ import Data.Text qualified as T
 import System.Process qualified as Process
 import System.Timeout qualified
 
-import Tricorder.Daemon.GhciSession.GhciProcess
-    ( GhciProcess (..)
-    , GhciProcessError (..)
-    , InterruptDecision (..)
-    , SessionState (..)
-    , UnexpectedExit (..)
-    , decideInterrupt
-    , drainUntil
-    , execGhci
-    , waitForBannerOrFail
-    )
+import Tricorder.Daemon.Ghci.InterruptDecision (InterruptDecision (..))
+import Tricorder.Daemon.Ghci.Process (Error (..), Process (..), UnexpectedExit (..))
+import Tricorder.Daemon.Ghci.Session.State (State (..))
+
+import Tricorder.Daemon.Ghci.InterruptDecision qualified as InterruptDecision
+import Tricorder.Daemon.Ghci.Process qualified as Process
 
 
-test_GhciProcess :: TestTree
-test_GhciProcess =
+test_Process :: TestTree
+test_Process =
     testGroup
-        "GhciProcess"
+        "Process"
         [ testGroup "decideInterrupt" testDecideInterrupt
         , testGroup "drainUntil" testDrainUntil
         , testGroup "execGhci" testExecGhciScope
@@ -91,7 +86,7 @@ testDrainUntil =
                 $ do
                     for_ ["line1", "line2", finishMarker 1, "line3"] (File.hPutTextLn w)
                     File.hClose w
-                    drainUntil r (finishMarker 1) (\_ -> pure ())
+                    Process.drainUntil r (finishMarker 1) (\_ -> pure ())
         result @?= ["line1", "line2"]
     , testCase "streams each non-marker line to onLine, in order, before returning" do
         (r, w) <- Process.createPipe
@@ -104,7 +99,7 @@ testDrainUntil =
                 $ do
                     for_ ["a", "b", "c", finishMarker 2] (File.hPutTextLn w)
                     File.hClose w
-                    drainUntil r (finishMarker 2) (\l -> liftIO $ modifyIORef' seenRef (l :))
+                    Process.drainUntil r (finishMarker 2) (\l -> liftIO $ modifyIORef' seenRef (l :))
         seen <- reverse <$> readIORef seenRef
         seen @?= ["a", "b", "c"]
         result @?= seen
@@ -121,7 +116,7 @@ testDrainUntil =
                     -- skip it rather than stopping.
                     for_ ["before", finishMarker 5, "after", finishMarker 9] (File.hPutTextLn w)
                     File.hClose w
-                    drainUntil r (finishMarker 9) (\_ -> pure ())
+                    Process.drainUntil r (finishMarker 9) (\_ -> pure ())
         result @?= ["before", "after"]
     , testCase
         "throws UnexpectedExit with ALL accumulated lines (in order) on EOF, not just the last one"
@@ -135,7 +130,7 @@ testDrainUntil =
                     $ do
                         for_ ["first", "second", "third"] (File.hPutTextLn w)
                         File.hClose w -- EOF before the marker ever arrives
-                        trySync (drainUntil r (finishMarker 1) (\_ -> pure ()))
+                        trySync (Process.drainUntil r (finishMarker 1) (\_ -> pure ()))
             case outcome of
                 Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
                 Left ex -> case fromException ex of
@@ -153,7 +148,7 @@ testDrainUntil =
                 . runFile
                 $ do
                     File.hClose w
-                    trySync (drainUntil r (finishMarker 1) (\_ -> pure ()))
+                    trySync (Process.drainUntil r (finishMarker 1) (\_ -> pure ()))
         case outcome of
             Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
             Left ex -> case fromException ex of
@@ -179,7 +174,7 @@ testDrainUntil =
                     . runFile
                     $ do
                         File.hClose w
-                        trySync (drainUntil r (finishMarker 3) (\_ -> pure ()))
+                        trySync (Process.drainUntil r (finishMarker 3) (\_ -> pure ()))
             case filter (\m -> m.severity == ERROR) msgs of
                 [] -> assertFailure "expected an ERROR log message"
                 (logMsg : _) -> do
@@ -195,7 +190,7 @@ testDrainUntil =
                 $ do
                     for_ ["oops-line-1", "oops-line-2"] (File.hPutTextLn w)
                     File.hClose w
-                    trySync (drainUntil r (finishMarker 4) (\_ -> pure ()))
+                    trySync (Process.drainUntil r (finishMarker 4) (\_ -> pure ()))
         case filter (\m -> m.severity == ERROR) msgs of
             [] -> assertFailure "expected an ERROR log message"
             (logMsg : _) -> do
@@ -228,7 +223,7 @@ testExecGhciStaleMarker =
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 9)
         let gp =
-                GhciProcess
+                Process
                     { stdin = stdinW
                     , stdout = stdoutR
                     , stderr = stderrR
@@ -255,7 +250,7 @@ testExecGhciStaleMarker =
                     File.hClose stderrW
                     -- Keep the stdin read-end alive across the write inside
                     -- 'execGhci' (otherwise it is GC-finalised → broken pipe).
-                    r <- execGhci gp "reload" (\_ -> pure ())
+                    r <- Process.exec gp "reload" (\_ -> pure ())
                     File.hClose stdinR
                     pure r
         _ <- (Right <$> stopProcess p) `catch` \(_ :: SomeException) -> pure (Left ())
@@ -288,7 +283,7 @@ testSyncMarkerScopeIndependent =
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 9)
         let gp =
-                GhciProcess
+                Process
                     { stdin = stdinW
                     , stdout = stdoutR
                     , stderr = stderrR
@@ -311,7 +306,7 @@ testSyncMarkerScopeIndependent =
                     File.hPutTextLn stderrW marker
                     File.hClose stdoutW
                     File.hClose stderrW
-                    _ <- execGhci gp ":reload" (\_ -> pure ())
+                    _ <- Process.exec gp ":reload" (\_ -> pure ())
                     File.hClose stdinW
                     let readAll acc =
                             trySync (File.hGetLine stdinR) >>= \case
@@ -362,7 +357,7 @@ testWaitForBannerOrFail =
                         for_ [1 .. lineCount] \i ->
                             File.hPutTextLn errW ("err line " <> show i :: Text)
                         File.hClose errW
-                    trySync (waitForBannerOrFail (5 :: Second) bannerOut errR)
+                    trySync (Process.waitForBannerOrFail (5 :: Second) bannerOut errR)
         case result of
             Right () -> assertFailure "expected waitForBannerOrFail to throw a startup error"
             Left ex -> case fromException ex of
@@ -485,14 +480,14 @@ testDecideInterrupt =
     -- that the next 'execGhci' drain would match instead of the fresh one,
     -- desyncing the protocol and reporting "0 modules" or hanging.
     [ testCase "is a no-op when the session is Idle" do
-        decideInterrupt (Idle 7) @?= (Idle 7, NoOpIdle)
+        InterruptDecision.decide (Idle 7) @?= (Idle 7, NoOpIdle)
     , testCase "preserves the counter for any Idle state" do
-        decideInterrupt (Idle 0) @?= (Idle 0, NoOpIdle)
-        decideInterrupt (Idle 42) @?= (Idle 42, NoOpIdle)
+        InterruptDecision.decide (Idle 0) @?= (Idle 0, NoOpIdle)
+        InterruptDecision.decide (Idle 42) @?= (Idle 42, NoOpIdle)
     , testCase "advances to Idle (n+1) and emits SendInterruptFor n when Busy" do
-        decideInterrupt (Busy 7) @?= (Idle 8, SendInterruptFor 7)
+        InterruptDecision.decide (Busy 7) @?= (Idle 8, SendInterruptFor 7)
     , testCase "advances correctly from Busy 0" do
-        decideInterrupt (Busy 0) @?= (Idle 1, SendInterruptFor 0)
+        InterruptDecision.decide (Busy 0) @?= (Idle 1, SendInterruptFor 0)
     ]
 
 
@@ -526,7 +521,7 @@ testExecGhciScope =
         _ <- waitExitCode p
         stateVar <- newTVarIO (Idle 0)
         let gp =
-                GhciProcess
+                Process
                     { stdin = getStdin p
                     , stdout = getStdout p
                     , stderr = getStderr p
@@ -553,7 +548,7 @@ testExecGhciScope =
                     -- Drive 'execGhci' on a dead process; the drains should
                     -- raise 'UnexpectedExit', which 'trySync' must catch
                     -- here rather than letting Ki tear down the scope.
-                    execResult <- trySync (execGhci gp "cmd" (\_ -> pure ()))
+                    execResult <- trySync (Process.exec gp "cmd" (\_ -> pure ()))
                     -- Wait for the sibling to run.
                     Conc.await sibling
                     pure execResult
