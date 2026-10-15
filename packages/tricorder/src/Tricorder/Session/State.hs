@@ -152,4 +152,4 @@ conditionallyWatchStackYaml = do
 
 
 logSession :: (Log :> es) => Session -> Eff es ()
-logSession = Log.info . (<> "\n") . Session.show
+logSession = Log.info . (<> "\n") . Session.display

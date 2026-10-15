@@ -1,7 +1,7 @@
 module Tricorder.Session
     ( Session (..)
     , load
-    , show
+    , display
     )
 where
 
@@ -12,12 +12,10 @@ import Atelier.Effects.Log (Log)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader, ask)
 import Text.Regex.TDFA.Pattern (showPattern)
-import Prelude hiding (show)
 
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
-import Prelude qualified as P
 
 import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
@@ -40,7 +38,7 @@ import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.Target (definesCustomPrelude)
 import Tricorder.Session.TestTarget (getTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
-import Tricorder.Session.Util (indent, showList)
+import Tricorder.Session.Util (displayList, indent)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 import Tricorder.Session.WatchExclusionPatterns
     ( WatchExclusionPatterns (..)
@@ -225,27 +223,27 @@ warnMissingTargetPlaceholder section customTemplate =
         _ -> pure ()
 
 
-show :: Session -> Text
-show session =
+display :: Session -> Text
+display session =
     T.intercalate
         "\n"
         [ "Loaded session"
         , "Build configuration:"
-        , indent $ BuildSession.show session.buildSession
+        , indent $ BuildSession.display session.buildSession
         , "Test configuration:"
-        , indent $ TestSession.show session.testSession
+        , indent $ TestSession.display session.testSession
         , "Eval comments configuration:"
-        , indent $ EvalSession.show session.evalSession
+        , indent $ EvalSession.display session.evalSession
         , "Watch dirs:"
-        , indent $ showList toText session.watchDirs.getWatchDirs
+        , indent $ displayList toText session.watchDirs.getWatchDirs
         , "Watch exclusion patterns:"
         , indent
-            $ showList
+            $ displayList
                 (toText . showPattern . fst)
                 session.watchExclusionPatterns.getWatchExclusionPatterns
         , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
         , -- TODO: Remove " seconds" when TestTimeout is converted to a proper time unit.
-          "Test timeout: " <> P.show session.testTimeout.getTestTimeout <> " seconds"
-        , "Test memory limit: " <> P.show session.testMemoryLimit
-        , "Generate with hpack: " <> P.show session.generateWithHpack.getGenerateWithHpack
+          "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
+        , "Test memory limit: " <> show session.testMemoryLimit
+        , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
         ]

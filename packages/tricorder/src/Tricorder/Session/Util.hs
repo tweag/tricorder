@@ -1,5 +1,5 @@
 module Tricorder.Session.Util
-    ( showList
+    ( displayList
     , indent
     )
 where
@@ -7,8 +7,8 @@ where
 import Data.Text qualified as T
 
 
-showList :: (a -> Text) -> [a] -> Text
-showList f xs
+displayList :: (a -> Text) -> [a] -> Text
+displayList f xs
     | null xs = "<empty list>"
     | otherwise = T.intercalate "\n" $ (("- " <>) . f) <$> xs
 

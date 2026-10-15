@@ -1,14 +1,13 @@
 module Tricorder.Session.Stage.Build.Session
     ( BuildSession (..)
     , resolve
-    , show
+    , display
     )
 where
 
 import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader)
-import Prelude hiding (show)
 
 import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
@@ -20,7 +19,7 @@ import Tricorder.Session.CommandTemplate (CommandTemplate)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.Target (Target)
-import Tricorder.Session.Util (indent, showList)
+import Tricorder.Session.Util (displayList, indent)
 
 import Tricorder.Session.CommandTemplate qualified as CommandTemplate
 import Tricorder.Session.Stage qualified as Stage
@@ -55,12 +54,12 @@ resolve config repl projectFiles = do
     effectiveTargets = Target.resolve projectFiles rawBuildTargets
 
 
-show :: BuildSession -> Text
-show cfg =
+display :: BuildSession -> Text
+display cfg =
     T.intercalate
         "\n"
         [ "Command template:"
-        , indent $ CommandTemplate.show cfg.commandTemplate
+        , indent $ CommandTemplate.display cfg.commandTemplate
         , "Targets:"
-        , indent $ showList Target.render cfg.targets
+        , indent $ displayList Target.render cfg.targets
         ]

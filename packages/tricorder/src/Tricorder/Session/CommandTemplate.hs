@@ -5,21 +5,19 @@ module Tricorder.Session.CommandTemplate
     , hasPlaceholder
     , targetsPlaceholder
     , targetPlaceholder
-    , show
+    , display
     )
 where
 
 import Data.Default (Default (..))
-import Prelude hiding (show)
 
 import Data.List qualified as List
 import Data.Text qualified as T
-import Prelude qualified as P
 
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Target (Target (..))
-import Tricorder.Session.Util (indent, showList)
+import Tricorder.Session.Util (displayList, indent)
 
 import Tricorder.Session.Target qualified as Target
 
@@ -111,13 +109,13 @@ hasPlaceholder :: Text -> Text -> Bool
 hasPlaceholder placeholderName template = ("{" <> placeholderName <> "}") `T.isInfixOf` template
 
 
-show :: CommandTemplate stage -> Text
-show tmpl =
+display :: CommandTemplate stage -> Text
+display tmpl =
     T.intercalate
         "\n"
         [ "Template: " <> tmpl.template
-        , "Repl: " <> P.show tmpl.repl
-        , "Template placeholder: " <> P.show tmpl.placeholder
+        , "Repl: " <> show tmpl.repl
+        , "Template placeholder: " <> show tmpl.placeholder
         , "Arguments:"
-        , indent $ showList id tmpl.arguments
+        , indent $ displayList id tmpl.arguments
         ]

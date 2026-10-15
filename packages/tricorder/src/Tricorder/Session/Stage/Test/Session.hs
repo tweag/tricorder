@@ -3,15 +3,13 @@ module Tricorder.Session.Stage.Test.Session
     , ResolvedTestOptions (..)
     , resolve
     , defaultTestTemplate
-    , show
+    , display
     )
 where
 
 import Data.Default (Default (..))
-import Prelude hiding (show)
 
 import Data.Text qualified as T
-import Prelude qualified as P
 
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
@@ -20,7 +18,7 @@ import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage.Test.Config (Options (..), OutputMode (..), TestConfig (..))
 import Tricorder.Session.Target (Target)
 import Tricorder.Session.TestTarget (TestTarget (..))
-import Tricorder.Session.Util (indent, showList)
+import Tricorder.Session.Util (displayList, indent)
 
 import Tricorder.Session.CommandTemplate qualified as CommandTemplate
 import Tricorder.Session.Stage qualified as Stage
@@ -92,14 +90,14 @@ defaultTestTemplate = \case
     Unknown -> "cabal repl {target}"
 
 
-show :: TestSession -> Text
-show cfg =
+display :: TestSession -> Text
+display cfg =
     T.intercalate
         "\n"
         [ "Command template:"
-        , indent $ CommandTemplate.show cfg.commandTemplate
+        , indent $ CommandTemplate.display cfg.commandTemplate
         , "Test targets:"
-        , indent $ showList TestTarget.render cfg.targets
+        , indent $ displayList TestTarget.render cfg.targets
         , "Options:"
         , indent $ showTestOptions cfg.options
         ]
@@ -107,5 +105,5 @@ show cfg =
     showTestOptions opts =
         T.intercalate
             "\n"
-            [ "Output mode: " <> P.show opts.outputMode
+            [ "Output mode: " <> show opts.outputMode
             ]
