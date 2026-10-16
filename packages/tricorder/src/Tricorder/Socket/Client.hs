@@ -20,6 +20,7 @@ import Effectful.Exception (catchJust, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (evalState, get, modify, put)
 import System.IO.Error (isEOFError)
+import Tricorder.CLI.Command (Force)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay

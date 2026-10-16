@@ -1,22 +1,19 @@
 module Unit.Tricorder.SocketSpec (test_Socket) where
 
 import Atelier.Effects.File (File, runFile)
+import Atelier.Effects.FileSystem (FileSystem)
 import Effectful (IOE, runEff)
+import Effectful.Exception (trySync)
 import System.IO (hClose, hGetLine, openFile, writeFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.Effects.FileSystem qualified as FileSystem
+
 import Tricorder.Socket.Client (isDaemonReady)
-import Tricorder.Socket.UnixSocket
-    ( SocketScript (..)
-    , UnixSocket
-    , acceptHandle
-    , bindSocket
-    , removeSocketFile
-    , runUnixSocketIO
-    , runUnixSocketScripted
-    , socketFileExists
-    )
+import Tricorder.Socket.UnixSocket (SocketScript (..), UnixSocket)
+
+import Tricorder.Socket.UnixSocket qualified as UnixSocket
 
 
 test_Socket :: TestTree
@@ -35,29 +32,14 @@ test_Socket =
 testScripted :: [TestTree]
 testScripted =
     [ testGroup
-        "socketFileExists"
-        [ testCase "returns True when scripted" do
-            result <- runScripted [NextFileCheck True] $ socketFileExists "/"
-            result @?= True
-        , testCase "returns False when scripted" do
-            result <- runScripted [NextFileCheck False] $ socketFileExists "/"
-            result @?= False
-        ]
-    , testGroup
-        "removeSocketFile"
-        [ testCase "is always a no-op" do
-            -- No NextFileCheck/NextAccept needed; just returns ()
-            runScripted [] $ removeSocketFile "/nonexistent/path"
-        ]
-    , testGroup
-        "acceptHandle"
+        "accept"
         [ testCase "returns the scripted handle, readable from a file" do
             let tmpPath = "/tmp/tricorder-socket-accept-test.txt"
             writeFile tmpPath "hello from test\n"
             h <- liftIO $ openFile tmpPath ReadMode
             line <- runScripted [NextAccept h] $ do
-                sock <- bindSocket "/"
-                h' <- acceptHandle sock
+                sock <- UnixSocket.bind "/"
+                h' <- UnixSocket.accept sock
                 liftIO $ hGetLine h'
             liftIO $ hClose h
             line @?= "hello from test"
@@ -79,10 +61,10 @@ testReady =
     , testCase "returns True once a socket is bound and listening" do
         let path = "/tmp/tricorder-isdaemonready-bound.sock"
         result <- runIO' do
-            removeSocketFile path
-            _ <- bindSocket path
+            void $ trySync $ FileSystem.removeFile path
+            _ <- UnixSocket.bind path
             isDaemonReady path
-        runIO' $ removeSocketFile path
+        runIO' $ void $ trySync $ FileSystem.removeFile path
         result @?= True
     ]
 
@@ -93,9 +75,9 @@ testReady =
 
 -- | Run scripted socket operations (no Delay needed).
 runScripted :: [SocketScript] -> Eff '[UnixSocket, File, IOE] a -> IO a
-runScripted script = runEff . runFile . runUnixSocketScripted script
+runScripted script = runEff . runFile . UnixSocket.runScripted script
 
 
 -- | Run socket operations against the real IO interpreter.
-runIO' :: Eff '[UnixSocket, File, IOE] a -> IO a
-runIO' = runEff . runFile . runUnixSocketIO
+runIO' :: Eff '[UnixSocket, File, FileSystem, IOE] a -> IO a
+runIO' = runEff . FileSystem.runFileSystemIO . runFile . UnixSocket.runIO

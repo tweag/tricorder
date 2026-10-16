@@ -30,13 +30,13 @@ import Tricorder.Session (Session (..))
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
-import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
+import Tricorder.Socket.UnixSocket qualified as UnixSocket
 import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 import Tricorder.SourceLookup.Hackage qualified as Hackage
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
@@ -68,7 +68,7 @@ main =
         . runProcessIO
         . runArgumentsIO
         . runArguments
-        . runUnixSocketIO
+        . UnixSocket.runIO
         . runEnv
         . inputLoadedConfig
         . runLogNoOp

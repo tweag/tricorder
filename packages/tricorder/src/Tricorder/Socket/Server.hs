@@ -2,16 +2,20 @@ module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Exit (Exit, exitSuccess)
+import Atelier.Effects.File (File)
+import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Sub (Sub)
 import Data.Aeson (ToJSON, decode, encode)
-import Effectful.Exception (IOException, finally)
+import Effectful.Exception (IOException, finally, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.File qualified as File
+import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Data.ByteString.Lazy qualified as BSL
@@ -27,15 +31,7 @@ import Tricorder.Socket.Protocol
     , Query (..)
     , StatusQuery (..)
     )
-import Tricorder.Socket.UnixSocket
-    ( UnixSocket
-    , acceptHandle
-    , bindSocket
-    , closeHandle
-    , readLine
-    , removeSocketFile
-    , sendLine
-    )
+import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 import Tricorder.Waiters (Waiters)
 
@@ -44,6 +40,7 @@ import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Socket.Protocol qualified as Protocol
+import Tricorder.Socket.UnixSocket qualified as UnixSocket
 import Tricorder.Waiters qualified as Waiters
 
 
@@ -54,6 +51,8 @@ data SocketRemoved = SocketRemoved
 main
     :: ( Conc :> es
        , Exit :> es
+       , File :> es
+       , FileSystem :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
@@ -67,13 +66,14 @@ main = State.evalState Build.Starting do
     Conc.fork_ $ Sub.listen_ @BuildPhase State.put
 
     SocketPath sockPath <- ask
-    removeSocketFile sockPath
+    void $ trySync $ FileSystem.removeFile sockPath
     acceptTrigger
 
 
 acceptTrigger
     :: ( Conc :> es
        , Exit :> es
+       , File :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
@@ -86,28 +86,28 @@ acceptTrigger
     => Eff es Void
 acceptTrigger = do
     SocketPath sockPath <- ask
-    sock <- bindSocket sockPath
+    sock <- UnixSocket.bind sockPath
     forever do
-        h <- acceptHandle sock
+        h <- UnixSocket.accept sock
         void $ Conc.forkTry @IOException do
-            handleConnection h `finally` closeHandle h
+            handleConnection h `finally` File.hClose h
 
 
 handleConnection
     :: ( Conc :> es
        , Exit :> es
+       , File :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
-       , UnixSocket :> es
        , Waiters :> es
        )
     => Handle
     -> Eff es ()
 handleConnection h = IdleTimer.withActivity do
-    line <- readLine h
+    line <- File.hGetLine h
     case decode (BSL.fromStrict (encodeUtf8 line)) of
         Nothing -> sendJson h (ErrorResponse "invalid request")
         Just ClientMessage {clientVersion, payload} -> do
@@ -122,11 +122,11 @@ handleConnection h = IdleTimer.withActivity do
 dispatch
     :: ( Conc :> es
        , Exit :> es
+       , File :> es
        , Input BuildId :> es
        , Log :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
-       , UnixSocket :> es
        , Waiters :> es
        )
     => Query
@@ -142,8 +142,8 @@ dispatch query h = case query of
 
 quit
     :: ( Exit :> es
+       , File :> es
        , Log :> es
-       , UnixSocket :> es
        , Waiters :> es
        )
     => Handle -> Protocol.Waiters -> Eff es ()
@@ -158,9 +158,9 @@ quit h = \case
 
 
 respondOnce
-    :: ( Input BuildId :> es
+    :: ( File :> es
+       , Input BuildId :> es
        , State BuildPhase :> es
-       , UnixSocket :> es
        )
     => Handle -> Eff es ()
 respondOnce h = do
@@ -170,10 +170,10 @@ respondOnce h = do
 
 respondWhenDone
     :: ( Conc :> es
+       , File :> es
        , Input BuildId :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
-       , UnixSocket :> es
        )
     => Handle -> Eff es ()
 respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
@@ -194,10 +194,10 @@ respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
 
 -- | Stream a JSON object after each state change event.
 watchStream
-    :: ( Input BuildId :> es
+    :: ( File :> es
+       , Input BuildId :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
-       , UnixSocket :> es
        )
     => Handle -> Eff es ()
 watchStream h = do
@@ -207,7 +207,7 @@ watchStream h = do
         mkBuildState progress >>= sendJson h
 
 
-respondDiagnostic :: (State BuildPhase :> es, UnixSocket :> es) => Int -> Handle -> Eff es ()
+respondDiagnostic :: (File :> es, State BuildPhase :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
     progress <- State.get
     case progress of
@@ -228,8 +228,8 @@ respondDiagnostic idx h = do
         _ -> sendJson h $ ErrorResponse "Build in progress"
 
 
-sendJson :: (ToJSON a, UnixSocket :> es) => Handle -> a -> Eff es ()
-sendJson h val = sendLine h (decodeUtf8 (BSL.toStrict (encode val)))
+sendJson :: (File :> es, ToJSON a) => Handle -> a -> Eff es ()
+sendJson h val = File.hPutTextLn h (decodeUtf8 (BSL.toStrict (encode val))) >> File.hFlush h
 
 
 mkBuildState :: (Input BuildId :> es) => BuildPhase -> Eff es BuildState

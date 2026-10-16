@@ -32,7 +32,6 @@ import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Logging (runLogging)
 import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
-import Tricorder.Socket.UnixSocket (runUnixSocketIO)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
 import Tricorder.Daemon.Core qualified as Core
@@ -46,6 +45,7 @@ import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Session.State qualified as Session.State
 import Tricorder.Socket.Server qualified as Server
+import Tricorder.Socket.UnixSocket qualified as UnixSocket
 import Tricorder.Version qualified as Version
 import Tricorder.Waiters qualified as Waiters
 
@@ -76,7 +76,7 @@ main =
         . inputCabalFiles
         . runProcessIO
         . runGhcPkgIO
-        . runUnixSocketIO
+        . UnixSocket.runIO
         . Ghci.Session.run
         . State.evalState (BuildId 1)
         . Input.fromState @BuildId
