@@ -26,6 +26,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `Atelier.Effects.Publishing.Pub`, but with a better name.
 - `Atelier.Effects.PubSub.Sub`: a copy of
   `Atelier.Effects.Publishing.Sub`, but with a better name.
+- `Atelier.Effects.Reader.project`: a simple way to expose parts of another
+  `Reader a` as another `Reader` effect.
 
 ### Deprecated
 
