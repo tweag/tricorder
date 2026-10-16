@@ -29,6 +29,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Atelier.Effects.Reader.project`: a simple way to expose parts of another
   `Reader a` as another `Reader` effect.
 - `Atelier.Effects.Input.map`: a function to transform an existing effect.
+- `Atelier.Effects.Log.Config`: gets a `ToJSON` instance.
+- `Atelier.Effects.Log.Severity`: gets a `ToJSON` instance.
+
+### Changed
+
+- `Atelier.Effects.Log.Config`: its `FromJSON` instance now fails gracefully
+  using the `Default` instance.
 
 ### Deprecated
 

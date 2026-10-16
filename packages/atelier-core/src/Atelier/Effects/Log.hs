@@ -47,7 +47,7 @@ module Atelier.Effects.Log
     )
 where
 
-import Data.Aeson (FromJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON)
 import Data.Default (Default (..))
 import Data.List (lookup)
 import Effectful (Effect, IOE)
@@ -62,6 +62,7 @@ import Data.ByteString.Char8 qualified as B8
 import Atelier.Effects.Env (Env, getEnvironment)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.JSON.ReadShow (ReadShow (..))
+import Atelier.Types.WithDefaults (WithDefaults (..))
 
 
 -- | Effect for structured logging with hierarchical namespaces.
@@ -105,7 +106,8 @@ data Config = Config
     -- ^ Messages below this severity are discarded.
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON) via QuietSnake Config
+    deriving (ToJSON) via QuietSnake Config
+    deriving (FromJSON) via WithDefaults (QuietSnake Config)
 
 
 -- | Log severity levels, ordered from least to most severe.
@@ -119,7 +121,8 @@ data Severity
     | -- | A failure that needs attention.
       ERROR
     deriving stock (Bounded, Enum, Eq, Ord, Read, Show)
-    deriving (FromJSON) via (ReadShow Severity)
+    deriving (FromJSON) via ReadShow Severity
+    deriving (ToJSON) via ReadShow Severity
 
 
 instance Default Config where
