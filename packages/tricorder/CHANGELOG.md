@@ -51,9 +51,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `StartupFailed "..."` with line breaks printed as a literal `\n`.
   ([#542](https://github.com/tweag/tricorder/issues/542)) (Thanks @RyosukeDTomita)
 - Pre-built binaries on GitHub were built against paths in `/nix/store`, and
-  were not portable to systems that did not have Nix installed. The binaries are
-  now correctly linked to be used on non-Nix machines, and NixOS machines with
-  `nix-ld` enabled.
+  were not portable to systems that did not have Nix installed. The binaries
+  are now correctly linked to be used on non-Nix machines, and NixOS machines
+  with `nix-ld` enabled.
+- Tricorder would sometimes not react to `.cabal` file changes, especially when
+  there were existing build failures. This should now be fixed by reverting
+  parts of an earlier change where the daemon's build state logic.
 
 ### Deprecated
 
