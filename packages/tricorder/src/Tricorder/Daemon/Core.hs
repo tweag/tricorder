@@ -54,6 +54,7 @@ import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci.LoadResult
 import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
 import Tricorder.Daemon.TestRunner qualified as TestRunner
+import Tricorder.Session.Hook qualified as Hook
 import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
 import Tricorder.Session.Stage.Test.Command qualified as TestCommand
@@ -121,11 +122,11 @@ runBuilder
 runBuilder buildId session = State.evalState emptyBuilderState do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
-    whenJust (session.hooks.start >>= (.before)) Hooks.runHook
+    whenJust (session.hooks.start >>= (.before)) Hook.run
     startupError <- fmap (either id absurd)
         $ Pub.map (Build.Building session.testSession.targets)
         $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
-            whenJust (session.hooks.start >>= (.after)) Hooks.runHook
+            whenJust (session.hooks.start >>= (.after)) Hook.run
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
             newestReloadEvent <- atomically newEmptyTMVar
@@ -191,9 +192,9 @@ processSource
     -> DispatchAction
     -> Eff es ()
 processSource session action = do
-    whenJust (session.hooks.reload >>= (.before)) Hooks.runHook
+    whenJust (session.hooks.reload >>= (.before)) Hook.run
     res <- Builder.build action
-    whenJust (session.hooks.reload >>= (.after)) Hooks.runHook
+    whenJust (session.hooks.reload >>= (.after)) Hook.run
     Log.debug "Finished build"
     processPostBuild session res
 

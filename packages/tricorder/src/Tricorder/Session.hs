@@ -47,6 +47,7 @@ import Tricorder.Session.WatchExclusionPatterns
 
 import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Config qualified as Tricorder
+import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Stage.Build.Session qualified as BuildSession
 import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
@@ -253,4 +254,6 @@ display session =
           "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
         , "Test memory limit: " <> show session.testMemoryLimit
         , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
+        , "Hooks:"
+        , indent $ Hooks.display session.hooks
         ]

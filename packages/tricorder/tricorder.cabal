@@ -95,6 +95,7 @@ library tricorder-internal
       Tricorder.Daemon.Ghci.Session.State
       Tricorder.Daemon.Ghci.Severity
       Tricorder.Daemon.Ghci.TextParser
+      Tricorder.Daemon.HookDispatch
       Tricorder.Daemon.Hpack
       Tricorder.Daemon.Hpack.Effect
       Tricorder.Daemon.IdleTimer
@@ -110,6 +111,8 @@ library tricorder-internal
       Tricorder.Session.CommandTemplate
       Tricorder.Session.Config
       Tricorder.Session.GenerateWithHpack
+      Tricorder.Session.HaskellHooks
+      Tricorder.Session.Hook
       Tricorder.Session.Hooks
       Tricorder.Session.IdleTimeout
       Tricorder.Session.Repl

@@ -41,6 +41,7 @@ import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Ghci.Session qualified as Ghci.Session
+import Tricorder.Daemon.HookDispatch qualified as HookDispatch
 import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
@@ -119,6 +120,7 @@ main =
                         Pub.publish $ BuildPhase.Failed msg
                     Session.State.Result.Ok session -> do
                         void $ Conc.fork $ Hpack.main session
+                        Conc.fork_ $ HookDispatch.main session
 
                         root <- Reader.ask
                         Conc.fork_ $ Watch.files root session
