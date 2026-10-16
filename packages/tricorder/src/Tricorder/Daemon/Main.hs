@@ -37,6 +37,7 @@ import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Ghci.Session qualified as Ghci.Session
+import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
@@ -96,7 +97,10 @@ main =
             Log.info $ "Starting tricorder " <> Version.gitHash
             Conc.fork_ $ Sub.listen_ Watch.publishChange
             Conc.fork_ Server.main
+
             vacuous $ Session.State.withSession \session -> do
+                void $ Conc.fork $ Hpack.main session
+
                 root <- Reader.ask
                 Conc.fork_ $ Watch.files root session
                 Core.main session

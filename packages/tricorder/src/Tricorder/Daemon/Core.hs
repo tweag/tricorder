@@ -1,10 +1,8 @@
 module Tricorder.Daemon.Core (main) where
 
-import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Debounce (Debounce)
-import Atelier.Effects.FileWatcher (FileEvent, FileWatcher)
+import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.PubSub.Pub (Pub)
@@ -37,11 +35,9 @@ import Tricorder.Daemon.Builder
 import Tricorder.Daemon.Dispatch (BuilderState (..), DispatchAction, emptyBuilderState)
 import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
-import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
@@ -56,7 +52,6 @@ import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci.LoadResult
 import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
-import Tricorder.Daemon.Hpack qualified as Hpack
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
@@ -77,15 +72,11 @@ data Events es = Events
 -- | Top of the build loop. Responsible for handling changes to the Tricorder
 -- config, as well as setting up other build-specific effects.
 main
-    :: ( Chan :> es
-       , Clock :> es
+    :: ( Clock :> es
        , Conc :> es
        , Concurrent :> es
-       , Debounce FilePath :> es
        , EvalCommentRunner :> es
-       , FileWatcher :> es
        , Ghci.Session :> es
-       , Hpack :> es
        , Log :> es
        , Process :> es
        , Pub BuildPhase :> es
@@ -106,10 +97,6 @@ main session = do
                     Sub.listen_ \(SourceChangeDetected path event) ->
                         action path event
                 }
-
-    when (coerce session.generateWithHpack)
-        $ void
-        $ Conc.fork Hpack.main
 
     State.evalState emptyBuilderState do
         Conc.restartableFork (Waiters.wait $ events.onRestartBuilder $ pure ()) do

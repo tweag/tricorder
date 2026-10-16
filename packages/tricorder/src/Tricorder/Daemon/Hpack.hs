@@ -20,6 +20,8 @@ import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Daemon.Hpack.Effect (Hpack)
 import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Session (Session (..))
+import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 
 import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 
@@ -34,13 +36,14 @@ main
        , Log :> es
        , Reader ProjectRoot :> es
        )
-    => Eff es ()
-main = PubSub.run @RePack $ Conc.scoped do
-    hpackInPath <- Hpack.hpackIsInPath
-    when hpackInPath do
-        projectRoot <- Reader.ask
-        Conc.fork_ $ Sub.listen_ \(RePack path) -> runHpack path
-        vacuous $ watchPackageYaml projectRoot
+    => Session -> Eff es ()
+main session = PubSub.run @RePack $ Conc.scoped do
+    when (coerce session.generateWithHpack) do
+        hpackInPath <- Hpack.hpackIsInPath
+        when hpackInPath do
+            projectRoot <- Reader.ask
+            Conc.fork_ $ Sub.listen_ \(RePack path) -> runHpack path
+            vacuous $ watchPackageYaml projectRoot
 
 
 runHpack :: (Hpack :> es, Log :> es) => FilePath -> Eff es ()
