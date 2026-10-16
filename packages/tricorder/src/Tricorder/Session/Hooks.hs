@@ -1,29 +1,36 @@
+{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Tricorder.Session.Hooks
     ( Hooks (..)
-    , Hook (..)
-    , runHook
+    , HookPair (..)
+    , display
     )
 where
 
-import Atelier.Effects.Process (Process)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Atelier.Types.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
-import Effectful.Exception (trySync)
-import Effectful.Reader.Static (Reader)
 
-import Atelier.Effects.Process qualified as Process
-import Effectful.Reader.Static qualified as Reader
+import Data.Text qualified as T
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Session.HaskellHooks (HaskellHooks)
+import Tricorder.Session.Hook (Hook)
+import Tricorder.Session.Util (indent)
+
+import Tricorder.Session.HaskellHooks qualified as HaskellHooks
+import Tricorder.Session.Hook qualified as Hook
 
 
 data Hooks = Hooks
-    { start :: Maybe Hook
-    , reload :: Maybe Hook
+    { start :: Maybe HookPair
+    , reload :: Maybe HookPair
+    , haskell :: Maybe HaskellHooks
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via QuietSnake Hooks
+    deriving (ToJSON) via QuietSnake Hooks
+    deriving (FromJSON) via WithDefaults (QuietSnake Hooks)
 
 
 instance Default Hooks where
@@ -31,31 +38,43 @@ instance Default Hooks where
         Hooks
             { start = def
             , reload = def
+            , haskell = def
             }
 
 
-data Hook = Hook
-    { before :: Maybe Text
-    , after :: Maybe Text
+display :: Hooks -> Text
+display hooks =
+    T.intercalate
+        "\n"
+        [ "start:" <> displayMaybeHook displayHookPair hooks.start
+        , "reload:" <> displayMaybeHook displayHookPair hooks.reload
+        , "haskell:" <> displayMaybeHook HaskellHooks.display hooks.haskell
+        ]
+  where
+    displayMaybeHook f = maybe " <unset>" (("\n" <>) . indent . f)
+
+
+data HookPair = HookPair
+    { before :: Maybe Hook
+    , after :: Maybe Hook
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via QuietSnake Hook
+    deriving (ToJSON) via QuietSnake HookPair
+    deriving (FromJSON) via WithDefaults (QuietSnake HookPair)
 
 
-instance Default Hook where
+instance Default HookPair where
     def =
-        Hook
+        HookPair
             { before = Nothing
             , after = Nothing
             }
 
 
-runHook :: (Process :> es, Reader ProjectRoot :> es) => Text -> Eff es ()
-runHook hook = do
-    ProjectRoot root <- Reader.ask
-    void
-        $ trySync
-        $ Process.runProcess
-        $ Process.setWorkingDir root
-        $ Process.shell
-        $ toString hook
+displayHookPair :: HookPair -> Text
+displayHookPair pair =
+    T.intercalate
+        "\n"
+        [ "before: " <> maybe "<unset>" Hook.getHook pair.before
+        , "after: " <> maybe "<unset>" Hook.getHook pair.after
+        ]
