@@ -28,6 +28,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `Atelier.Effects.Publishing.Sub`, but with a better name.
 - `Atelier.Effects.Reader.project`: a simple way to expose parts of another
   `Reader a` as another `Reader` effect.
+- `Atelier.Effects.Input.map`: a function to transform an existing effect.
 
 ### Deprecated
 

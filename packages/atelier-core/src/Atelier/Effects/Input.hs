@@ -12,6 +12,7 @@ module Atelier.Effects.Input
     , fromState
     , runInputEff
     , runInputConst
+    , map
     )
 where
 
@@ -20,6 +21,7 @@ import Effectful.Dispatch.Dynamic (interpret_)
 import Effectful.Reader.Static (Reader, runReader)
 import Effectful.State.Static.Shared (State)
 import Effectful.TH (makeEffect)
+import Prelude hiding (map)
 
 import Effectful.State.Static.Shared qualified as State
 
@@ -79,3 +81,9 @@ toReader act = do
 
 fromState :: (State i :> es) => Eff (Input i : es) a -> Eff es a
 fromState = interpret_ \Input -> State.get
+
+
+-- | Create a new 'Input' effect based on an existing one, effectively
+-- "mapping" the existing effect into a new one.
+map :: (Input a :> es) => (a -> b) -> Eff (Input b : es) x -> Eff es x
+map f = withEff $ f <$> input
