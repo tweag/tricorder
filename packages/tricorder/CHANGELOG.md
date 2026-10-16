@@ -57,6 +57,14 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Tricorder would sometimes not react to `.cabal` file changes, especially when
   there were existing build failures. This should now be fixed by reverting
   parts of an earlier change where the daemon's build state logic.
+- Tricorder would sometimes keep old diagnostic messages from previous build
+  failures around when files were moved. This would cause said diagnostic
+  failures to persist until the daemon was manually restarted either through
+  `tricorder restart`, or using `Shift+R` in `tricorder ui`. This was caused by
+  handling the builder state in a layer above the builder restart logic,
+  causing the builder state to persist between builder restarts (which happen
+  when the `.cabal` file changes, like when adding or removing modules). This
+  should now be fixed.
 
 ### Deprecated
 

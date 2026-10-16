@@ -90,7 +90,6 @@ main
 main session =
     PubSub.run @ReloadBuilder
         . PubSub.run @RestartBuilder
-        . State.evalState emptyBuilderState
         $ Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
             buildId <- State.state (\s -> (s, s + 1))
 
@@ -114,13 +113,12 @@ runBuilder
        , Process :> es
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
-       , State BuilderState :> es
        , Sub ReloadBuilder :> es
        , TestRunner :> es
        , Waiters :> es
        )
     => BuildId -> Session -> Eff es ()
-runBuilder buildId session = do
+runBuilder buildId session = State.evalState emptyBuilderState do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hooks.runHook
