@@ -1,63 +1,44 @@
 module Tricorder.Config
-    ( LoadedConfig (..)
-    , runLoadedConfig
-    , inputLoadedConfig
-    , configFileName
+    ( Config (..)
+    , asInput
     )
 where
 
-import Atelier.Config (LoadedConfig (..))
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
-import Effectful.Reader.Static (Reader, ask, runReader)
-import System.FilePath ((</>))
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Atelier.Types.WithDefaults (WithDefaults (..))
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Default (Default (..))
 
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
 import Data.Aeson qualified as Aeson
-import Data.Aeson.KeyMap qualified as KM
 import Data.Yaml qualified as Yaml
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Config.LoadedConfig (LoadedConfig (..))
+
+import Tricorder.Session.Config qualified as Session (Config)
 
 
--- | Load config from .tricorder.yaml in the project root.
--- Falls back to empty config (all defaults) if the file is absent or cannot be parsed.
-loadTricorderConfig :: (FileSystem :> es) => FilePath -> Eff es LoadedConfig
-loadTricorderConfig projectRoot = do
-    exists <- FileSystem.doesFileExist yamlPath
-    if not exists
-        then
-            pure $ LoadedConfig (Aeson.Object KM.empty)
-        else do
-            bs <- FileSystem.readFileBs yamlPath
-            pure . LoadedConfig $ case Yaml.decodeEither' @Aeson.Value bs of
-                Left _ -> Aeson.Object KM.empty
-                Right v -> v
-  where
-    yamlPath = projectRoot </> configFileName
+data Config = Config
+    { session :: Maybe Session.Config
+    }
+    deriving stock (Eq, Generic, Show)
+    deriving (ToJSON) via QuietSnake Config
+    deriving (FromJSON) via WithDefaults (QuietSnake Config)
 
 
-configFileName :: FilePath
-configFileName = ".tricorder.yaml"
+instance Default Config where
+    def =
+        Config
+            { session = def
+            }
 
 
-runLoadedConfig
-    :: ( FileSystem :> es
-       , Reader ProjectRoot :> es
-       )
-    => Eff (Reader LoadedConfig : es) a -> Eff es a
-runLoadedConfig act = do
-    ProjectRoot projectRoot <- ask
-    cfg <- loadTricorderConfig projectRoot
-    runReader cfg act
-
-
-inputLoadedConfig
-    :: ( FileSystem :> es
-       , Reader ProjectRoot :> es
-       )
-    => Eff (Input LoadedConfig : es) a -> Eff es a
-inputLoadedConfig = Input.withEff do
-    ProjectRoot projectRoot <- ask
-    loadTricorderConfig projectRoot
+asInput
+    :: (Input LoadedConfig :> es)
+    => Eff (Input (Either Text Config) : es) a -> Eff es a
+asInput = Input.withEff do
+    LoadedConfig bs <- Input.input
+    case Yaml.decodeEither' bs of
+        Right Aeson.Null -> pure $ Right def
+        _ -> pure $ first (toText . Yaml.prettyPrintParseException) $ Yaml.decodeEither' bs

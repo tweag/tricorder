@@ -2,7 +2,7 @@ module Tricorder.Session.Config (Config (..)) where
 
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.WithDefaults (WithDefaults (..))
-import Data.Aeson (FromJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON)
 import Data.Default (Default (..))
 
 import Tricorder.Session.CommandConfig (CommandConfig)
@@ -35,6 +35,7 @@ data Config = Config
     -- TODO: Remove at or after version 0.8.0.0.
     }
     deriving stock (Eq, Generic, Show)
+    deriving (ToJSON) via QuietSnake Config
     deriving (FromJSON) via WithDefaults (QuietSnake Config)
 
 

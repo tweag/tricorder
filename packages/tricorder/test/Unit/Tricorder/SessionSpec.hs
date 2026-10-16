@@ -1,24 +1,27 @@
 module Unit.Tricorder.SessionSpec (test_Session) where
 
-import Atelier.Config (LoadedConfig (..))
 import Atelier.Effects.FileSystem (runFileSystemState)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
-import Data.Aeson (Value (Null), object, (.=))
+import Data.Aeson (object, (.=))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
 import Effectful.Writer.Static.Shared (execWriter)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
 import Atelier.Effects.Input qualified as Input
+import Data.Aeson qualified as Aeson
+import Data.Text qualified as T
 
+import Tricorder.Config.LoadedConfig (LoadedConfig (..))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Unit.Tricorder.Session.Helpers (libWithPreludeCabal, preludeOnlyLibCabal)
 
+import Tricorder.Config qualified
 import Tricorder.Session qualified as Session
 
 
@@ -35,12 +38,21 @@ test_Session =
 testLoadSession :: TestTree
 testLoadSession =
     testGroup
-        "loadSession"
+        "load"
         [ testGroup
             "when every resolved target exposes a custom Prelude module"
-            [ testCase "emits a WARN" do
+            [ testCase "logs one message" do
                 let msgs = captureSessionLogs [preludeOnlyCF]
-                any (\m -> m.severity == WARN) msgs @?= True
+                length msgs @?= 1
+            , testCase "emits a WARN" do
+                let msgs = (\m -> (m.severity, m.text)) <$> captureSessionLogs [preludeOnlyCF]
+                case msgs of
+                    [(sev, msg)] -> do
+                        sev @?= WARN
+                        "Every resolved target exposes a custom Prelude module" `T.isPrefixOf` msg
+                            @? "does not start with expected string"
+                    xs ->
+                        assertFailure $ "Too many logged messages: " <> show (length xs)
             ]
         , testGroup
             "when not every resolved target exposes a custom Prelude module"
@@ -61,15 +73,18 @@ testLoadSession =
         CabalFile "/mixed.cabal"
             $ fromMaybe (error "libWithPreludeCabal failed to parse")
             $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "mixed")
-    captureSessionLogs cabalFiles =
-        runPureEff
+    captureSessionLogs = captureSessionLogs' $ Aeson.Object mempty
+    captureSessionLogs' cfg cabalFiles =
+        filter (\m -> m.severity /= DEBUG)
+            . runPureEff
             . execWriter @[Message]
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
             . runFileSystemState
             . Input.withConst cabalFiles
             . runReader (ProjectRoot "/")
-            . Input.withConst (LoadedConfig Null)
+            . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
+            . Tricorder.Config.asInput
             $ Session.load
 
 
@@ -103,7 +118,7 @@ testMissingTargetPlaceholder =
             ]
         ]
   where
-    sessionCfg session = LoadedConfig $ object ["session" .= object session]
+    sessionCfg session = object ["session" .= object session]
     captureLogsFor cfg =
         runPureEff
             . execWriter @[Message]
@@ -112,7 +127,8 @@ testMissingTargetPlaceholder =
             . runFileSystemState
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
-            . Input.withConst cfg
+            . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
+            . Tricorder.Config.asInput
             $ Session.load
 
 
@@ -121,10 +137,10 @@ testIdleTimeout =
     testGroup
         "loadSession idleTimeout"
         [ testCase "defaults to 300 seconds when unset" do
-            (loadSessionWith (LoadedConfig Null)).idleTimeout @?= IdleTimeout 300
+            (.idleTimeout) <$> loadSessionWith (Aeson.Object mempty) @?= Right (IdleTimeout 300)
         , testCase "reads idle_timeout_seconds from the session config" do
-            let cfg = LoadedConfig $ object ["session" .= object ["idle_timeout_seconds" .= (5 :: Int)]]
-            (loadSessionWith cfg).idleTimeout @?= IdleTimeout 5
+            let cfg = object ["session" .= object ["idle_timeout_seconds" .= (5 :: Int)]]
+            (.idleTimeout) <$> (loadSessionWith cfg) @?= Right (IdleTimeout 5)
         ]
   where
     loadSessionWith cfg =
@@ -134,5 +150,6 @@ testIdleTimeout =
             . runFileSystemState
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
-            . Input.withConst cfg
+            . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
+            . Tricorder.Config.asInput
             $ Session.load

@@ -1,17 +1,24 @@
 module Tricorder.Logging (runLogging) where
 
-import Atelier.Config (LoadedConfig, extractNestedConfig)
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.File (BufferMode (..), File)
-import Atelier.Effects.Input (Input, input)
-import Atelier.Effects.Log (Log, Severity (..), runLogToHandle)
+import Atelier.Effects.Input (Input)
+import Atelier.Effects.Log
+    ( Log
+    , Severity (..)
+    , runLogToHandle
+    )
 import Effectful (IOE)
 import Effectful.Reader.Static (Reader, asks)
 
 import Atelier.Effects.File qualified as File
+import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 
+import Tricorder.Config.LoadedConfig (LoadedConfig)
 import Tricorder.Runtime (LogPath (..))
+
+import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 
 
 runLogging
@@ -26,16 +33,25 @@ runLogging act = do
     path <- asks @LogPath (.getLogPath)
     File.withFile path AppendMode \h -> do
         File.hSetBuffering h LineBuffering
-        sev <- getMinimumSeverity
-        runLogToHandle h sev act
+        (maybeErr, sev) <- getMinimumSeverity
+        runLogToHandle h sev do
+            whenJust maybeErr \err -> Log.err err
+            act
 
 
-getMinimumSeverity :: (Env :> es, Input LoadedConfig :> es) => Eff es Severity
+getMinimumSeverity
+    :: ( Env :> es
+       , Input LoadedConfig :> es
+       )
+    => Eff es (Maybe Text, Severity)
 getMinimumSeverity = do
     mSev <- Log.minimumSeverityFromEnv
     case mSev of
-        Just sev -> pure sev
-        Nothing -> do
-            loadedConfig <- input
-            let config = extractNestedConfig @"session.logging" @Log.Config loadedConfig
-            pure config.minimumSeverity
+        Just sev -> pure (Nothing, sev)
+        Nothing -> LoadedConfig.asNestedInput @"session.logging" @Log.Config do
+            logConfigRes <- Input.input
+            case logConfigRes of
+                Left err -> do
+                    pure (Just $ "failed to parse log config: " <> err, Log.INFO)
+                Right cfg ->
+                    pure (Nothing, cfg.minimumSeverity)
