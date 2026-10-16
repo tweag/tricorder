@@ -69,6 +69,7 @@ library tricorder-internal
       Tricorder.CLI.UI.State
       Tricorder.CLI.UI.View
       Tricorder.Config
+      Tricorder.Config.LoadedConfig
       Tricorder.Daemon.Builder
       Tricorder.Daemon.Core
       Tricorder.Daemon.DaemonInfo
@@ -123,6 +124,8 @@ library tricorder-internal
       Tricorder.Session.Stage.Test.Config
       Tricorder.Session.Stage.Test.Session
       Tricorder.Session.State
+      Tricorder.Session.State.Invalid
+      Tricorder.Session.State.Result
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
       Tricorder.Session.TestTimeout
