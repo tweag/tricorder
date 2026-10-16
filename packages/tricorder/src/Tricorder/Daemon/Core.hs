@@ -1,5 +1,6 @@
 module Tricorder.Daemon.Core (main) where
 
+import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.FileWatcher (FileEvent)
@@ -7,7 +8,6 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
-import Effectful (inject)
 import Effectful.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
 import Effectful.Concurrent.STM (Concurrent, atomically, newEmptyTMVar, takeTMVar, writeTMVar)
 import Effectful.Reader.Static (Reader)
@@ -16,6 +16,7 @@ import Relude.Extra.Tuple (dup)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Data.Map.Strict qualified as Map
@@ -60,19 +61,17 @@ import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
 
 
+data RestartBuilder = RestartBuilder
+
+
 data ReloadBuilder = ReloadBuilder FilePath FileEvent
-
-
-data Events es = Events
-    { onRestartBuilder :: Eff es () -> Eff es Void
-    , onReloadBuilder :: (FilePath -> FileEvent -> Eff es ()) -> Eff es Void
-    }
 
 
 -- | Top of the build loop. Responsible for handling changes to the Tricorder
 -- config, as well as setting up other build-specific effects.
 main
-    :: ( Clock :> es
+    :: ( Chan :> es
+       , Clock :> es
        , Conc :> es
        , Concurrent :> es
        , EvalCommentRunner :> es
@@ -88,20 +87,20 @@ main
        , Waiters :> es
        )
     => Session -> Eff es Void
-main session = do
-    let events =
-            Events
-                { onRestartBuilder = \action ->
-                    Sub.listen_ \(CabalChangeDetected _ _) -> action
-                , onReloadBuilder = \action ->
-                    Sub.listen_ \(SourceChangeDetected path event) ->
-                        action path event
-                }
-
-    State.evalState emptyBuilderState do
-        Conc.restartableFork (Waiters.wait $ events.onRestartBuilder $ pure ()) do
+main session =
+    PubSub.run @ReloadBuilder
+        . PubSub.run @RestartBuilder
+        . State.evalState emptyBuilderState
+        $ Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
             buildId <- State.state (\s -> (s, s + 1))
-            runBuilder events buildId session
+
+            Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) ->
+                Pub.publish RestartBuilder
+
+            Conc.fork_ $ Sub.listen_ \(SourceChangeDetected path event) ->
+                Pub.publish $ ReloadBuilder path event
+
+            runBuilder buildId session
 
 
 -- | Starts the initial build with GHCi, and waits for source changes.
@@ -116,11 +115,12 @@ runBuilder
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
+       , Sub ReloadBuilder :> es
        , TestRunner :> es
        , Waiters :> es
        )
-    => Events es -> BuildId -> Session -> Eff es ()
-runBuilder events buildId session = do
+    => BuildId -> Session -> Eff es ()
+runBuilder buildId session = do
     Log.info $ "Starting session " <> show buildId.getBuildId
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hooks.runHook
@@ -134,8 +134,8 @@ runBuilder events buildId session = do
             cancelSem <- newEmptyMVar
             let requestCancel = tryPutMVar cancelSem ()
                 checkCancel = takeMVar cancelSem
-            Conc.fork_ $ inject $ events.onReloadBuilder \filePath fileEvent -> do
-                atomically $ writeTMVar newestReloadEvent $ ReloadBuilder filePath fileEvent
+            Conc.fork_ $ Sub.listen_ @ReloadBuilder \event -> do
+                atomically $ writeTMVar newestReloadEvent event
                 Waiters.without do
                     Pub.publish Build.Starting
                     Log.debug "Cancelling current build"
