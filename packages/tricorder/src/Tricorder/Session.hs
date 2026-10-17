@@ -5,17 +5,17 @@ module Tricorder.Session
     )
 where
 
-import Atelier.Config (LoadedConfig, extractConfig)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Data.Default (Default (..))
-import Effectful.Reader.Static (Reader, ask)
+import Effectful.Reader.Static (Reader)
 import Text.Regex.TDFA.Pattern (showPattern)
 
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
+import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
@@ -46,6 +46,8 @@ import Tricorder.Session.WatchExclusionPatterns
     )
 
 import Tricorder.Build.ByteSize qualified as ByteSize
+import Tricorder.Config qualified as Tricorder
+import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Stage.Build.Session qualified as BuildSession
 import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
@@ -89,22 +91,28 @@ instance Default Session where
 
 load
     :: ( FileSystem :> es
-       , Input LoadedConfig :> es
+       , Input (Either Text Tricorder.Config) :> es
        , Input [CabalFile] :> es
        , Log :> es
        , Reader ProjectRoot :> es
        )
-    => Eff es Session
+    => Eff es (Either Text Session)
 load = do
-    projectRoot <- ask @ProjectRoot
-    loadedCfg <- Input.input
-    Log.debug "Got config file"
+    cfg <- Input.input
+
+    case cfg of
+        Left err -> do
+            Log.err $ "Failed to parse config: " <> err
+            pure $ Left $ "Failed to parse Tricorder config: " <> err
+        Right (Tricorder.Config cfgFile) -> Right <$> mkSession (fromMaybe def cfgFile)
+
+
+mkSession
+    :: (FileSystem :> es, Input [CabalFile] :> es, Log :> es, Reader ProjectRoot :> es)
+    => Config -> Eff es Session
+mkSession cfgFile = do
+    projectRoot <- Reader.ask @ProjectRoot
     projectFiles <- Input.input
-    Log.debug "Got project files"
-
-    let cfgFile = extractConfig @"session" @Config loadedCfg
-        hooks = fromMaybe def cfgFile.hooks
-
     warnDeprecatedConfig cfgFile
     Log.debug "Warned about deprecated config stuff"
 
@@ -169,7 +177,7 @@ load = do
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
             , testTimeout = TestTimeout cfgFile.testTimeout
             , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
-            , hooks
+            , hooks = fromMaybe def cfgFile.hooks
             , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
             }
 
@@ -246,4 +254,6 @@ display session =
           "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
         , "Test memory limit: " <> show session.testMemoryLimit
         , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
+        , "Hooks:"
+        , indent $ Hooks.display session.hooks
         ]

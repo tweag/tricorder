@@ -1,13 +1,12 @@
 module Tricorder.CLI.Main (main) where
 
-import Atelier.Config (runConfig)
 import Atelier.Effects.Arguments (runArgumentsIO)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
-import Atelier.Effects.Console (runConsole)
+import Atelier.Effects.Console (Console, runConsole, runConsoleHandle)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
-import Atelier.Effects.Exit (runExit)
+import Atelier.Effects.Exit (exitFailure, runExit)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
 import Atelier.Effects.Log (runLogNoOp)
@@ -15,24 +14,28 @@ import Atelier.Effects.Posix.Daemons (runDaemons)
 import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
+import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
+import Effectful.Provider (provideWith_, runProvider_)
+import System.IO (stderr)
 
+import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 
 import Tricorder.CLI.Arguments (runArguments)
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
-import Tricorder.Config (inputLoadedConfig, runLoadedConfig)
+import Tricorder.Config (asInput)
 import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
-import Tricorder.Session (Session (..))
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.UI.Keys qualified as Keys
+import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
 import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
@@ -51,6 +54,7 @@ main =
         . runBrickChan
         . runBrick
         . runConsole
+        . runProvider_ runConsoleHandle
         . runExit
         . runClock
         . runDelay
@@ -62,24 +66,34 @@ main =
         . runPidFile
         . runSocketPath
         . runLogPath
-        . runLoadedConfig
-        . runConfig @"keybindings" @Keys.Config
+        . LoadedConfig.asInput
+        . LoadedConfig.asNestedInput @"keybindings" @Keys.Config
+        . Input.map (either @_ @Keys.Config (const def) id)
+        . Input.toReader @Keys.Config
         . runDaemons
         . runProcessIO
         . runArgumentsIO
         . runArguments
         . UnixSocket.runIO
         . runEnv
-        . inputLoadedConfig
         . runLogNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
-        . Input.withEff Session.load
-        . Input.withEff ((.buildSession.commandTemplate.repl) <$> Input.input)
-        . GhcPkg.runGhcPkgIO
-        . PackageStore.run
-        . Hackage.run
-        . DaemonInfo.runInput
+        . Tricorder.Config.asInput
         $ do
-            installTerminationHandler
-            App.run
+            Session.load >>= \case
+                Left err -> do
+                    provideWith_ @Console stderr
+                        $ Console.putTextLn
+                        $ "Failed to load session: " <> err
+                    exitFailure
+                Right session ->
+                    Input.withConst session
+                        . Input.withConst session.buildSession.commandTemplate.repl
+                        . GhcPkg.runGhcPkgIO
+                        . PackageStore.run
+                        . Hackage.run
+                        . DaemonInfo.runInput
+                        $ do
+                            installTerminationHandler
+                            App.run

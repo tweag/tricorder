@@ -42,6 +42,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - Default key binding for the "help" view is now `?`. This key binding is
   supported as expected on keyboards where `?` is inputted with a modifier key.
+- Configuration parsing issues are now properly surfaced to the user, and shown
+  in `tricorder ui`, as well as being outputted to `stderr` for other commands.
 
 ### Fixed
 
