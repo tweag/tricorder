@@ -81,12 +81,6 @@ Nix](/docs/using-with-nix.md).
 
 Tricorder is also released as [pre-built binaries on GitHub][github-releases].
 
-### GHC 9.14 support
-
-Currently, multiple of our dependencies do not support GHC 9.14, and as such we
-are not able to officially support 9.14 just yet. But stay tuned, as we are
-eager to utilize [the new multi-home features](https://www.youtube.com/watch?v=0tOciI7lMEE)!
-
 ## Configuring
 
 See [Configuring Tricorder](/docs/configuring-tricorder.md)
