@@ -19,19 +19,20 @@ Tricorder offers other advantages:
 - **Background builds** - Building in the background using a daemon allows
   different clients to query the build state simultaneously without triggering
   multiple rebuilds. For instance, we ship the `tricorder ui` TUI and the
-  `tricorder status` CLI command that communicate witha single daemon via a
+  `tricorder status` CLI command that communicate with a single daemon via a
   socket.
 - **Sane defaults** - Running `tricorder start` should Just Work™ for most
-  cabal-based Haskell projects.
+  cabal- and stack-based Haskell projects.
   - Daemon restarts automatically when cabal files change
   - If customization is needed it can be provided at different levels via a
     `.tricorder.yaml` or CLI args.
     - Optional config includes which cabal packages to watch, which exact
       command to use to enter a GHCi session, [customizable key
       bindings](#custom-key-bindings), etc.
-- **Multi-package projects** - In a `cabal.project` workspace, Tricorder
-  discovers every package's components automatically, building and running
-  tests across all of them — no manual target configuration needed.
+- **Multi-package projects** - For projects containing multiple packages,
+  either described through `cabal.project` or `stack.yaml`, Tricorder discovers
+  every package's components automatically, building and running tests across
+  all of them. No manual target configuration needed!
 - **Project context** - Tools like `tricorder source Some.Module` will attempt
   to find and provide the source code for a given dependency from disk, which
   allows exploring library APIs more easily.
