@@ -22,8 +22,8 @@ jobs:
   release-hackage-atelier-prelude:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
-      - release-hackage-atelier-core
       - checks
+      - release-hackage-atelier-core
     if: ${{ !failure() && needs.checks.result == 'success' }}
     secrets: inherit
     with:
@@ -33,6 +33,7 @@ jobs:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
       - checks
+      - release-hackage-atelier-core
     if: ${{ !failure() && needs.checks.result == 'success' }}
     secrets: inherit
     with:
