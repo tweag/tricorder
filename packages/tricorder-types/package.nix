@@ -45,6 +45,32 @@ in
     ++ depList [
       "aeson"
       "atelier-prelude"
+      "megaparsec"
+      "optparse-applicative"
+      "text"
+      "yaml"
+    ];
+  };
+  tests.tricorder-types-test = {
+    main = "Driver.hs";
+    source-dirs = "test";
+    ghc-options = [ "-Wno-prepositive-qualified-module" ];
+    build-tools = [ "tasty-discover:tasty-discover" ];
+    dependencies = [
+      {
+        name = "base";
+        version = constraints.base;
+        mixin = [ "hiding (Prelude)" ];
+      }
+    ]
+    ++ [ "tricorder-types" ]
+    ++ depList [
+      "aeson"
+      "atelier-core"
+      "atelier-prelude"
+      "tasty"
+      "tasty-discover"
+      "tasty-hunit"
       "text"
     ];
   };

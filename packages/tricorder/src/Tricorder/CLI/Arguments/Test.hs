@@ -17,13 +17,12 @@ import Tricorder.CLI.Command.Test (Command, SuitesOptions (..))
 
 import Data.Text qualified as T
 import Options.Applicative.Help.Pretty qualified as Doc
-import Tricorder.CLI.Command.FieldMask qualified as FieldMask
 import Tricorder.CLI.Command.Test qualified as Test
-
-import Tricorder.CLI.FieldMask (Schema (..))
+import Tricorder.FieldMask qualified as FieldMask
+import Tricorder.FieldMask.Args qualified as FieldMask.Args
+import Tricorder.FieldMask.Schema qualified as FieldMask (Schema (..))
 
 import Tricorder.CLI.App.Test.SuiteView qualified as SuiteView
-import Tricorder.CLI.Arguments.FieldMask qualified as FieldMask
 import Tricorder.CLI.Arguments.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
 import Tricorder.CLI.Arguments.TestFilter qualified as TestFilter
@@ -54,7 +53,7 @@ suitesParser =
         $ SuitesOptions
             <$> many (strArgument (metavar "TEST-TARGET..." <> help "Test suites to show (default: all)"))
             <*> TestFilter.parser (help "Show only failed test suites, and only their failed test cases")
-            <*> FieldMask.parser
+            <*> FieldMask.Args.parser
                 ( helpDoc
                     $ Just
                     $ (<> Doc.line)
@@ -79,7 +78,7 @@ suitesParser =
             <*> WaitMode.parser
             <*> IfDaemonIsStopped.parser
   where
-    renderSchema (Schema fields) = renderField <$> fields
+    renderSchema (FieldMask.Schema fields) = renderField <$> fields
     renderField (name, sub) =
         Doc.pretty name
             <> maybe
@@ -103,5 +102,5 @@ suitesFooter =
             <> "\nSelect nested fields with parentheses, e.g. --fields 'name,cases(description,failure)'."
             <> " A field without parentheses shows all of its nested fields."
   where
-    renderSchema (Schema fields) = T.intercalate ", " $ renderField <$> fields
+    renderSchema (FieldMask.Schema fields) = T.intercalate ", " $ renderField <$> fields
     renderField (name, sub) = name <> maybe "" (\nestedSchema -> "(" <> renderSchema nestedSchema <> ")") sub

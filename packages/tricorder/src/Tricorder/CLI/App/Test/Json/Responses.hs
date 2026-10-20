@@ -20,7 +20,7 @@ import Data.Aeson
     )
 import Text.Casing (quietSnake)
 
-import Tricorder.CLI.FieldMask (Projected)
+import Tricorder.FieldMask.Projection qualified as FieldMask (Projection)
 
 
 data Response a
@@ -68,7 +68,7 @@ responseOptions =
 
 -- | Test suites, cut down to the requested fields.
 newtype SuitesResponse = SuitesResponse
-    { suites :: [Projected]
+    { suites :: [FieldMask.Projection]
     }
     deriving stock (Eq, Show)
 

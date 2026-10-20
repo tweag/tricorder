@@ -13,15 +13,16 @@ where
 
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (ToJSON (..))
-import Tricorder.CLI.Command.FieldMask (Field (..), FieldMask (..))
 import Tricorder.CLI.Command.TestFilter (TestFilter)
+import Tricorder.FieldMask (Field (..), FieldMask (..))
 
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Tricorder.CLI.Command.TestFilter qualified as TestFilter
+import Tricorder.FieldMask.Schema qualified as FieldMask (Schema (..))
+import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
 
 import Tricorder.Build.Duration (Duration)
-import Tricorder.CLI.FieldMask (Schema (..), leaf, nested)
 import Tricorder.Session.TestTarget (TestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
@@ -70,21 +71,21 @@ instance ToJSON Outcome where
 
 
 -- | Every field of a 'SuiteView', as named in its JSON encoding.
-schema :: Schema
+schema :: FieldMask.Schema
 schema =
-    Schema
-        [ leaf "name"
-        , leaf "status"
-        , leaf "error"
-        , leaf "passed_cases"
-        , leaf "total_cases"
-        , leaf "duration_ms"
-        , leaf "output"
-        , nested
+    FieldMask.Schema
+        [ FieldMask.Schema.leaf "name"
+        , FieldMask.Schema.leaf "status"
+        , FieldMask.Schema.leaf "error"
+        , FieldMask.Schema.leaf "passed_cases"
+        , FieldMask.Schema.leaf "total_cases"
+        , FieldMask.Schema.leaf "duration_ms"
+        , FieldMask.Schema.leaf "output"
+        , FieldMask.Schema.nested
             "cases"
-            [ leaf "description"
-            , leaf "outcome"
-            , leaf "failure"
+            [ FieldMask.Schema.leaf "description"
+            , FieldMask.Schema.leaf "outcome"
+            , FieldMask.Schema.leaf "failure"
             ]
         ]
 

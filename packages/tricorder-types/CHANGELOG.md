@@ -12,6 +12,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Command`'s `Test` constructor for the `tricorder test` subcommand, with
   `Tricorder.CLI.Command.FieldMask` for selecting fields of the response.
   Non-breaking.
+- Move all `FieldMask` modules and functionality to one place here in
+  `tricorder-types` instead of having them spread out between `tricorder` and
+  `tricorder-types`.
 
 ### Changed
 

@@ -48,14 +48,12 @@ library tricorder-internal
       Tricorder.CLI.App.Test.Text
       Tricorder.CLI.Arguments
       Tricorder.CLI.Arguments.Daemon
-      Tricorder.CLI.Arguments.FieldMask
       Tricorder.CLI.Arguments.IfDaemonIsStopped
       Tricorder.CLI.Arguments.OutputFormat
       Tricorder.CLI.Arguments.Test
       Tricorder.CLI.Arguments.TestFilter
       Tricorder.CLI.Arguments.WaitMode
       Tricorder.CLI.Daemon
-      Tricorder.CLI.FieldMask
       Tricorder.CLI.Main
       Tricorder.CLI.Operations
       Tricorder.CLI.Render
@@ -302,7 +300,6 @@ test-suite tricorder-test
       Unit.Tricorder.Build.ByteSizeSpec
       Unit.Tricorder.Build.EvalCommentSpec
       Unit.Tricorder.CLI.App.Test.SuiteViewSpec
-      Unit.Tricorder.CLI.FieldMaskSpec
       Unit.Tricorder.CLI.RenderSpec
       Unit.Tricorder.Daemon.BuilderSpec
       Unit.Tricorder.Daemon.BuildStateSpec

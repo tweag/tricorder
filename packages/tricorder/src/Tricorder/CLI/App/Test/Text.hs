@@ -10,6 +10,8 @@ import Tricorder.CLI.Command.TestFilter (TestFilter)
 
 import Data.Text qualified as T
 import Tricorder.CLI.Command.TestFilter qualified as TestFilter
+import Tricorder.FieldMask.Projection qualified as FieldMask.Projection
+import Tricorder.FieldMask.Schema qualified as FieldMask
 
 import Tricorder.Build
     ( BuildPhase (..)
@@ -21,14 +23,13 @@ import Tricorder.Build
     , Severity (..)
     )
 import Tricorder.CLI.App.Test.SuiteView (selectSuites)
-import Tricorder.CLI.FieldMask (Projected (..), Schema, project, renderYaml)
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
-showSuites :: [TestTarget] -> TestFilter -> Schema -> Test.Suites -> Either Text Text
+showSuites :: [TestTarget] -> TestFilter -> FieldMask.Schema -> Test.Suites -> Either Text Text
 showSuites targets testFilter selection testSuites =
     case selectSuites targets testFilter testSuites of
         Left notFound ->
@@ -37,7 +38,11 @@ showSuites targets testFilter selection testSuites =
             | Test.nullSuites testSuites -> Right "no test suites to run"
             | TestFilter.FailedOnly <- testFilter -> Right "no failed test suites"
         Right suites ->
-            Right $ T.stripEnd $ renderYaml $ PArray $ project selection . toJSON <$> suites
+            Right
+                $ T.stripEnd
+                $ FieldMask.Projection.renderYaml
+                $ FieldMask.Projection.PArray
+                $ FieldMask.Projection.project selection . toJSON <$> suites
 
 
 wrapTextShow :: Either Text BuildState -> (BuildPhase -> Either Text Text) -> Either Text Text

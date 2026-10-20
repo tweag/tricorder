@@ -11,6 +11,8 @@ import Data.Aeson.Text (encodeToLazyText)
 import Tricorder.CLI.Command.TestFilter (TestFilter)
 
 import Data.Text qualified as T
+import Tricorder.FieldMask.Projection qualified as FieldMask.Projection
+import Tricorder.FieldMask.Schema qualified as FieldMask (Schema)
 
 import Tricorder.Build (BuildPhase (..), BuildState (..), PostBuild (..))
 import Tricorder.CLI.App.Test.Json.Responses
@@ -19,7 +21,6 @@ import Tricorder.CLI.App.Test.Json.Responses
     , SuitesResponse (..)
     )
 import Tricorder.CLI.App.Test.SuiteView (selectSuites)
-import Tricorder.CLI.FieldMask (Schema, project)
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.Test qualified as Test
@@ -27,13 +28,14 @@ import Tricorder.CLI.App.Test.Json.Responses qualified as Responses
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
-showSuites :: [TestTarget] -> TestFilter -> Schema -> Test.Suites -> Response SuitesResponse
+showSuites
+    :: [TestTarget] -> TestFilter -> FieldMask.Schema -> Test.Suites -> Response SuitesResponse
 showSuites targets testFilter selection testSuites =
     case selectSuites targets testFilter testSuites of
         Left notFound ->
             Responses.Error
                 $ MessageWithLoc (T.intercalate ", " $ TestTarget.render <$> toList notFound) "not found"
-        Right suites -> Responses.Success $ SuitesResponse $ project selection . toJSON <$> suites
+        Right suites -> Responses.Success $ SuitesResponse $ FieldMask.Projection.project selection . toJSON <$> suites
 
 
 wrapResponse :: (ToJSON a) => Response a -> Either Text Text

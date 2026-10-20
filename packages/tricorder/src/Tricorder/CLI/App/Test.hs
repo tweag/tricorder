@@ -15,6 +15,7 @@ import Tricorder.CLI.Command.WaitMode (WaitMode (..))
 import Atelier.Effects.Console qualified as Console
 import Effectful.Reader.Static qualified as Reader
 import Tricorder.CLI.Command.IfDaemonIsStopped qualified as IfDaemonIsStopped
+import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
 
 import Tricorder.Build (BuildState (..))
 import Tricorder.CLI.App.Test.SuiteView (defaultFields, schema)
@@ -25,7 +26,6 @@ import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.CLI.App.Test.Json qualified as Json
 import Tricorder.CLI.App.Test.Text qualified as Text
 import Tricorder.CLI.Daemon qualified as Daemons
-import Tricorder.CLI.FieldMask qualified as FieldMask
 import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Socket.Client qualified as Client
 
@@ -88,7 +88,7 @@ showSuites opts =
   where
     validated = do
         targets <- traverse parseTarget opts.suiteNames
-        selection <- FieldMask.select schema $ fromMaybe defaultFields opts.fields
+        selection <- FieldMask.Schema.select schema $ fromMaybe defaultFields opts.fields
         pure (targets, selection)
     parseTarget suiteName =
         maybeToRight

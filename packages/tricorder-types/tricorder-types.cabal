@@ -36,12 +36,15 @@ library
   exposed-modules:
       Tricorder.CLI.Command
       Tricorder.CLI.Command.Daemon
-      Tricorder.CLI.Command.FieldMask
       Tricorder.CLI.Command.IfDaemonIsStopped
       Tricorder.CLI.Command.OutputFormat
       Tricorder.CLI.Command.Test
       Tricorder.CLI.Command.TestFilter
       Tricorder.CLI.Command.WaitMode
+      Tricorder.FieldMask
+      Tricorder.FieldMask.Args
+      Tricorder.FieldMask.Projection
+      Tricorder.FieldMask.Schema
       Tricorder.SourceLookup.SourceQuery
   other-modules:
       Paths_tricorder_types
@@ -71,7 +74,58 @@ library
       aeson >=2.2 && <2.4
     , atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
+    , megaparsec >=9.7 && <9.9
+    , optparse-applicative ==0.19.*
     , text ==2.1.*
+    , yaml ==0.11.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
+
+test-suite tricorder-types-test
+  type: exitcode-stdio-1.0
+  main-is: Driver.hs
+  other-modules:
+      Unit.Tricorder.FieldMask.ArgsSpec
+      Unit.Tricorder.FieldMask.ProjectionSpec
+      Unit.Tricorder.FieldMask.SchemaSpec
+      Paths_tricorder_types
+  autogen-modules:
+      Paths_tricorder_types
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -Wno-prepositive-qualified-module
+  build-tool-depends:
+      tasty-discover:tasty-discover
+  build-depends:
+      aeson >=2.2 && <2.4
+    , atelier-core ==0.7.*
+    , atelier-prelude ==0.4.*
+    , base >=4.18 && <4.23
+    , tasty ==1.5.*
+    , tasty-discover ==5.2.*
+    , tasty-hunit >=0.10.2 && <0.11
+    , text ==2.1.*
+    , tricorder-types
   mixins:
       base hiding (Prelude)
   default-language: GHC2021

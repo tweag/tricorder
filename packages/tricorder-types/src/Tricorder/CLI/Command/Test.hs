@@ -8,17 +8,17 @@ where
 
 import Prelude hiding (All, filter)
 
-import Tricorder.CLI.Command.FieldMask (FieldMask)
 import Tricorder.CLI.Command.IfDaemonIsStopped (IfDaemonIsStopped)
 import Tricorder.CLI.Command.OutputFormat (OutputFormat)
 import Tricorder.CLI.Command.TestFilter (TestFilter)
 import Tricorder.CLI.Command.WaitMode (WaitMode)
+import Tricorder.FieldMask (FieldMask)
 
-import Tricorder.CLI.Command.FieldMask qualified as FieldMask
 import Tricorder.CLI.Command.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.CLI.Command.OutputFormat qualified as OutputFormat
 import Tricorder.CLI.Command.TestFilter qualified as TestFilter
 import Tricorder.CLI.Command.WaitMode qualified as WaitMode
+import Tricorder.FieldMask qualified as FieldMask
 
 
 data Command

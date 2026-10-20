@@ -8,6 +8,8 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Map.Strict qualified as Map
 import Tricorder.CLI.Command.TestFilter qualified as TestFilter
+import Tricorder.FieldMask.Schema qualified as FieldMask (Schema (..))
+import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
 
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.CLI.App.Test.SuiteView
@@ -19,11 +21,9 @@ import Tricorder.CLI.App.Test.SuiteView
     , schema
     , selectSuites
     )
-import Tricorder.CLI.FieldMask (Schema (..))
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.Test qualified as Test
-import Tricorder.CLI.FieldMask qualified as FieldMask
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
@@ -34,7 +34,7 @@ test_SuiteView =
         [ testCase "schema lists every field of the JSON encoding" do
             schemaKeys schema @?= jsonKeys (toJSON fullView)
         , testCase "default fields are in the schema" do
-            void (FieldMask.select schema defaultFields) @?= Right ()
+            void (FieldMask.Schema.select schema defaultFields) @?= Right ()
         , testGroup "selectSuites" testSelectSuites
         ]
 
@@ -105,8 +105,8 @@ data Keys = Keys [(Text, Maybe Keys)]
     deriving stock (Eq, Show)
 
 
-schemaKeys :: Schema -> Keys
-schemaKeys (Schema fields) = Keys $ sortOn fst $ second (fmap schemaKeys) <$> fields
+schemaKeys :: FieldMask.Schema -> Keys
+schemaKeys (FieldMask.Schema fields) = Keys $ sortOn fst $ second (fmap schemaKeys) <$> fields
 
 
 jsonKeys :: Value -> Keys
