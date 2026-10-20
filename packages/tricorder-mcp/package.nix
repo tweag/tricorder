@@ -4,7 +4,7 @@ let
 in
 {
   name = "tricorder-mcp";
-  version = "0.1.3.0";
+  version = "0.1.3.1";
   synopsis = "MCP server for Tricorder";
   description = ''
     Model Context Protocol server for Tricorder.

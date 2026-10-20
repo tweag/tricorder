@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.1.3.1] - 2026-10-20
+
 ### Fixed
 
 - Pre-built binaries on GitHub were built against paths in `/nix/store`, and
