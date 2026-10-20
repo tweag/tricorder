@@ -1,18 +1,18 @@
-module Unit.Tricorder.FieldMask.ArgsSpec (test_Args) where
+module Unit.Tricorder.API.FieldMask.ArgsSpec (test_Args) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
 
-import Tricorder.FieldMask (Field (..), FieldMask (..))
-import Tricorder.FieldMask.Args (parse)
+import Tricorder.API.FieldMask (Field (..), FieldMask (..))
+import Tricorder.API.FieldMask.Args (parse)
 
-import Tricorder.FieldMask qualified as FieldMask
+import Tricorder.API.FieldMask qualified as FieldMask
 
 
 test_Args :: TestTree
 test_Args =
     testGroup
-        "Tricorder.FieldMask.Args"
+        "Tricorder.API.FieldMask.Args"
         [ testGroup "parse" testParse
         ]
 

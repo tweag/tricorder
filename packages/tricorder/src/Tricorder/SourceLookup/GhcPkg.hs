@@ -12,12 +12,12 @@ import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpret, reinterpret)
 import Effectful.State.Static.Shared (evalState, get, put)
 import Effectful.TH (makeEffect)
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..))
 
 import Data.Text qualified as T
 
 import Tricorder.Session.Repl (Repl (..))
-import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 
 data GhcPkg :: Effect where

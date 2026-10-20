@@ -20,6 +20,7 @@ import Atelier.Effects.Log (Log)
 import Data.Char (isUpper)
 import Effectful.Exception (trySync)
 import System.FilePath (splitDirectories, (</>))
+import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..))
 
 import Atelier.Effects.Log qualified as Log
@@ -30,7 +31,6 @@ import Data.List qualified as List
 import Data.Text qualified as T
 
 import Tricorder.SourceLookup.Hackage (Hackage)
-import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
 import Tricorder.SourceLookup.Hackage qualified as Hackage
@@ -62,13 +62,13 @@ obtainTarball pkgId = do
             res <- Hackage.fetchPackage pkgId
             case res of
                 Hackage.NotFound -> do
-                    Log.warn $ "Package not found: " <> unPackageId pkgId
+                    Log.warn $ "Package not found: " <> pkgId.unPackageId
                     pure TarballAbsent
                 Hackage.Failure err -> do
                     Log.err $ "Hackage fetch error: " <> err
                     pure $ TarballFetchFailed
                 Hackage.Success bytes -> do
-                    Log.info $ "Storing tarball for " <> unPackageId pkgId
+                    Log.info $ "Storing tarball for " <> pkgId.unPackageId
                     path <- PackageStore.add pkgId bytes
                     Log.info $ "Tarball stored at " <> toText path
                     pure $ TarballAt path

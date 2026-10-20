@@ -1,7 +1,8 @@
-module Tricorder.CLI.Arguments.OutputFormat (parser) where
+module Tricorder.API.OutputFormat.Args (parser) where
 
 import Options.Applicative (Parser, flag, help, long, short)
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..), jsonOutputFlagName)
+
+import Tricorder.API.OutputFormat (OutputFormat (..), jsonOutputFlagName)
 
 
 parser :: Parser OutputFormat

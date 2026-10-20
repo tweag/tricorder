@@ -1,4 +1,4 @@
-module Tricorder.CLI.Command.IfDaemonIsStopped
+module Tricorder.API.IfDaemonIsStopped
     ( IfDaemonIsStopped (..)
     , toArgs
     , startDaemonFlagName

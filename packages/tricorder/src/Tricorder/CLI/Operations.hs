@@ -19,15 +19,16 @@ import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
-import Tricorder.CLI.Command
+import Tricorder.API
     ( EvalCommentsOptions (..)
     , SourceOptions (..)
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
     )
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
-import Tricorder.CLI.Command.WaitMode (WaitMode (..))
+import Tricorder.API.OutputFormat (OutputFormat (..))
+import Tricorder.API.WaitMode (WaitMode (..))
+import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
 
 import Atelier.Effects.Console qualified as Console
 import Data.ByteString.Lazy qualified as BSL
@@ -48,12 +49,7 @@ import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
-import Tricorder.SourceLookup
-    ( ReexportLimits (..)
-    , defaultReexportLimits
-    , lookupModuleSource
-    , projectSourceDirs
-    )
+import Tricorder.SourceLookup (lookupModuleSource, projectSourceDirs)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageStore (PackageStore)

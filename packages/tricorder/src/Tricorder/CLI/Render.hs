@@ -10,13 +10,14 @@ where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Time (Millisecond, toMicroseconds)
+import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult)
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Console qualified as Console
+import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
 
 import Tricorder.Build (Diagnostic (..), Severity (..))
-import Tricorder.SourceLookup (ModuleSourceResult (..))
-import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 
 formatDuration :: Millisecond -> Text
@@ -55,28 +56,28 @@ diagnosticBlock d = diagnosticLine d <> "\n" <> d.text
 renderSourceResults :: (Console :> es) => [ModuleSourceResult] -> Eff es ()
 renderSourceResults results = mapM_ renderOne results
   where
-    renderOne (SourceFound query src) = do
+    renderOne (ModuleSourceResult.SourceFound query src) = do
         when (length results > 1) $ Console.putTextLn $ header query
         Console.putText src
         when (length results > 1) $ Console.putStrLn ""
-    renderOne (SourceReexported query definedIn src) = do
+    renderOne (ModuleSourceResult.SourceReexported query definedIn src) = do
         when (length results > 1) $ Console.putTextLn $ header query
         Console.putTextLn $ "-- Re-exported from " <> unModuleName definedIn
         Console.putText src
         when (length results > 1) $ Console.putStrLn ""
-    renderOne (SourceNotFound query) =
+    renderOne (ModuleSourceResult.SourceNotFound query) =
         Console.putTextLn
             $ "Not found: "
                 <> unModuleName query.moduleName
                 <> " (module not in the project or any installed package)"
-    renderOne (SourceUnavailable query pkgId) =
+    renderOne (ModuleSourceResult.SourceUnavailable query pkgId) =
         Console.putTextLn
             $ "No source available: "
                 <> unModuleName query.moduleName
                 <> " (could not locate or fetch a source tarball for "
-                <> unPackageId pkgId
+                <> pkgId.unPackageId
                 <> ")"
-    renderOne (FunctionNotFound query) =
+    renderOne (ModuleSourceResult.FunctionNotFound query) =
         Console.putTextLn
             $ "tricorder: "
                 <> unModuleName query.moduleName

@@ -13,11 +13,10 @@ import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.NonDet (NonDet, OnEmptyPolicy (..), emptyEff, plusEff, runNonDet)
 import Effectful.TH (makeEffect)
 import System.FilePath (takeDirectory, (</>))
+import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Map.Strict qualified as Map
-
-import Tricorder.SourceLookup.PackageId (PackageId, splitPackageId, unPackageId)
 
 
 data PackageStore :: Effect where
@@ -56,7 +55,7 @@ packagePath packageDir packageId =
     packageDir
         </> toString packageName
         </> toString packageVersion
-        </> toString (unPackageId packageId <> ".tar.gz")
+        </> toString (packageId.unPackageId <> ".tar.gz")
   where
     (packageName, packageVersion) = splitPackageId packageId
 

@@ -1,4 +1,4 @@
-module Tricorder.CLI.Command.WaitMode
+module Tricorder.API.WaitMode
     ( WaitMode (..)
     , toArgs
     , waitForBuildFlagName

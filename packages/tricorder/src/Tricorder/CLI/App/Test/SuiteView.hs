@@ -1,102 +1,26 @@
 -- | The full, unprojected view of a test suite that @tricorder test suites@
 -- selects fields from.
 module Tricorder.CLI.App.Test.SuiteView
-    ( SuiteView (..)
-    , Status (..)
-    , CaseView (..)
-    , Outcome (..)
-    , schema
-    , defaultFields
-    , selectSuites
+    ( selectSuites
     )
 where
 
-import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
-import Data.Aeson (ToJSON (..))
-import Tricorder.CLI.Command.TestFilter (TestFilter)
-import Tricorder.FieldMask (Field (..), FieldMask (..))
+import Atelier.Time (AsRawUnit (..))
+import Tricorder.API.Test.SuiteView (CaseView (..), Outcome (..), Status (..), SuiteView (..))
+import Tricorder.API.TestFilter (TestFilter)
 
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
-import Tricorder.CLI.Command.TestFilter qualified as TestFilter
-import Tricorder.FieldMask.Schema qualified as FieldMask (Schema (..))
-import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.TestFilter qualified as TestFilter
 
-import Tricorder.Build.Duration (Duration)
+import Tricorder.Build.Duration
+    ( Duration (..)
+    )
 import Tricorder.Session.TestTarget (TestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Session.TestTarget qualified as TestTarget
-
-
--- | Fields that do not apply to a suite's 'Status' are 'Nothing', and are
--- left out of the output.
-data SuiteView = SuiteView
-    { name :: Text
-    , status :: Status
-    , error :: Maybe Text
-    , passedCases :: Maybe Int
-    , totalCases :: Maybe Int
-    , durationMs :: Maybe Duration
-    , output :: Maybe Text
-    , cases :: Maybe [CaseView]
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (ToJSON) via QuietSnake SuiteView
-
-
-data Status = Running | Errored | Passed | Failed
-    deriving stock (Eq, Generic, Show)
-    deriving (ToJSON) via QuietSnake Status
-
-
-data CaseView = CaseView
-    { description :: Text
-    , outcome :: Outcome
-    , failure :: Maybe Text
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (ToJSON) via QuietSnake CaseView
-
-
-data Outcome = CasePassed | CaseFailed
-    deriving stock (Eq, Generic, Show)
-
-
-instance ToJSON Outcome where
-    toJSON = \case
-        CasePassed -> "passed"
-        CaseFailed -> "failed"
-
-
--- | Every field of a 'SuiteView', as named in its JSON encoding.
-schema :: FieldMask.Schema
-schema =
-    FieldMask.Schema
-        [ FieldMask.Schema.leaf "name"
-        , FieldMask.Schema.leaf "status"
-        , FieldMask.Schema.leaf "error"
-        , FieldMask.Schema.leaf "passed_cases"
-        , FieldMask.Schema.leaf "total_cases"
-        , FieldMask.Schema.leaf "duration_ms"
-        , FieldMask.Schema.leaf "output"
-        , FieldMask.Schema.nested
-            "cases"
-            [ FieldMask.Schema.leaf "description"
-            , FieldMask.Schema.leaf "outcome"
-            , FieldMask.Schema.leaf "failure"
-            ]
-        ]
-
-
--- | A summary of each suite, leaving out the (potentially large) test output
--- and test cases.
-defaultFields :: FieldMask
-defaultFields =
-    FieldMask
-        $ (\name -> Field name Nothing)
-            <$> "name" :| ["status", "error", "passed_cases", "total_cases", "duration_ms"]
 
 
 -- | Pick out the requested suites, or all of them when none are requested.
@@ -144,7 +68,7 @@ selectSuites requested testFilter (Test.Suites suites) = do
                         { status = if completion.passed then Passed else Failed
                         , passedCases = Just $ length $ filter (not . Test.caseFailed) completion.testCases
                         , totalCases = Just $ length completion.testCases
-                        , durationMs = completion.duration
+                        , durationMs = AsRawUnit . (.getDuration) <$> completion.duration
                         , output = Just $ T.unlines $ stripGhciNoise $ T.lines completion.output
                         , cases = Just $ toCaseView <$> filter keepCase completion.testCases
                         }

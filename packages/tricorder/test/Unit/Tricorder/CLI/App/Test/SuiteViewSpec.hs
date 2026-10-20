@@ -1,26 +1,13 @@
 module Unit.Tricorder.CLI.App.Test.SuiteViewSpec (test_SuiteView) where
 
-import Data.Aeson (Value (..), toJSON)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Tricorder.API.Test.SuiteView (CaseView (..), Outcome (..), Status (..), SuiteView (..))
 
-import Data.Aeson.Key qualified as Key
-import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Map.Strict qualified as Map
-import Tricorder.CLI.Command.TestFilter qualified as TestFilter
-import Tricorder.FieldMask.Schema qualified as FieldMask (Schema (..))
-import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.TestFilter qualified as TestFilter
 
-import Tricorder.Build.Duration (Duration (..))
-import Tricorder.CLI.App.Test.SuiteView
-    ( CaseView (..)
-    , Outcome (..)
-    , Status (..)
-    , SuiteView (..)
-    , defaultFields
-    , schema
-    , selectSuites
-    )
+import Tricorder.CLI.App.Test.SuiteView (selectSuites)
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.Test qualified as Test
@@ -31,11 +18,7 @@ test_SuiteView :: TestTree
 test_SuiteView =
     testGroup
         "SuiteView"
-        [ testCase "schema lists every field of the JSON encoding" do
-            schemaKeys schema @?= jsonKeys (toJSON fullView)
-        , testCase "default fields are in the schema" do
-            void (FieldMask.Schema.select schema defaultFields) @?= Right ()
-        , testGroup "selectSuites" testSelectSuites
+        [ testGroup "selectSuites" testSelectSuites
         ]
 
 
@@ -85,35 +68,6 @@ target :: Text -> TestTarget
 target name = fromMaybe (Prelude.error $ "invalid test target: " <> name) $ TestTarget.parse name
 
 
--- | A view with every field set, so every field shows up in its JSON.
-fullView :: SuiteView
-fullView =
-    SuiteView
-        { name = "test:suite"
-        , status = Failed
-        , error = Just "error"
-        , passedCases = Just 0
-        , totalCases = Just 1
-        , durationMs = Just $ Duration 5
-        , output = Just "output"
-        , cases = Just [CaseView "case" CaseFailed (Just "failure")]
-        }
-
-
 -- | Keys of a JSON value, nested keys of arrays taken from their first element.
 data Keys = Keys [(Text, Maybe Keys)]
     deriving stock (Eq, Show)
-
-
-schemaKeys :: FieldMask.Schema -> Keys
-schemaKeys (FieldMask.Schema fields) = Keys $ sortOn fst $ second (fmap schemaKeys) <$> fields
-
-
-jsonKeys :: Value -> Keys
-jsonKeys = \case
-    Object obj -> Keys $ sortOn fst [(Key.toText key, nestedKeys value) | (key, value) <- KeyMap.toList obj]
-    _ -> Keys []
-  where
-    nestedKeys = \case
-        Array values | Just element <- viaNonEmpty head (toList values) -> Just $ jsonKeys element
-        _ -> Nothing

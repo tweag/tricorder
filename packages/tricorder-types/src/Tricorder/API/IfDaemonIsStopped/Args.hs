@@ -1,7 +1,8 @@
-module Tricorder.CLI.Arguments.IfDaemonIsStopped (parser) where
+module Tricorder.API.IfDaemonIsStopped.Args (parser) where
 
 import Options.Applicative (Parser, flag, help, long, short)
-import Tricorder.CLI.Command.IfDaemonIsStopped (IfDaemonIsStopped (..), startDaemonFlagName)
+
+import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped (..), startDaemonFlagName)
 
 
 parser :: Parser IfDaemonIsStopped

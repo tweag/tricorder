@@ -1,8 +1,5 @@
 module Tricorder.SourceLookup
-    ( ModuleSourceResult (..)
-    , ReexportLimits (..)
-    , defaultReexportLimits
-    , lookupModuleSource
+    ( lookupModuleSource
     , ProjectSourceDirs (..)
     , projectSourceDirs
     )
@@ -11,21 +8,22 @@ where
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
-import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generically (..))
 import System.FilePath (normalise, takeDirectory, (</>))
+import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
+import Tricorder.SourceLookup.PackageId (PackageId (..))
+import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Log qualified as Log
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
 
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Repl (Repl)
 import Tricorder.Session.WatchDirs (allSourceDirs)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
-import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.SourceLookup.Reexport (declaresMember, exportsByName, reexportCandidates)
 import Tricorder.SourceLookup.Slice (sliceSymbol)
@@ -37,41 +35,6 @@ import Tricorder.SourceLookup.Tarball
     )
 
 import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
-
-
--- | The result of a source lookup for a single module.
-data ModuleSourceResult
-    = -- | Source was found; contains the module (or single-symbol) source text.
-      SourceFound SourceQuery Text
-    | -- | The module is neither in the project nor in any installed package.
-      SourceNotFound SourceQuery
-    | -- | The package was resolved but no source tarball could be located or
-      -- fetched (no index, offline, yanked, or the archive could not be read).
-      SourceUnavailable SourceQuery PackageId
-    | -- | The symbol is not defined in the queried module but re-exported by
-      -- it; contains the module that defines it and the symbol's source there.
-      SourceReexported SourceQuery ModuleName Text
-    | -- | The module source was found but the requested symbol was not in it.
-      FunctionNotFound SourceQuery
-    deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically ModuleSourceResult
-
-
--- | Bounds on the re-export search for a symbol the queried module does not
--- define itself (see 'followReexports').
-data ReexportLimits = ReexportLimits
-    { maxDepth :: Word
-    -- ^ Most re-export hops to follow; @0@ disables following re-exports.
-    , maxModules :: Word
-    -- ^ Most modules to read during the search.
-    }
-    deriving stock (Eq, Show)
-
-
--- | Enough for the deepest chains seen in practice (@Prelude#Maybe@ takes 3
--- hops through @ghc-internal@) while keeping a miss cheap.
-defaultReexportLimits :: ReexportLimits
-defaultReexportLimits = ReexportLimits {maxDepth = 5, maxModules = 24}
 
 
 -- | The directories holding the project's own modules: the @hs-source-dirs@ of
@@ -131,7 +94,7 @@ lookupModuleSource
 lookupModuleSource dirs limits query = do
     (mOrigin, result) <- lookupLocal dirs InProject query
     case (result, mOrigin, query.function) of
-        (FunctionNotFound _, Just origin, Just symbol) ->
+        (ModuleSourceResult.FunctionNotFound _, Just origin, Just symbol) ->
             fromMaybe result <$> followReexports dirs limits query symbol origin
         _ -> pure result
 

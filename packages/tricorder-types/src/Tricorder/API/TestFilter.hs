@@ -1,4 +1,4 @@
-module Tricorder.CLI.Command.TestFilter
+module Tricorder.API.TestFilter
     ( TestFilter (..)
     , toArgs
     , failedOnlyFlagName

@@ -6,12 +6,12 @@ module Tricorder.CLI.App.Test.Text
 where
 
 import Data.Aeson (toJSON)
-import Tricorder.CLI.Command.TestFilter (TestFilter)
+import Tricorder.API.TestFilter (TestFilter)
 
 import Data.Text qualified as T
-import Tricorder.CLI.Command.TestFilter qualified as TestFilter
-import Tricorder.FieldMask.Projection qualified as FieldMask.Projection
-import Tricorder.FieldMask.Schema qualified as FieldMask
+import Tricorder.API.FieldMask.Projection qualified as FieldMask.Projection
+import Tricorder.API.FieldMask.Schema qualified as FieldMask
+import Tricorder.API.TestFilter qualified as TestFilter
 
 import Tricorder.Build
     ( BuildPhase (..)

@@ -1,6 +1,5 @@
 module Tricorder.Socket.Protocol
-    ( Force (..)
-    , Query (..)
+    ( Query (..)
     , StatusQuery (..)
     , DiagnosticQuery (..)
     , ErrorResponse (..)
@@ -10,7 +9,6 @@ module Tricorder.Socket.Protocol
 where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Tricorder.CLI.Command (Force (..))
 
 
 data StatusQuery = StatusQuery {awaitDone :: Bool}

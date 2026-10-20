@@ -3,13 +3,13 @@ module Unit.Tricorder.SourceLookup.TarballSpec (test_Tarball) where
 import System.FilePath (isAbsolute, (</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Tricorder.SourceLookup.PackageId (splitPackageId)
 
 import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
 
-import Tricorder.SourceLookup.PackageId (splitPackageId)
 import Tricorder.SourceLookup.Tarball
     ( cabalPackagesDirs
     , extractModule

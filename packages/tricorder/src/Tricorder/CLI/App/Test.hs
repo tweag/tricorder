@@ -7,18 +7,18 @@ import Atelier.Effects.File (File)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
 import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
-import Tricorder.CLI.Command.IfDaemonIsStopped (IfDaemonIsStopped)
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
-import Tricorder.CLI.Command.Test (Command (..), SuitesOptions (..))
-import Tricorder.CLI.Command.WaitMode (WaitMode (..))
+import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
+import Tricorder.API.OutputFormat (OutputFormat (..))
+import Tricorder.API.Test (Command (..), SuitesOptions (..))
+import Tricorder.API.WaitMode (WaitMode (..))
 
 import Atelier.Effects.Console qualified as Console
 import Effectful.Reader.Static qualified as Reader
-import Tricorder.CLI.Command.IfDaemonIsStopped qualified as IfDaemonIsStopped
-import Tricorder.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
+import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 
 import Tricorder.Build (BuildState (..))
-import Tricorder.CLI.App.Test.SuiteView (defaultFields, schema)
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
@@ -88,7 +88,9 @@ showSuites opts =
   where
     validated = do
         targets <- traverse parseTarget opts.suiteNames
-        selection <- FieldMask.Schema.select schema $ fromMaybe defaultFields opts.fields
+        selection <-
+            FieldMask.Schema.select SuiteView.Schema.schema
+                $ fromMaybe SuiteView.Schema.defaultFields opts.fields
         pure (targets, selection)
     parseTarget suiteName =
         maybeToRight

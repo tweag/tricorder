@@ -28,10 +28,9 @@ import Network.HTTP.Req
     , runReq
     , (/:)
     )
+import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 import Atelier.Effects.Log qualified as Log
-
-import Tricorder.SourceLookup.PackageId (PackageId (..))
 
 
 data Hackage :: Effect where
@@ -67,7 +66,7 @@ run = interpret_ \case
                 pure
                     $ Failure
                     $ "Failed to fetch "
-                        <> unPackageId packageId
+                        <> packageId.unPackageId
                         <> " from "
                         <> show url
                         <> "\n"

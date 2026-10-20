@@ -1,18 +1,18 @@
-module Unit.Tricorder.FieldMask.ProjectionSpec (test_Projection) where
+module Unit.Tricorder.API.FieldMask.ProjectionSpec (test_Projection) where
 
 import Data.Aeson (Value (..), object, (.=))
 import Data.Aeson.Text (encodeToLazyText)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Tricorder.FieldMask.Projection (Projection (..), project, renderYaml)
-import Tricorder.FieldMask.Schema (Schema (..), leaf, nested)
+import Tricorder.API.FieldMask.Projection (Projection (..), project, renderYaml)
+import Tricorder.API.FieldMask.Schema (Schema (..), leaf, nested)
 
 
 test_Projection :: TestTree
 test_Projection =
     testGroup
-        "Tricorder.FieldMask.Projection"
+        "Tricorder.API.FieldMask.Projection"
         [ testGroup "project" testProject
         ]
 

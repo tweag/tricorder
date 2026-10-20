@@ -1,7 +1,8 @@
-module Tricorder.CLI.Arguments.WaitMode (parser) where
+module Tricorder.API.WaitMode.Args (parser) where
 
 import Options.Applicative (Parser, flag, help, long, short)
-import Tricorder.CLI.Command.WaitMode (WaitMode (..), waitForBuildFlagName)
+
+import Tricorder.API.WaitMode (WaitMode (..), waitForBuildFlagName)
 
 
 parser :: Parser WaitMode

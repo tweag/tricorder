@@ -20,20 +20,20 @@ import Effectful.Exception (catchJust, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (evalState, get, modify, put)
 import System.IO.Error (isEOFError)
-import Tricorder.CLI.Command (Force)
+import Tricorder.API.Force (Force)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
+import Tricorder.API.Force qualified as Force
 
 import Tricorder.Build (BuildState, Diagnostic)
 import Tricorder.Runtime (PidFile)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)
-    , Force (..)
     , Query (..)
     , StatusQuery (..)
     , Waiters (..)
@@ -137,8 +137,8 @@ requestShutdown force sockPath = withConnection sockPath \h -> do
             pure $ Left "Failed to request shutdown"
   where
     waiters = case force of
-        Force -> IgnoreWaiters
-        NoForce -> WaitForWaiters
+        Force.Force -> IgnoreWaiters
+        Force.NoForce -> WaitForWaiters
 
 
 isDaemonRunning :: (Daemons :> es, Reader PidFile :> es) => Eff es Bool

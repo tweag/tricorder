@@ -1,6 +1,6 @@
 -- | Parsing field masks, checking them against the shape of a response, and
 -- projecting response values down to the selected fields.
-module Tricorder.FieldMask.Projection
+module Tricorder.API.FieldMask.Projection
     ( Projection (..)
     , project
     , renderYaml
@@ -13,7 +13,7 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Yaml.Builder qualified as Yaml
 
-import Tricorder.FieldMask.Schema (Schema (..))
+import Tricorder.API.FieldMask.Schema (Schema (..))
 
 
 -- | A JSON value cut down to the fields of a 'Schema', with its fields in

@@ -15,14 +15,15 @@ import Effectful (IOE)
 import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.Writer.Static.Local (runWriter, tell)
+import Tricorder.API.Force (Force)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Posix.Daemons qualified as Daemons
+import Tricorder.API.Force qualified as Force
 
 import Tricorder.Runtime (PidFile, SocketPath (..))
 import Tricorder.Socket.Client (isDaemonReady, isDaemonRunning, requestShutdown)
-import Tricorder.Socket.Protocol (Force (..))
 import Tricorder.Socket.UnixSocket (UnixSocket)
 
 import Tricorder.Daemon.Main qualified as Daemon.Main
@@ -66,8 +67,8 @@ stopDaemon force = do
         (Nothing, es) -> pure $ Left es
   where
     timeoutDelay :: Second = case force of
-        Force -> 3
-        NoForce -> 6
+        Force.Force -> 3
+        Force.NoForce -> 6
     requestStop sockPath pidFile = do
         timeout1second (requestShutdown force sockPath) >>= \_ -> do
             didStop <- fmap isJust $ timeout timeoutDelay $ waitForStop pidFile

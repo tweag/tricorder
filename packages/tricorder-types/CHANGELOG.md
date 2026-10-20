@@ -7,6 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Moved all argument parsing functionality from `tricorder` to
+  `tricorder-types` for module locality.
+
 ## [0.5.0.0] - 2026-10-20
 
 ### Added

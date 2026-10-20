@@ -1,4 +1,4 @@
-module Tricorder.FieldMask.Schema
+module Tricorder.API.FieldMask.Schema
     ( Schema (..)
     , leaf
     , nested
@@ -9,7 +9,7 @@ where
 import Data.List qualified as List
 import Data.Text qualified as T
 
-import Tricorder.FieldMask (Field (..), FieldMask (..))
+import Tricorder.API.FieldMask (Field (..), FieldMask (..))
 
 
 -- | The fields available in a response, in the order they are shown by

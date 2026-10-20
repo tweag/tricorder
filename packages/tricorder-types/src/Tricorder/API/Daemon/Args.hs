@@ -1,9 +1,10 @@
-module Tricorder.CLI.Arguments.Daemon (parser) where
+module Tricorder.API.Daemon.Args (parser) where
 
 import Options.Applicative (Parser, command, hsubparser, info, progDesc)
-import Tricorder.CLI.Command.Daemon (DaemonCommand (..))
 
-import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
+import Tricorder.API.Daemon.Command (DaemonCommand (..))
+
+import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 
 
 parser :: Parser DaemonCommand
@@ -11,4 +12,4 @@ parser = hsubparser (command "info" (info infoParser (progDesc "Information abou
 
 
 infoParser :: Parser DaemonCommand
-infoParser = Info <$> OutputFormat.parser
+infoParser = Info <$> OutputFormat.Args.parser

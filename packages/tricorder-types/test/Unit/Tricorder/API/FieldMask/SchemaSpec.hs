@@ -1,18 +1,18 @@
-module Unit.Tricorder.FieldMask.SchemaSpec (test_Schema) where
+module Unit.Tricorder.API.FieldMask.SchemaSpec (test_Schema) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertFailure, testCase, (@?=))
 
 import Data.Text qualified as T
 
-import Tricorder.FieldMask.Args (parse)
-import Tricorder.FieldMask.Schema (Schema (..), leaf, nested, select)
+import Tricorder.API.FieldMask.Args (parse)
+import Tricorder.API.FieldMask.Schema (Schema (..), leaf, nested, select)
 
 
 test_Schema :: TestTree
 test_Schema =
     testGroup
-        "Unit.Tricorder.FieldMask.Schema"
+        "Tricorder.API.FieldMask.Schema"
         [ testGroup "select" testSelect
         ]
 

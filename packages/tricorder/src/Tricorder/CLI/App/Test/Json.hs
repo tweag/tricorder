@@ -8,11 +8,11 @@ where
 
 import Data.Aeson (ToJSON, toJSON)
 import Data.Aeson.Text (encodeToLazyText)
-import Tricorder.CLI.Command.TestFilter (TestFilter)
+import Tricorder.API.TestFilter (TestFilter)
 
 import Data.Text qualified as T
-import Tricorder.FieldMask.Projection qualified as FieldMask.Projection
-import Tricorder.FieldMask.Schema qualified as FieldMask (Schema)
+import Tricorder.API.FieldMask.Projection qualified as FieldMask.Projection
+import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema)
 
 import Tricorder.Build (BuildPhase (..), BuildState (..), PostBuild (..))
 import Tricorder.CLI.App.Test.Json.Responses

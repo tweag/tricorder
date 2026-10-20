@@ -24,15 +24,17 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
-import Tricorder.CLI.Command.WaitMode (WaitMode)
+import Tricorder.API.Force (Force)
+import Tricorder.API.OutputFormat (OutputFormat (..))
+import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 import Prelude hiding (force)
 
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
-import Tricorder.CLI.Command qualified as CLI
-import Tricorder.CLI.Command.WaitMode qualified as WaitMode
+import Tricorder.API qualified as CLI
+import Tricorder.API.Force qualified as Force
+import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Tool
@@ -213,7 +215,7 @@ toolDescriptions =
 toolCommand :: Tool -> (Maybe Text, [String])
 toolCommand = \case
     Start (StartOptions {projectRoot}) ->
-        (projectRoot, CLI.commandToArgs CLI.Start)
+        (projectRoot, CLI.commandToArgs $ CLI.Start)
     (Stop (StopOptions {force, projectRoot})) ->
         (projectRoot, CLI.commandToArgs $ CLI.Stop $ toForce force)
     (Restart (RestartOptions {force, projectRoot})) ->
@@ -263,8 +265,8 @@ toolCommand = \case
         (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLog)
 
 
-toForce :: Maybe Bool -> CLI.Force
-toForce = maybe CLI.NoForce (\enabled -> if enabled then CLI.Force else CLI.NoForce)
+toForce :: Maybe Bool -> Force
+toForce = maybe Force.NoForce (\enabled -> if enabled then Force.Force else Force.NoForce)
 
 
 toWaitMode :: Maybe Bool -> WaitMode

@@ -1,4 +1,4 @@
-module Tricorder.CLI.Command.OutputFormat
+module Tricorder.API.OutputFormat
     ( OutputFormat (..)
     , toArgs
     , jsonOutputFlagName

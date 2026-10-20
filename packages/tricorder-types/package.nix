@@ -44,7 +44,9 @@ in
     ]
     ++ depList [
       "aeson"
+      "atelier-core"
       "atelier-prelude"
+      "effectful"
       "megaparsec"
       "optparse-applicative"
       "text"

@@ -1,226 +1,37 @@
-module Tricorder.CLI.Arguments
-    ( parseArguments
-    , runArguments
-    )
-where
+module Tricorder.CLI.Arguments (runArguments, parseArguments) where
 
-import Atelier.Effects.Arguments (Arguments, execParser)
-import Effectful.Reader.Static (Reader, runReader)
-import Options.Applicative
-    ( Parser
-    , ParserInfo
-    , ReadM
-    , argument
-    , auto
-    , command
-    , eitherReader
-    , flag
-    , fullDesc
-    , header
-    , help
-    , helper
-    , hsubparser
-    , info
-    , infoOption
-    , long
-    , metavar
-    , option
-    , progDesc
-    , progDescDoc
-    , readerError
-    , short
-    )
-import Tricorder.CLI.Command
-    ( Command (..)
-    , EvalCommentsOptions (..)
-    , Force (..)
-    , LogMode (..)
-    , SourceOptions (..)
-    , StatusOptions (..)
-    , TestOptions (..)
-    , Verbosity (..)
-    )
-import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
+import Atelier.Effects.Arguments (Arguments)
+import Effectful.Reader.Static (Reader)
+import Options.Applicative (Parser, ParserInfo)
+import Tricorder.API (Command)
 
-import Options.Applicative.Help.Pretty qualified as Doc
+import Atelier.Effects.Arguments qualified as Args
+import Effectful.Reader.Static qualified as Reader
+import Options.Applicative qualified as Opt
+import Tricorder.API qualified as API
+import Tricorder.API.Args qualified as API.Args
 
-import Tricorder.SourceLookup (ReexportLimits (..), defaultReexportLimits)
-
-import Tricorder.CLI.Arguments.Daemon qualified as Daemon
-import Tricorder.CLI.Arguments.OutputFormat qualified as OutputFormat
-import Tricorder.CLI.Arguments.Test qualified as Test
-import Tricorder.CLI.Arguments.WaitMode qualified as WaitMode
 import Tricorder.Version qualified as Version
 
 
-runArguments :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
+runArguments :: (Arguments :> es) => Eff (Reader API.Command : es) a -> Eff es a
 runArguments eff = do
     args <- parseArguments
-    runReader args eff
+    Reader.runReader args eff
 
 
 parseArguments :: (Arguments :> es) => Eff es Command
-parseArguments = execParser opts
+parseArguments = Args.execParser opts
 
 
 opts :: ParserInfo Command
 opts =
-    info (commandParser <**> versionOption <**> helper)
-        $ fullDesc
-            <> progDesc "tricorder — daemon-based GHCi build status"
-            <> header "tricorder — robust GHCi daemon with structured querying"
+    Opt.info (API.Args.parser <**> versionOption <**> Opt.helper)
+        $ Opt.fullDesc
+            <> Opt.progDesc "tricorder — daemon-based GHCi build status"
+            <> Opt.header "tricorder — robust GHCi daemon with structured querying"
 
 
 versionOption :: Parser (a -> a)
-versionOption = infoOption (toString Version.gitHash) (long "version" <> help "Show version and exit")
-
-
-commandParser :: Parser Command
-commandParser =
-    hsubparser
-        ( command "start" (info (pure Start) (progDesc "Start the daemon (no-op if already running)"))
-            <> command "stop" (info stopParser (progDesc "Stop the daemon"))
-            <> command
-                "status"
-                (info statusParser (progDesc "Print build diagnostics (--json for machine-readable output)"))
-            <> command
-                "test-results"
-                ( info
-                    testResultsParser
-                    ( progDescDoc
-                        $ Just
-                        $ "Show output from the latest test run"
-                            <> Doc.line
-                            <> Doc.annotate Doc.bold "DEPRECATED: use the `test suites` subcommand"
-                    )
-                )
-            <> command "test" (Test <$> Test.parser)
-            <> command "ui" (info (pure UI) (progDesc "Auto-refreshing terminal display"))
-            <> command "log" (info logParser (progDesc "Show daemon log output"))
-            <> command
-                "source"
-                (info sourceParser (progDesc "Print the Haskell source of one or more project or installed modules"))
-            <> command "restart" (info restartParser (progDesc "Restart the daemon"))
-            <> command
-                "eval-comments"
-                (info evalCommentsParser (progDesc "Show eval comments from the latest build"))
-            <> command "daemon" (info (Daemon <$> Daemon.parser) (progDesc "Daemon sub-commands"))
-        )
-
-
-logParser :: Parser Command
-logParser =
-    Log <$> pathFlag
-  where
-    pathFlag =
-        flag
-            ShowLog
-            ShowLogPath
-            ( long "print-path"
-                <> help "Print the path to the log file instead of its contents"
-            )
-
-
-statusParser :: Parser Command
-statusParser =
-    Status
-        <$> ( StatusOptions
-                <$> WaitMode.parser
-                <*> OutputFormat.parser
-                <*> flag
-                    Concise
-                    Verbose
-                    ( long "verbose"
-                        <> short 'v'
-                        <> help "Print full GHC message body under each diagnostic"
-                    )
-                <*> optional
-                    ( option
-                        auto
-                        ( long "expand"
-                            <> metavar "N"
-                            <> help "Print full GHC message body for diagnostic #N"
-                        )
-                    )
-            )
-
-
-testResultsParser :: Parser Command
-testResultsParser =
-    TestResults
-        <$> ( TestOptions
-                <$> flag
-                    False
-                    True
-                    ( long "failed"
-                        <> help "Only show output from failed test suites"
-                    )
-                <*> WaitMode.parser
-            )
-
-
-sourceParser :: Parser Command
-sourceParser =
-    Source
-        <$> ( SourceOptions
-                <$> some
-                    ( argument
-                        queryReader
-                        (metavar "Module[#function]" <> help "Module or Module#function")
-                    )
-                <*> optional
-                    ( option
-                        nonNegative
-                        ( long "max-depth"
-                            <> metavar "N"
-                            <> help
-                                ( "Follow at most N re-export hops when a symbol is not defined in the queried module (default: "
-                                    <> show defaultReexportLimits.maxDepth
-                                    <> ")"
-                                )
-                        )
-                    )
-                <*> optional
-                    ( option
-                        nonNegative
-                        ( long "max-modules"
-                            <> metavar "N"
-                            <> help
-                                ( "Read at most N modules while following re-exports (default: "
-                                    <> show defaultReexportLimits.maxModules
-                                    <> ")"
-                                )
-                        )
-                    )
-            )
-  where
-    nonNegative = do
-        n <- auto
-        if n < 0 then readerError "must be a non-negative integer" else pure n
-
-
-stopParser :: Parser Command
-stopParser =
-    Stop <$> forceParser "Ignore waiting queries when stopping the daemon"
-
-
-restartParser :: Parser Command
-restartParser =
-    Restart <$> forceParser "Ignore watiting queries when restarting the daemon"
-
-
-forceParser :: String -> Parser Force
-forceParser helpText = flag NoForce Force $ long "force" <> help helpText
-
-
-evalCommentsParser :: Parser Command
-evalCommentsParser =
-    EvalComments
-        <$> ( EvalCommentsOptions
-                <$> WaitMode.parser
-                <*> OutputFormat.parser
-            )
-
-
-queryReader :: ReadM SourceQuery
-queryReader = eitherReader $ Right . parseSourceQuery . toText
+versionOption =
+    Opt.infoOption (toString Version.gitHash) (Opt.long "version" <> Opt.help "Show version and exit")

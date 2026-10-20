@@ -12,6 +12,8 @@ import Effectful.State.Static.Shared (State, evalState, gets, modify)
 import System.FilePath ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
+import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 
 import Atelier.Effects.Input qualified as Input
@@ -26,10 +28,7 @@ import Data.Text qualified as T
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup
-    ( ModuleSourceResult (..)
-    , ProjectSourceDirs (..)
-    , ReexportLimits (..)
-    , defaultReexportLimits
+    ( ProjectSourceDirs (..)
     , lookupModuleSource
     , projectSourceDirs
     )

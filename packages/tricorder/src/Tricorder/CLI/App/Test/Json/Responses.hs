@@ -20,7 +20,7 @@ import Data.Aeson
     )
 import Text.Casing (quietSnake)
 
-import Tricorder.FieldMask.Projection qualified as FieldMask (Projection)
+import Tricorder.API.FieldMask.Projection qualified as FieldMask (Projection)
 
 
 data Response a

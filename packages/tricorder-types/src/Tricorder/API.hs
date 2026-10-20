@@ -1,7 +1,6 @@
-module Tricorder.CLI.Command
+module Tricorder.API
     ( Command (..)
     , EvalCommentsOptions (..)
-    , Force (..)
     , LogMode (..)
     , SourceOptions (..)
     , StatusOptions (..)
@@ -11,18 +10,17 @@ module Tricorder.CLI.Command
     )
 where
 
-import Tricorder.CLI.Command.Daemon (DaemonCommand)
-import Tricorder.CLI.Command.OutputFormat (OutputFormat (..))
-import Tricorder.CLI.Command.WaitMode (WaitMode)
+import Tricorder.API.Daemon.Command (DaemonCommand)
+import Tricorder.API.Force (Force)
+import Tricorder.API.OutputFormat (OutputFormat (..))
+import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
 
-import Tricorder.CLI.Command.Daemon qualified as Daemon
-import Tricorder.CLI.Command.OutputFormat qualified as OutputFormat
-import Tricorder.CLI.Command.Test qualified as Test
-import Tricorder.CLI.Command.WaitMode qualified as WaitMode
-
-
-data Force = Force | NoForce
+import Tricorder.API.Daemon.Command qualified as Daemon.Command
+import Tricorder.API.Force qualified as Force
+import Tricorder.API.OutputFormat qualified as OutputFormat
+import Tricorder.API.Test qualified as Test
+import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Verbosity
@@ -73,8 +71,8 @@ data Command
     | UI
     | Log LogMode
     | Source SourceOptions
-    | Restart Force
     | EvalComments EvalCommentsOptions
+    | Restart Force
     | Daemon DaemonCommand
 
 
@@ -86,7 +84,8 @@ data Command
 -- duplicating flag names.
 commandToArgs :: Command -> [String]
 commandToArgs Start = ["start"]
-commandToArgs (Stop doForce) = "stop" : forceArgs doForce
+commandToArgs (Stop force') = "stop" : Force.toArgs force'
+commandToArgs (Restart force') = "restart" : Force.toArgs force'
 commandToArgs (Status (StatusOptions {wait, format, verbosity, expand})) =
     "status"
         : WaitMode.toArgs wait
@@ -104,15 +103,9 @@ commandToArgs (Source (SourceOptions {queries, maxDepth, maxModules})) =
         : maybe [] (\n -> ["--max-depth", show n]) maxDepth
             <> maybe [] (\n -> ["--max-modules", show n]) maxModules
             <> map renderSourceQuery queries
-commandToArgs (Restart doForce) = "restart" : forceArgs doForce
 commandToArgs (EvalComments (EvalCommentsOptions {wait, format})) =
     "eval-comments" : WaitMode.toArgs wait <> OutputFormat.toArgs format
-commandToArgs (Daemon daemonCommand) = "daemon" : Daemon.toArgs daemonCommand
-
-
-forceArgs :: Force -> [String]
-forceArgs Force = ["--force"]
-forceArgs NoForce = []
+commandToArgs (Daemon daemonCommand) = "daemon" : Daemon.Command.toArgs daemonCommand
 
 
 verbosityArgs :: Verbosity -> [String]

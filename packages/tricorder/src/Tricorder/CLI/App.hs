@@ -15,12 +15,12 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
-import Tricorder.CLI.Command (Command (..), LogMode (..))
+import Tricorder.API (Command (..), LogMode (..))
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
 import Data.Text qualified as T
-import Tricorder.CLI.Command.Daemon qualified as DaemonCommand
+import Tricorder.API.Daemon.Command qualified as Daemon.Command
 
 import Tricorder.CLI.Daemon
     ( restartDaemon
@@ -146,6 +146,6 @@ run =
                 startDaemon
                 void waitForDaemon
             showEvalComments opts
-        Daemon (DaemonCommand.Info format) -> do
+        Daemon (Daemon.Command.Info format) -> do
             daemonInfo <- input
             showDaemonInfo format daemonInfo

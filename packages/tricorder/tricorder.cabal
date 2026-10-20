@@ -47,12 +47,6 @@ library tricorder-internal
       Tricorder.CLI.App.Test.SuiteView
       Tricorder.CLI.App.Test.Text
       Tricorder.CLI.Arguments
-      Tricorder.CLI.Arguments.Daemon
-      Tricorder.CLI.Arguments.IfDaemonIsStopped
-      Tricorder.CLI.Arguments.OutputFormat
-      Tricorder.CLI.Arguments.Test
-      Tricorder.CLI.Arguments.TestFilter
-      Tricorder.CLI.Arguments.WaitMode
       Tricorder.CLI.Daemon
       Tricorder.CLI.Main
       Tricorder.CLI.Operations
@@ -140,7 +134,6 @@ library tricorder-internal
       Tricorder.SourceLookup
       Tricorder.SourceLookup.GhcPkg
       Tricorder.SourceLookup.Hackage
-      Tricorder.SourceLookup.PackageId
       Tricorder.SourceLookup.PackageStore
       Tricorder.SourceLookup.Reexport
       Tricorder.SourceLookup.Slice

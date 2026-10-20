@@ -1,4 +1,4 @@
-module Tricorder.FieldMask.Args (parser, parse) where
+module Tricorder.API.FieldMask.Args (parser, parse) where
 
 import Options.Applicative (Mod, OptionFields, Parser, eitherReader, long, metavar, option)
 import Text.Megaparsec (Parsec, between, eof, errorBundlePretty, takeWhile1P)
@@ -8,7 +8,7 @@ import Data.Char qualified as Char
 import Text.Megaparsec qualified as Megaparsec
 import Text.Megaparsec.Char.Lexer qualified as Lexer
 
-import Tricorder.FieldMask (Field (..), FieldMask (..), fieldsFlagName)
+import Tricorder.API.FieldMask (Field (..), FieldMask (..), fieldsFlagName)
 
 
 parser :: Mod OptionFields FieldMask -> Parser (Maybe FieldMask)
