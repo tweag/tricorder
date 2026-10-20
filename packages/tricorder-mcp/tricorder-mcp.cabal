@@ -69,7 +69,7 @@ library tricorder-mcp-internal
     , effectful-plugin ==2.2.*
     , mcp-server ==0.2.*
     , process ==1.6.*
-    , tricorder-types ==0.4.*
+    , tricorder-types ==0.5.*
     , typed-process ==0.2.*
     , unix ==2.8.*
   mixins:

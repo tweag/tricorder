@@ -206,7 +206,7 @@ library tricorder-internal
     , text ==2.1.*
     , time >=1.12 && <1.17
     , time-units ==1.0.*
-    , tricorder-types ==0.4.*
+    , tricorder-types ==0.5.*
     , vty >=6.5 && <6.7
     , vty-crossplatform ==0.5.*
     , yaml ==0.11.*
@@ -380,7 +380,7 @@ test-suite tricorder-test
     , time >=1.12 && <1.17
     , time-units ==1.0.*
     , tricorder-internal
-    , tricorder-types ==0.4.*
+    , tricorder-types ==0.5.*
     , typed-process ==0.2.*
     , unagi-chan ==0.4.*
     , unix ==2.8.*
