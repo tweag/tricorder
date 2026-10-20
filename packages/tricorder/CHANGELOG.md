@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.6.0.0] - 2026-10-20
+
 ### Added
 
 - `tricorder test suites [TEST-TARGET...]` shows test suites, their test cases
