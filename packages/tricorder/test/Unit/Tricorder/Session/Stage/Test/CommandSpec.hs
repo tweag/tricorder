@@ -61,7 +61,7 @@ testRenderTest =
   where
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
-        (render (TestSession template [] def) mMemoryLimit target).command.getRenderedCommand
+        (render (TestSession template [] def def) mMemoryLimit target).command.getRenderedCommand
     testTarget = TestTarget (Target.parse "test:foo")
     oneByte = ByteSize 1 B
 

@@ -20,6 +20,9 @@ import Tricorder.Session.Target (Target)
 import Tricorder.Session.TestTarget (TestTarget (..))
 import Tricorder.Session.Util (displayList, indent)
 
+import Tricorder.Daemon.Ghci.Config qualified as Ghci (Config)
+import Tricorder.Daemon.Ghci.Config qualified as Ghci.Config
+import Tricorder.Daemon.Ghci.Config.File qualified as Ghci.Config.File
 import Tricorder.Session.CommandTemplate qualified as CommandTemplate
 import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.TestTarget qualified as TestTarget
@@ -29,6 +32,7 @@ data TestSession = TestSession
     { commandTemplate :: CommandTemplate 'Stage.Test
     , targets :: [TestTarget]
     , options :: ResolvedTestOptions
+    , ghci :: Ghci.Config
     }
     deriving stock (Eq)
 
@@ -39,6 +43,7 @@ instance Default TestSession where
             { commandTemplate = def
             , targets = []
             , options = def
+            , ghci = def
             }
 
 
@@ -71,6 +76,7 @@ resolve repl buildTargets cfg =
             ResolvedTestOptions
                 { outputMode = fromMaybe detectedOutputMode cfg.test.options.outputMode
                 }
+        , ghci = maybe def Ghci.Config.File.toConfig cfg.test.commandConfig.ghci
         }
   where
     template = fromMaybe (defaultTestTemplate repl) cfg.test.commandConfig.commandTemplate
@@ -100,6 +106,8 @@ display cfg =
         , indent $ displayList TestTarget.render cfg.targets
         , "Options:"
         , indent $ showTestOptions cfg.options
+        , "GHCi config:"
+        , indent $ Ghci.Config.display cfg.ghci
         ]
   where
     showTestOptions opts =

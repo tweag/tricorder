@@ -15,7 +15,6 @@ import Atelier.Effects.FileSystem (FileSystem, readFileBs)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
-import Data.Default (def)
 import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Traversable (for)
 import Effectful (Effect)
@@ -31,12 +30,11 @@ import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.CommandTemplate (CommandTemplate)
+import Tricorder.Session.Stage.Eval.Session (EvalSession (..))
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci (LoadedModule)
 import Tricorder.Daemon.Ghci.Process qualified as Ghci.Process
-import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
 import Tricorder.Session.Target qualified as Target
 
@@ -45,7 +43,7 @@ data EvalCommentRunner :: Effect where
     -- | Scan all loaded source files for eval comments and evaluate them, each
     -- in a fresh GHCi session started in that file's module context.
     EvaluateComments
-        :: CommandTemplate 'Stage.Eval
+        :: EvalSession
         -> NonEmpty (Ghci.LoadedModule, NonEmpty Eval.Comment)
         -> EvalCommentRunner m (NonEmpty Eval.Evaluation)
     -- | Extract eval comments from provided source files. Returns a map of all
@@ -83,9 +81,9 @@ run act = do
                         case Eval.findComments $ decodeUtf8Lenient bs of
                             [] -> []
                             x : xs -> [(lm, x :| xs)]
-        EvaluateComments template moduleComments -> do
+        EvaluateComments session moduleComments -> do
             fmap sconcat $ for moduleComments \(lm, comments) ->
-                runFileEvals template lm.relPath lm.moduleName comments
+                runFileEvals session lm.relPath lm.moduleName comments
 
 
 -- ---------------------------------------------------------------------------
@@ -107,22 +105,22 @@ runFileEvals
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => CommandTemplate 'Stage.Eval
+    => EvalSession
     -> FilePath
     -- ^ Relative path to the source file (stored in results).
     -> Text
     -> NonEmpty Eval.Comment
     -> Eff es (NonEmpty Eval.Evaluation)
-runFileEvals template relPath moduleName comments = do
+runFileEvals session relPath moduleName comments = do
     ProjectRoot projectRoot <- ask
     let noProgress = \_ -> pure ()
         noSetup = \_ -> pure ()
         wrapForGhci expr
             | T.elem '\n' expr = ":{" <> "\n" <> expr <> "\n" <> ":}"
             | otherwise = expr
-        command = EvalCommand.render template [Target.Bare moduleName]
+        command = EvalCommand.render session.commandTemplate [Target.Bare moduleName]
     sessionResult <- trySync
-        $ Ghci.Process.with def command projectRoot noProgress noSetup \ghci _ -> do
+        $ Ghci.Process.with session.ghci command projectRoot noProgress noSetup \ghci _ -> do
             _ <- Ghci.Process.exec ghci (":m *" <> moduleName) noProgress
             for comments \comment -> do
                 outputResult <- trySync $ Ghci.Process.exec ghci (wrapForGhci comment.expression) noProgress

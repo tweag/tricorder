@@ -84,6 +84,17 @@ session:
     could add can already be written directly into a custom `command_template`,
     so once you supply one, `extra_auto_arguments` is ignored (Tricorder
     logs a warning if you set both).
+  - `ghci`: Configuration options for the GHCi instance.
+
+    - `startup_timeout_ms`: Duration in milliseconds to wait for GHCi to start
+      up.
+    - `shutdown_timeout_ms`: Duration in milliseconds to wait for GHCi to shut
+      down when restarting GHCi before forcefully shutting it down.
+    - `extra_setup_commands`: Extra GHCi commands to pass to GHCi on startup.
+      This can be any GHCi command, even `:quit`, which would cause GHCi to
+      immediately exit. It is very possible to change the GHCi session in such
+      a way that breaks Tricorder's GHCi output parsing, so take heed and try
+      to limit the use of this option if you can help it.
 
   If `test.command_template` or `eval.command_template` is set to a custom
   template with no `{target}` placeholder, Tricorder logs a warning. Both
@@ -109,7 +120,7 @@ session:
 - `test.output_mode`: Force Tricorder to treat the command in
   `command_template` as either a GHCi instance with `ReplMode` or as a regular
   command emitting the test results to `stdout` with `StdoutMode`. Defaults to
-  `ReplMode`.
+  `ReplMode`. For `StdoutMode`, the `test.ghci` option set is ignored.
 
 - `watch_dirs`: Directories to watch. When a file is changed in a watched
   directory, Tricorder will attempt to rebuild all targets. If not specified,

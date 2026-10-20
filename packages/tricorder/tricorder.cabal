@@ -68,6 +68,7 @@ library tricorder-internal
       Tricorder.Daemon.Dispatch
       Tricorder.Daemon.EvalCommentRunner
       Tricorder.Daemon.Ghci.Config
+      Tricorder.Daemon.Ghci.Config.File
       Tricorder.Daemon.Ghci.Controls
       Tricorder.Daemon.Ghci.Diagnostic
       Tricorder.Daemon.Ghci.InterruptDecision
@@ -310,6 +311,7 @@ test-suite tricorder-test
       Unit.Tricorder.Session.ReplSpec
       Unit.Tricorder.Session.Stage.Build.CommandSpec
       Unit.Tricorder.Session.Stage.Eval.CommandSpec
+      Unit.Tricorder.Session.Stage.Eval.SessionSpec
       Unit.Tricorder.Session.Stage.Test.CommandSpec
       Unit.Tricorder.Session.TargetSpec
       Unit.Tricorder.Session.TestTargetSpec

@@ -314,7 +314,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
                 <> renderedTarget
                 <> " command:\n"
                 <> show testCommand.command
-        finishedSuite <- TestRunner.runTestSuite publishProgress testTimeout testCommand
+        finishedSuite <- TestRunner.runTestSuite testSession publishProgress testTimeout testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->
                 Log.warn $ "Test suite " <> renderedTarget <> "failed: " <> message

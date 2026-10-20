@@ -21,11 +21,7 @@ import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.CommandConfig (CommandConfig (..))
-import Tricorder.Session.CommandTemplate
-    ( CommandTemplate (..)
-    , hasPlaceholder
-    , targetPlaceholder
-    )
+import Tricorder.Session.CommandTemplate (hasPlaceholder, targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 import Tricorder.Session.Hooks (Hooks)
@@ -33,6 +29,7 @@ import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Tricorder.Session.Repl (resolveRepl)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Eval.Session (EvalSession)
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.Target (definesCustomPrelude)
@@ -48,10 +45,11 @@ import Tricorder.Session.WatchExclusionPatterns
 import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Config qualified as Tricorder
 import Tricorder.Session.Hooks qualified as Hooks
-import Tricorder.Session.Stage qualified as Stage
+import Tricorder.Session.Stage.Build.Session qualified as Build.Session
 import Tricorder.Session.Stage.Build.Session qualified as BuildSession
-import Tricorder.Session.Stage.Eval.Command qualified as EvalCommand
+import Tricorder.Session.Stage.Eval.Session qualified as Eval.Session
 import Tricorder.Session.Stage.Eval.Session qualified as EvalSession
+import Tricorder.Session.Stage.Test.Session qualified as Test.Session
 import Tricorder.Session.Stage.Test.Session qualified as TestSession
 import Tricorder.Session.WatchDirs qualified as WatchDirs
 
@@ -59,7 +57,7 @@ import Tricorder.Session.WatchDirs qualified as WatchDirs
 data Session = Session
     { buildSession :: BuildSession
     , testSession :: TestSession
-    , evalSession :: CommandTemplate 'Stage.Eval
+    , evalSession :: EvalSession
     , testMemoryLimit :: Maybe ByteSize
     , watchDirs :: WatchDirs
     , watchExclusionPatterns :: WatchExclusionPatterns
@@ -139,9 +137,9 @@ mkSession cfgFile = do
             Right pts -> pure pts
 
     repl <- resolveRepl projectRoot
-    buildSession <- BuildSession.resolve cfgFile repl projectFiles
-    let testSession = TestSession.resolve repl buildSession.targets cfgFile
-        evalSession = EvalCommand.resolve repl cfgFile
+    buildSession <- Build.Session.resolve cfgFile repl projectFiles
+    let testSession = Test.Session.resolve repl buildSession.targets cfgFile
+        evalSession = Eval.Session.resolve repl cfgFile
         effectiveTargets = buildSession.targets <> (getTestTarget <$> testSession.targets)
         watchDirs = WatchDirs.resolve projectRoot projectFiles cfgFile effectiveTargets
 

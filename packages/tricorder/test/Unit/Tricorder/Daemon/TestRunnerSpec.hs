@@ -107,7 +107,7 @@ testScripted =
     [ testCase "returns scripted TestRun" do
         result <-
             runScripted [Right passingRun]
-                $ runTestSuite noProgress testTimeout
+                $ runTestSuite def noProgress testTimeout
                 $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:foo"
@@ -115,7 +115,7 @@ testScripted =
     , testCase "ignores the target name argument" do
         result <-
             runScripted [Right failingRun]
-                $ runTestSuite noProgress testTimeout
+                $ runTestSuite def noProgress testTimeout
                 $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:anything"
@@ -124,7 +124,7 @@ testScripted =
         result <-
             runScripted [Left (toException boom)]
                 $ try @ErrorCall
-                $ runTestSuite noProgress testTimeout
+                $ runTestSuite def noProgress testTimeout
                 $ mkResolved
                 $ RenderedCommand
                 $ "cabal repl test:foo"
@@ -134,12 +134,12 @@ testScripted =
         [ testCase "consumes results in order across multiple calls" do
             (a, b) <- runScripted [Right passingRun, Right failingRun] do
                 a <-
-                    runTestSuite noProgress testTimeout
+                    runTestSuite def noProgress testTimeout
                         $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:foo"
                 b <-
-                    runTestSuite noProgress testTimeout
+                    runTestSuite def noProgress testTimeout
                         $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:bar"
@@ -150,12 +150,12 @@ testScripted =
             result <- runScripted [Left (toException boom), Right passingRun] do
                 r1 <-
                     try @ErrorCall
-                        $ runTestSuite noProgress testTimeout
+                        $ runTestSuite def noProgress testTimeout
                         $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:foo"
                 r2 <-
-                    runTestSuite noProgress testTimeout
+                    runTestSuite def noProgress testTimeout
                         $ mkResolved
                         $ RenderedCommand
                         $ "cabal repl test:bar"

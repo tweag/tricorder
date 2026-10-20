@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Option to configure how long Tricorder will wait for GHCi to start up and
+  shut down.
+- Option to set initial commands to pass to GHCi on startup.
+
 ## [0.6.0.0] - 2026-10-20
 
 ### Added

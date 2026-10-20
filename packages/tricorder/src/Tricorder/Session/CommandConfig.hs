@@ -6,6 +6,8 @@ import Data.Default (Default (..))
 
 import Tricorder.Session.Stage (Stage)
 
+import Tricorder.Daemon.Ghci.Config.File qualified as Ghci.Config (File)
+
 
 -- | Configuration shared by the @build@, @test@, and @eval@ sections: an
 -- optional command template (falls back to Tricorder's automatically
@@ -23,6 +25,8 @@ data CommandConfig (stage :: Stage) = CommandConfig
     -- ^ Arguments to pass to the Tricorder-detected command for the given
     -- stage. Mutually exclusive with 'commandTemplate'. If both
     -- 'commandTemplate' and 'extraAutoArguments' are set, a warning is logged.
+    , ghci :: Maybe Ghci.Config.File
+    -- ^ Configuration pertaining to GHCi for the given stage.
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via QuietSnake (CommandConfig stage)
@@ -34,4 +38,5 @@ instance Default (CommandConfig stage) where
             { commandTemplate = Nothing
             , targets = Nothing
             , extraAutoArguments = []
+            , ghci = Nothing
             }
