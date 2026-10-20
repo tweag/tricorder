@@ -118,7 +118,7 @@ test-suite tricorder-types-test
       tasty-discover:tasty-discover
   build-depends:
       aeson >=2.2 && <2.4
-    , atelier-core ==0.7.*
+    , atelier-core ==0.8.*
     , atelier-prelude ==0.4.*
     , base >=4.18 && <4.23
     , tasty ==1.5.*

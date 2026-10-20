@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.8.0.0] - 2026-10-20
+
 ### Added
 
 - `Atelier.Types.JSON.StringLiteral`: helper `newtype` for parsing and encoding
