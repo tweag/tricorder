@@ -58,7 +58,7 @@ import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Config (OutputMode (..))
-import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), TestSession (..))
+import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), Session (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
@@ -72,7 +72,7 @@ data TestRunner :: Effect where
     -- | Run a single test suite in a short-lived @cabal repl@ process and
     -- return the captured output and detected outcome.
     RunTestSuite
-        :: TestSession
+        :: Session
         -> (Test.Suite -> m ())
         -- ^ Handler for test run progress
         -> TestTimeout
@@ -189,7 +189,7 @@ runTestSuiteWithGHCi
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => TestSession
+    => Session
     -> (Ghci.Loading -> Eff es ())
     -> TestTimeout
     -> RenderedCommand 'Test

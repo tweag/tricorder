@@ -39,9 +39,7 @@ import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
-import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Waiters (Waiters)
 
@@ -56,8 +54,11 @@ import Tricorder.Daemon.Ghci.Session qualified as Ghci (Session)
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Session.Hook qualified as Hook
 import Tricorder.Session.Hooks qualified as Hooks
-import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
-import Tricorder.Session.Stage.Test.Command qualified as TestCommand
+import Tricorder.Session.Stage.Build.Command qualified as Build.Command
+import Tricorder.Session.Stage.Build.Session qualified as Build.Session
+import Tricorder.Session.Stage.Test.Command qualified as Test.Command
+import Tricorder.Session.Stage.Test.Session qualified as Test (Session)
+import Tricorder.Session.Stage.Test.Session qualified as Test.Session
 import Tricorder.Session.TestTarget qualified as TestTarget
 import Tricorder.Waiters qualified as Waiters
 
@@ -124,7 +125,7 @@ runBuilder buildId session = State.evalState emptyBuilderState do
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hook.run
     startupError <- fmap (either id absurd)
-        $ Pub.map (Build.Building session.testSession.targets)
+        $ Pub.map (Build.Building $ Test.Session.targets session.testSession)
         $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
             whenJust (session.hooks.start >>= (.after)) Hook.run
             processPostBuild session $ Right initialLoad
@@ -146,7 +147,10 @@ runBuilder buildId session = State.evalState emptyBuilderState do
 
     Pub.publish $ Build.Failed $ toText $ displayException startupError
   where
-    buildCommand = BuildCommand.render session.buildSession.commandTemplate session.buildSession.targets
+    buildCommand =
+        Build.Command.render
+            (Build.Session.commandTemplate session.buildSession)
+            session.buildSession.targets
 
 
 -- | Handles source changes as they come, determining whether the source change
@@ -293,7 +297,7 @@ runTestsForTargets
        , Pub Test.Suites :> es
        , TestRunner :> es
        )
-    => TestSession
+    => Test.Session
     -> Maybe ByteSize
     -> TestTimeout
     -> Eff es Test.Suites
@@ -305,7 +309,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
     initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testSession.targets
     go target = do
         Log.info $ "Running tests: " <> renderedTarget
-        let testCommand = TestCommand.render testSession memoryLimit target
+        let testCommand = Test.Command.render testSession memoryLimit target
             publishProgress suite = do
                 updated <- State.state $ dup . Map.insert target suite
                 Pub.publish $ Test.Suites updated

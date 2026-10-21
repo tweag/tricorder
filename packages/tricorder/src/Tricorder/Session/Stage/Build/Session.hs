@@ -1,5 +1,5 @@
 module Tricorder.Session.Stage.Build.Session
-    ( BuildSession (..)
+    ( Session (..)
     , resolve
     , display
     )
@@ -32,7 +32,7 @@ import Tricorder.Session.Stage.Build.Command qualified as BuildCommand
 import Tricorder.Session.Target qualified as Target
 
 
-data BuildSession = BuildSession
+data Session = Session
     { commandTemplate :: CommandTemplate 'Stage.Build
     , targets :: [Target]
     , ghci :: Ghci.Config
@@ -40,18 +40,18 @@ data BuildSession = BuildSession
     deriving stock (Eq)
 
 
-instance Default BuildSession where
-    def = BuildSession def [] def
+instance Default Session where
+    def = Session def [] def
 
 
 resolve
     :: (FileSystem :> es, Reader ProjectRoot :> es)
-    => Config -> Repl -> [CabalFile] -> Eff es BuildSession
+    => Config -> Repl -> [CabalFile] -> Eff es Session
 resolve config repl projectFiles = do
     projectRoot <- Reader.ask
     (commandTemplate, targets) <- BuildCommand.resolve projectRoot config repl effectiveTargets
     pure
-        $ BuildSession
+        $ Session
             { commandTemplate
             , targets
             , ghci = maybe def Ghci.Config.File.toConfig config.build.ghci
@@ -61,7 +61,7 @@ resolve config repl projectFiles = do
     effectiveTargets = Target.resolve projectFiles rawBuildTargets
 
 
-display :: BuildSession -> Text
+display :: Session -> Text
 display cfg =
     T.intercalate
         "\n"

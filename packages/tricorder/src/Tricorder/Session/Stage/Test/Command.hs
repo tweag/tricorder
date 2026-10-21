@@ -9,7 +9,7 @@ import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage (Stage (..))
-import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), TestSession (..))
+import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), Session (..))
 import Tricorder.Session.TestTarget (TestTarget (..))
 
 import Tricorder.Build.ByteSize qualified as ByteSize
@@ -22,7 +22,7 @@ data RenderedTestCommand = RenderedTestCommand
     }
 
 
-render :: TestSession -> Maybe ByteSize -> TestTarget -> RenderedTestCommand
+render :: Session -> Maybe ByteSize -> TestTarget -> RenderedTestCommand
 render testSession mMemoryLimit target =
     RenderedTestCommand
         { command =

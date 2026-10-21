@@ -1,5 +1,5 @@
 module Tricorder.Session.Stage.Eval.Session
-    ( EvalSession (..)
+    ( Session (..)
     , resolve
     , display
     )
@@ -23,20 +23,20 @@ import Tricorder.Session.CommandTemplate qualified as CommandTemplate
 import Tricorder.Session.Stage qualified as Stage
 
 
-data EvalSession = EvalSession
+data Session = Session
     { commandTemplate :: CommandTemplate 'Stage.Eval
     , ghci :: Ghci.Config
     }
     deriving stock (Eq)
 
 
-instance Default EvalSession where
-    def = EvalSession def def
+instance Default Session where
+    def = Session def def
 
 
-resolve :: Repl -> Config -> EvalSession
+resolve :: Repl -> Config -> Session
 resolve repl cfg =
-    EvalSession
+    Session
         { commandTemplate =
             CommandTemplate
                 { repl
@@ -48,7 +48,7 @@ resolve repl cfg =
         }
 
 
-display :: EvalSession -> Text
+display :: Session -> Text
 display cfg =
     T.intercalate
         "\n"

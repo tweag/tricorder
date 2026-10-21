@@ -9,7 +9,7 @@ import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
 import Tricorder.Session.Stage (Stage (..))
-import Tricorder.Session.Stage.Eval.Session (EvalSession (..), resolve)
+import Tricorder.Session.Stage.Eval.Session (Session (..), resolve)
 
 import Tricorder.Session.CommandConfig qualified as CommandConfig
 import Tricorder.Session.Config qualified as Config

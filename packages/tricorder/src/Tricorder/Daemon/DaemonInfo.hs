@@ -15,9 +15,10 @@ import Atelier.Effects.Input qualified as Input
 
 import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
 import Tricorder.Session (Session (..))
-import Tricorder.Session.Stage.Build.Session (BuildSession (..))
 import Tricorder.Session.Target (Target)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
+
+import Tricorder.Session.Stage.Build.Session qualified as Build.Session
 
 
 data DaemonInfo = DaemonInfo
@@ -44,7 +45,7 @@ load = do
     LogPath logFile <- ask
     pure
         $ DaemonInfo
-            { targets = session.buildSession.targets
+            { targets = Build.Session.targets session.buildSession
             , watchDirs = map (makeRelative projectRoot) session.watchDirs.getWatchDirs
             , sockPath
             , logFile

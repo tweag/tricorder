@@ -28,10 +28,7 @@ import Tricorder.Session.Hooks (Hooks)
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Tricorder.Session.Repl (resolveRepl)
 import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
-import Tricorder.Session.Stage.Build.Session (BuildSession (..))
-import Tricorder.Session.Stage.Eval.Session (EvalSession)
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
-import Tricorder.Session.Stage.Test.Session (TestSession (..))
 import Tricorder.Session.Target (definesCustomPrelude)
 import Tricorder.Session.TestTarget (getTestTarget)
 import Tricorder.Session.TestTimeout (TestTimeout (..))
@@ -45,19 +42,19 @@ import Tricorder.Session.WatchExclusionPatterns
 import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Config qualified as Tricorder
 import Tricorder.Session.Hooks qualified as Hooks
+import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
 import Tricorder.Session.Stage.Build.Session qualified as Build.Session
-import Tricorder.Session.Stage.Build.Session qualified as BuildSession
+import Tricorder.Session.Stage.Eval.Session qualified as Eval (Session)
 import Tricorder.Session.Stage.Eval.Session qualified as Eval.Session
-import Tricorder.Session.Stage.Eval.Session qualified as EvalSession
+import Tricorder.Session.Stage.Test.Session qualified as Test (Session)
 import Tricorder.Session.Stage.Test.Session qualified as Test.Session
-import Tricorder.Session.Stage.Test.Session qualified as TestSession
 import Tricorder.Session.WatchDirs qualified as WatchDirs
 
 
 data Session = Session
-    { buildSession :: BuildSession
-    , testSession :: TestSession
-    , evalSession :: EvalSession
+    { buildSession :: Build.Session
+    , testSession :: Test.Session
+    , evalSession :: Eval.Session
     , testMemoryLimit :: Maybe ByteSize
     , watchDirs :: WatchDirs
     , watchExclusionPatterns :: WatchExclusionPatterns
@@ -235,11 +232,11 @@ display session =
         "\n"
         [ "Loaded session"
         , "Build configuration:"
-        , indent $ BuildSession.display session.buildSession
+        , indent $ Build.Session.display session.buildSession
         , "Test configuration:"
-        , indent $ TestSession.display session.testSession
+        , indent $ Test.Session.display session.testSession
         , "Eval comments configuration:"
-        , indent $ EvalSession.display session.evalSession
+        , indent $ Eval.Session.display session.evalSession
         , "Watch dirs:"
         , indent $ displayList toText session.watchDirs.getWatchDirs
         , "Watch exclusion patterns:"

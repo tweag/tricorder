@@ -1,5 +1,5 @@
 module Tricorder.Session.Stage.Test.Session
-    ( TestSession (..)
+    ( Session (..)
     , ResolvedTestOptions (..)
     , resolve
     , defaultTestTemplate
@@ -28,7 +28,7 @@ import Tricorder.Session.Stage qualified as Stage
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
-data TestSession = TestSession
+data Session = Session
     { commandTemplate :: CommandTemplate 'Stage.Test
     , targets :: [TestTarget]
     , options :: ResolvedTestOptions
@@ -37,9 +37,9 @@ data TestSession = TestSession
     deriving stock (Eq)
 
 
-instance Default TestSession where
+instance Default Session where
     def =
-        TestSession
+        Session
             { commandTemplate = def
             , targets = []
             , options = def
@@ -57,9 +57,9 @@ instance Default ResolvedTestOptions where
     def = ResolvedTestOptions ReplOutput
 
 
-resolve :: Repl -> [Target] -> Config -> TestSession
+resolve :: Repl -> [Target] -> Config -> Session
 resolve repl buildTargets cfg =
-    TestSession
+    Session
         { commandTemplate =
             CommandTemplate
                 { repl
@@ -96,7 +96,7 @@ defaultTestTemplate = \case
     Unknown -> "cabal repl {target}"
 
 
-display :: TestSession -> Text
+display :: Session -> Text
 display cfg =
     T.intercalate
         "\n"

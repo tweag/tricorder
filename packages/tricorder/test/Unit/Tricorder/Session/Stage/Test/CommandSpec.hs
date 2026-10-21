@@ -15,7 +15,7 @@ import Tricorder.Session.Stage.Test.Command
     , render
     )
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
-import Tricorder.Session.Stage.Test.Session (TestSession (..), resolve)
+import Tricorder.Session.Stage.Test.Session (Session (..), resolve)
 import Tricorder.Session.TestTarget (TestTarget (..))
 
 import Tricorder.Session.CommandConfig qualified as CommandConfig
@@ -61,7 +61,7 @@ testRenderTest =
   where
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
-        (render (TestSession template [] def def) mMemoryLimit target).command.getRenderedCommand
+        (render (Session template [] def def) mMemoryLimit target).command.getRenderedCommand
     testTarget = TestTarget (Target.parse "test:foo")
     oneByte = ByteSize 1 B
 

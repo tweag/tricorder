@@ -30,7 +30,7 @@ import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Runtime (ProjectRoot (..))
-import Tricorder.Session.Stage.Eval.Session (EvalSession (..))
+import Tricorder.Session.Stage.Eval.Session (Session (..))
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci (LoadedModule)
@@ -43,7 +43,7 @@ data EvalCommentRunner :: Effect where
     -- | Scan all loaded source files for eval comments and evaluate them, each
     -- in a fresh GHCi session started in that file's module context.
     EvaluateComments
-        :: EvalSession
+        :: Session
         -> NonEmpty (Ghci.LoadedModule, NonEmpty Eval.Comment)
         -> EvalCommentRunner m (NonEmpty Eval.Evaluation)
     -- | Extract eval comments from provided source files. Returns a map of all
@@ -105,7 +105,7 @@ runFileEvals
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => EvalSession
+    => Session
     -> FilePath
     -- ^ Relative path to the source file (stored in results).
     -> Text

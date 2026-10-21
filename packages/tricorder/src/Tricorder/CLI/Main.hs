@@ -31,7 +31,7 @@ import Tricorder.Config (asInput)
 import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
-import Tricorder.Session.Stage.Build.Session (BuildSession (..))
+import Tricorder.Session.Stage.Build.Session (Session (..))
 
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.UI.Keys qualified as Keys
@@ -89,6 +89,9 @@ main =
                     exitFailure
                 Right session ->
                     Input.withConst session
+                        -- TODO: Make whatever uses this 'Repl' value use it
+                        -- more sensibly. Arbitrarily using the build stage's
+                        -- 'Repl' doesn't seem right.
                         . Input.withConst session.buildSession.commandTemplate.repl
                         . GhcPkg.runGhcPkgIO
                         . PackageStore.run
