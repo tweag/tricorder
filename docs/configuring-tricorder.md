@@ -87,14 +87,16 @@ session:
   - `ghci`: Configuration options for the GHCi instance.
 
     - `startup_timeout_ms`: Duration in milliseconds to wait for GHCi to start
-      up.
+      up. Defaults to 60 seconds.
     - `shutdown_timeout_ms`: Duration in milliseconds to wait for GHCi to shut
-      down when restarting GHCi before forcefully shutting it down.
+      down when restarting GHCi before forcefully shutting it down. Defaults to
+      5 seconds.
     - `extra_setup_commands`: Extra GHCi commands to pass to GHCi on startup.
       This can be any GHCi command, even `:quit`, which would cause GHCi to
       immediately exit. It is very possible to change the GHCi session in such
       a way that breaks Tricorder's GHCi output parsing, so take heed and try
-      to limit the use of this option if you can help it.
+      to limit the use of this option if you can help it. No extra commands are
+      passed by default.
 
   If `test.command_template` or `eval.command_template` is set to a custom
   template with no `{target}` placeholder, Tricorder logs a warning. Both
