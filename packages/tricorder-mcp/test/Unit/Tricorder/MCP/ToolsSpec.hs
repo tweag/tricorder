@@ -26,17 +26,17 @@ test_Tools =
         [ testGroup
             "toolCommand"
             [ testCase "starts with just the directory"
-                $ toolCommand (Start StartOptions {projectRoot = Nothing})
+                $ toolCommand (StartDaemon StartOptions {projectRoot = Nothing})
                     @?= (Nothing, ["start"])
             , testCase "omits --force when unset"
-                $ toolCommand (Stop (StopOptions {force = Nothing, projectRoot = Nothing}))
+                $ toolCommand (StopDaemon (StopOptions {force = Nothing, projectRoot = Nothing}))
                     @?= (Nothing, ["stop"])
             , testCase "omits --force when explicitly false"
-                $ toolCommand (Restart (RestartOptions {force = Just False, projectRoot = Nothing}))
+                $ toolCommand (RestartDaemon (RestartOptions {force = Just False, projectRoot = Nothing}))
                     @?= (Nothing, ["restart"])
             , testCase "includes --force when true"
                 $ toolCommand
-                    ( Stop
+                    ( StopDaemon
                         ( StopOptions
                             { force = Just True
                             , projectRoot = Nothing
@@ -79,9 +79,9 @@ test_Tools =
                 reportsBuildOutcome (TestResults (TestResultsOptions Nothing Nothing Nothing)) @?= True
                 reportsBuildOutcome (EvalComments (EvalCommentsOptions Nothing Nothing)) @?= True
             , testCase "is false for commands whose exit code reflects process failure" do
-                reportsBuildOutcome (Start $ StartOptions Nothing) @?= False
-                reportsBuildOutcome (Stop $ StopOptions Nothing Nothing) @?= False
-                reportsBuildOutcome (Restart $ RestartOptions Nothing Nothing) @?= False
+                reportsBuildOutcome (StartDaemon $ StartOptions Nothing) @?= False
+                reportsBuildOutcome (StopDaemon $ StopOptions Nothing Nothing) @?= False
+                reportsBuildOutcome (RestartDaemon $ RestartOptions Nothing Nothing) @?= False
                 reportsBuildOutcome (Source $ SourceOptions [] Nothing) @?= False
                 reportsBuildOutcome (LogPath $ LogPathOptions Nothing) @?= False
                 reportsBuildOutcome (LogContents $ LogContentsOptions Nothing) @?= False

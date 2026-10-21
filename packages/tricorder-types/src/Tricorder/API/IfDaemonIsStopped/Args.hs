@@ -8,7 +8,7 @@ import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped (..), startDaemonFlagN
 parser :: Parser IfDaemonIsStopped
 parser =
     flag
-        Fail
+        DoNothing
         StartDaemon
         $ long startDaemonFlagName
             <> short 'd'

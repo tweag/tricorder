@@ -7,7 +7,7 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
-import Atelier.Effects.Input (Input, input)
+import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Process (Process)
@@ -19,23 +19,9 @@ import Tricorder.API (Command (..), LogMode (..))
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
-import Data.Text qualified as T
-import Tricorder.API.Daemon.Command qualified as Daemon.Command
 
-import Tricorder.CLI.Daemon
-    ( restartDaemon
-    , startDaemon
-    , stopDaemon
-    , waitForDaemon
-    )
-import Tricorder.CLI.Operations
-    ( showDaemonInfo
-    , showEvalComments
-    , showLog
-    , showSource
-    , showStatus
-    , showTests
-    )
+import Tricorder.CLI.Daemon (startDaemon, waitForDaemon)
+import Tricorder.CLI.Operations (showEvalComments, showLog, showSource, showStatus, showTests)
 import Tricorder.CLI.UI (viewUi)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
@@ -49,6 +35,7 @@ import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
+import Tricorder.CLI.App.Daemon qualified as Daemon
 import Tricorder.CLI.App.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 
@@ -85,29 +72,6 @@ run
     => Eff es ()
 run =
     ask >>= \case
-        Start -> do
-            running <- isDaemonRunning
-            if running
-                then
-                    Console.putStrLn "Daemon already running."
-                else do
-                    startDaemon
-                    ready <- waitForDaemon
-                    if ready
-                        then
-                            Console.putStrLn "Daemon started."
-                        else
-                            Console.putStrLn "Daemon started, but the socket is not responding yet."
-        Stop force -> do
-            running <- isDaemonRunning
-            when running
-                $ stopDaemon force >>= \case
-                    Left reasons ->
-                        Console.putTextLn
-                            $ T.intercalate "\n"
-                            $ "Was unable to stop the daemon:" : reasons
-                    Right result -> do
-                        Console.putTextLn result
         Status opts -> do
             running <- isDaemonRunning
             if not running
@@ -118,11 +82,8 @@ run =
         TestResults opts -> do
             running <- isDaemonRunning
             if not running
-                then
-                    Console.putStrLn "Stopped."
-                else
-                    showTests opts
-        Test testCmd -> Test.run testCmd
+                then Console.putStrLn "Stopped."
+                else showTests opts
         Log logMode -> do
             logFile <- asks @LogPath (.getLogPath)
             case logMode of
@@ -136,16 +97,11 @@ run =
             viewUi
         Source opts -> do
             showSource opts
-        Restart force ->
-            restartDaemon force >>= \case
-                Just (Left reasons) -> traverse_ Console.putTextLn reasons
-                _ -> pass
         EvalComments opts -> do
             running <- isDaemonRunning
             unless running do
                 startDaemon
                 void waitForDaemon
             showEvalComments opts
-        Daemon (Daemon.Command.Info format) -> do
-            daemonInfo <- input
-            showDaemonInfo format daemonInfo
+        Test testCmd -> Test.run testCmd
+        Daemon cmd -> Daemon.run cmd

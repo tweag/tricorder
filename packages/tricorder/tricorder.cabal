@@ -40,6 +40,7 @@ library tricorder-internal
       Tricorder.Build.Test
       Tricorder.CLI.App
       Tricorder.CLI.App.CLIResponse
+      Tricorder.CLI.App.Daemon
       Tricorder.CLI.App.Output
       Tricorder.CLI.App.Test
       Tricorder.CLI.App.Test.Json

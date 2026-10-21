@@ -33,14 +33,15 @@ import Prelude hiding (force)
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
 import Tricorder.API qualified as CLI
+import Tricorder.API.Daemon.Command qualified as Daemon.Command
 import Tricorder.API.Force qualified as Force
 import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Tool
-    = Start StartOptions
-    | Stop StopOptions
-    | Restart RestartOptions
+    = StartDaemon StartOptions
+    | StopDaemon StopOptions
+    | RestartDaemon RestartOptions
     | Status StatusOptions
     | TestResults TestResultsOptions
     | Source SourceOptions
@@ -104,7 +105,7 @@ newtype LogContentsOptions = LogContentsOptions
 toolDescriptions :: [(String, DefinitionOptions)]
 toolDescriptions =
     [
-        ( "Start"
+        ( "StartDaemon"
         , defaultDefinitionOptions
             { optDescription = Just "Start the tricorder daemon (no-op if already running)."
             , optTitle = Just "Start daemon"
@@ -112,7 +113,7 @@ toolDescriptions =
             }
         )
     ,
-        ( "Stop"
+        ( "StopDaemon"
         , defaultDefinitionOptions
             { optDescription = Just "Stop the tricorder daemon."
             , optTitle = Just "Stop daemon"
@@ -123,7 +124,7 @@ toolDescriptions =
             }
         )
     ,
-        ( "Restart"
+        ( "RestartDaemon"
         , defaultDefinitionOptions
             { optDescription = Just "Restart the tricorder daemon."
             , optTitle = Just "Restart daemon"
@@ -214,13 +215,13 @@ toolDescriptions =
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
 toolCommand :: Tool -> (Maybe Text, [String])
 toolCommand = \case
-    Start (StartOptions {projectRoot}) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Start)
-    (Stop (StopOptions {force, projectRoot})) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Stop $ toForce force)
-    (Restart (RestartOptions {force, projectRoot})) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Restart $ toForce force)
-    (Status (StatusOptions {wait, verbose, expand, projectRoot})) ->
+    StartDaemon (StartOptions {projectRoot}) ->
+        (projectRoot, Daemon.Command.toArgs Daemon.Command.Start)
+    StopDaemon (StopOptions {force, projectRoot}) ->
+        (projectRoot, Daemon.Command.toArgs $ Daemon.Command.Stop $ toForce force)
+    RestartDaemon (RestartOptions {force, projectRoot}) ->
+        (projectRoot, Daemon.Command.toArgs $ Daemon.Command.Restart $ toForce force)
+    Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
         ( projectRoot
         , CLI.commandToArgs
             $ CLI.Status
@@ -231,7 +232,7 @@ toolCommand = \case
                     , expand
                     }
         )
-    (TestResults (TestResultsOptions {failed, wait, projectRoot})) ->
+    TestResults (TestResultsOptions {failed, wait, projectRoot}) ->
         ( projectRoot
         , CLI.commandToArgs
             $ CLI.TestResults
@@ -240,7 +241,7 @@ toolCommand = \case
                     , wait = toWaitMode wait
                     }
         )
-    (Source (SourceOptions {modules, projectRoot})) ->
+    Source (SourceOptions {modules, projectRoot}) ->
         ( projectRoot
         , CLI.commandToArgs
             $ CLI.Source
@@ -250,7 +251,7 @@ toolCommand = \case
                     , maxModules = Nothing
                     }
         )
-    (EvalComments (EvalCommentsOptions {wait, projectRoot})) ->
+    EvalComments (EvalCommentsOptions {wait, projectRoot}) ->
         ( projectRoot
         , CLI.commandToArgs
             $ CLI.EvalComments

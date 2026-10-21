@@ -36,6 +36,7 @@ library
   exposed-modules:
       Tricorder.API
       Tricorder.API.Args
+      Tricorder.API.Args.Deprecated
       Tricorder.API.Daemon.Args
       Tricorder.API.Daemon.Command
       Tricorder.API.FieldMask
@@ -43,6 +44,7 @@ library
       Tricorder.API.FieldMask.Projection
       Tricorder.API.FieldMask.Schema
       Tricorder.API.Force
+      Tricorder.API.Force.Args
       Tricorder.API.IfDaemonIsStopped
       Tricorder.API.IfDaemonIsStopped.Args
       Tricorder.API.OutputFormat

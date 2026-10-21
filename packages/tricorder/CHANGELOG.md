@@ -20,6 +20,17 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   Previously, a test suite that failed on startup printed
   the whole cabal/GHCi log on every `status` call.
   ([#585](https://github.com/tweag/tricorder/issues/585)) (Thanks @RyosukeDTomita!)
+- The following commands have been moved, and are invoked under a different name:
+  - `tricorder start`: `tricorder daemon start`
+  - `tricorder stop`: `tricorder daemon stop`
+  - `tricorder restart`: `tricorder daemon restart`
+    They otherwise function identically to before.
+
+### Deprecated
+
+- `tricorder start`: use `tricorder daemon start` instead.
+- `tricorder stop`: use `tricorder daemon stop` instead.
+- `tricorder restart`: use `tricorder daemon restart` instead.
 
 ## [0.6.0.0] - 2026-10-20
 

@@ -8,13 +8,14 @@ where
 
 data IfDaemonIsStopped
     = StartDaemon
-    | Fail
+    | DoNothing
+    deriving stock (Eq)
 
 
 toArgs :: IfDaemonIsStopped -> [String]
 toArgs = \case
     StartDaemon -> ["--" <> startDaemonFlagName]
-    Fail -> []
+    DoNothing -> []
 
 
 startDaemonFlagName :: String

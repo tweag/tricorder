@@ -126,7 +126,7 @@ ensureDaemonRunning
 ensureDaemonRunning ifDaemonIsStopped continue = do
     isRunning <- Client.isDaemonRunning
     case (ifDaemonIsStopped, isRunning) of
-        (IfDaemonIsStopped.Fail, False) -> pure $ Left "daemon is stopped"
+        (IfDaemonIsStopped.DoNothing, False) -> pure $ Left "daemon is stopped"
         (IfDaemonIsStopped.StartDaemon, False) -> do
             ensureDaemonIsRunning
             continue
