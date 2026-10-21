@@ -1,14 +1,14 @@
-module Tricorder.API.Daemon.Command (DaemonCommand (..), toArgs) where
+module Tricorder.API.Daemon.Command (Command (..), toArgs) where
 
 import Tricorder.API.OutputFormat (OutputFormat)
 
 import Tricorder.API.OutputFormat qualified as OutputFormat
 
 
-data DaemonCommand
+data Command
     = Info OutputFormat
 
 
-toArgs :: DaemonCommand -> [String]
+toArgs :: Command -> [String]
 toArgs = \case
     Info format -> "info" : OutputFormat.toArgs format

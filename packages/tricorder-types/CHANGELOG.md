@@ -12,6 +12,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Moved all argument parsing functionality from `tricorder` to
   `tricorder-types` for module locality.
 
+### Changed
+
+- `Tricorder.API.Daemon.Command.DaemonCommand` renamed to
+  `Tricorder.API.Daemon.Command.Command`.
+
 ## [0.5.0.0] - 2026-10-20
 
 ### Added

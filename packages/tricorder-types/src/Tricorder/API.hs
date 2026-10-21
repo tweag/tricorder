@@ -10,12 +10,12 @@ module Tricorder.API
     )
 where
 
-import Tricorder.API.Daemon.Command (DaemonCommand)
 import Tricorder.API.Force (Force)
 import Tricorder.API.OutputFormat (OutputFormat (..))
 import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
 
+import Tricorder.API.Daemon.Command qualified as Daemon (Command)
 import Tricorder.API.Daemon.Command qualified as Daemon.Command
 import Tricorder.API.Force qualified as Force
 import Tricorder.API.OutputFormat qualified as OutputFormat
@@ -73,7 +73,7 @@ data Command
     | Source SourceOptions
     | EvalComments EvalCommentsOptions
     | Restart Force
-    | Daemon DaemonCommand
+    | Daemon Daemon.Command
 
 
 -- | Render a 'Command' to the argument list the @tricorder@ CLI expects

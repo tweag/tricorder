@@ -2,14 +2,14 @@ module Tricorder.API.Daemon.Args (parser) where
 
 import Options.Applicative (Parser, command, hsubparser, info, progDesc)
 
-import Tricorder.API.Daemon.Command (DaemonCommand (..))
+import Tricorder.API.Daemon.Command (Command (..))
 
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 
 
-parser :: Parser DaemonCommand
+parser :: Parser Command
 parser = hsubparser (command "info" (info infoParser (progDesc "Information about the daemon")))
 
 
-infoParser :: Parser DaemonCommand
+infoParser :: Parser Command
 infoParser = Info <$> OutputFormat.Args.parser
