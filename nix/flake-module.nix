@@ -28,36 +28,55 @@ in
     let
       flake = config.legacyPackages.flakes.${config.ghc.names.default};
 
-      staticExeConfig = {
-        configureFlags = [
-          "--disable-executable-dynamic"
-        ]
-        ++ lib.optional pkgs.stdenv.hostPlatform.isLinux "--enable-executable-static";
-        libs =
-          lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-            pkgs.glibc.static
-            pkgs.pkgsStatic.numactl
-          ]
-          ++ [
-            pkgs.pkgsStatic.libffi
-            pkgs.pkgsStatic.gmp
-            pkgs.pkgsStatic.ncurses
-          ];
-      }
-      // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-        # libiconv is always present at /usr/lib/libiconv.2.dylib on every Mac,
-        # but GHC links against the Nix store copy.  Retarget it to the system
-        # path so the binary runs on non-Nix machines.  /usr/bin/{otool,
-        # install_name_tool} are macOS system tools available in Nix builds.
-        postInstall = ''
-          for bin in "$out"/bin/*; do
-            old=$(/usr/bin/otool -L "$bin" | awk 'NR>1 && /libiconv/ {print $1; exit}')
-            [ -n "$old" ] && /usr/bin/install_name_tool -change "$old" /usr/lib/libiconv.2.dylib "$bin"
-          done
-        '';
-      };
+      # On Linux, static executables are cross-compiled against musl libc, as
+      # glibc does not support being linked statically.  See
+      # https://input-output-hk.github.io/haskell.nix/tutorials/cross-compilation.html#static-executables-with-musl-libc
+      staticPkgs =
+        if pkgs.stdenv.hostPlatform.isLinux then
+          {
+            x86_64 = pkgs.pkgsCross.musl64;
+            aarch64 = pkgs.pkgsCross.aarch64-multiplatform-musl;
+          }
+          .${pkgs.stdenv.hostPlatform.parsed.cpu.name}
+        else
+          pkgs;
+
+      staticExeConfig =
+        if pkgs.stdenv.hostPlatform.isLinux then
+          {
+            configureFlags = [
+              "--disable-executable-dynamic"
+              "--disable-shared"
+              "--ghc-option=-optl=-pthread"
+              "--ghc-option=-optl=-static"
+              "--ghc-option=-optl=-L${staticPkgs.gmp6.override { withStatic = true; }}/lib"
+              # haskell.nix's musl overlay keeps libz.a in zlib's main output.
+              "--ghc-option=-optl=-L${staticPkgs.zlib}/lib"
+            ];
+          }
+        else
+          {
+            configureFlags = [ "--disable-executable-dynamic" ];
+            libs = [
+              pkgs.pkgsStatic.libffi
+              pkgs.pkgsStatic.gmp
+              pkgs.pkgsStatic.ncurses
+            ];
+            # libiconv is always present at /usr/lib/libiconv.2.dylib on every
+            # Mac, but GHC links against the Nix store copy.  Retarget it to the
+            # system path so the binary runs on non-Nix machines.
+            # /usr/bin/{otool,install_name_tool} are macOS system tools
+            # available in Nix builds.
+            postInstall = ''
+              for bin in "$out"/bin/*; do
+                old=$(/usr/bin/otool -L "$bin" | awk 'NR>1 && /libiconv/ {print $1; exit}')
+                [ -n "$old" ] && /usr/bin/install_name_tool -change "$old" /usr/lib/libiconv.2.dylib "$bin"
+              done
+            '';
+          };
       staticProject = import ./package/mk-project.nix {
-        inherit self pkgs;
+        inherit self;
+        pkgs = staticPkgs;
         compiler-nix-name = config.ghc.names.default;
         doHaddock = false;
         extraModules = [
