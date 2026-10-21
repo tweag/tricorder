@@ -35,6 +35,12 @@ data Arguments :: Effect where
 makeEffect ''Arguments
 
 
+-- switch "foo"
+-- --foo
+-- --no-foo
+-- --foo=false
+-- --foo=true
+
 runArgumentsIO :: (IOE :> es) => Eff (Arguments : es) a -> Eff es a
 runArgumentsIO = interpret_ \case
     ExecParser pinfo -> liftIO $ Opt.execParser pinfo

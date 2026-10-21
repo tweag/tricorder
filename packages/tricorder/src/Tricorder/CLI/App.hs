@@ -15,10 +15,16 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
-import Tricorder.API (Command (..), LogMode (..))
+import Tricorder.API
+    ( Command (..)
+    , EvalCommentsOptions (..)
+    , LogMode (..)
+    , StatusOptions (..)
+    )
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
+import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 
 import Tricorder.CLI.Daemon (startDaemon, waitForDaemon)
 import Tricorder.CLI.Operations (showEvalComments, showLog, showSource, showStatus, showTests)
@@ -74,11 +80,13 @@ run =
     ask >>= \case
         Status opts -> do
             running <- isDaemonRunning
-            if not running
-                then
-                    Console.putStrLn "Stopped."
-                else
+            if
+                | not running && opts.ifDaemonIsStopped == IfDaemonIsStopped.StartDaemon -> do
+                    startDaemon
+                    void waitForDaemon
                     showStatus opts
+                | not running -> Console.putStrLn "Stopped."
+                | otherwise -> showStatus opts
         TestResults opts -> do
             running <- isDaemonRunning
             if not running
@@ -98,10 +106,11 @@ run =
         Source opts -> do
             showSource opts
         EvalComments opts -> do
-            running <- isDaemonRunning
-            unless running do
-                startDaemon
-                void waitForDaemon
+            when (opts.ifDaemonIsStopped == IfDaemonIsStopped.StartDaemon) do
+                running <- isDaemonRunning
+                unless running do
+                    startDaemon
+                    void waitForDaemon
             showEvalComments opts
         Test testCmd -> Test.run testCmd
         Daemon cmd -> Daemon.run cmd

@@ -25,6 +25,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   - `tricorder stop`: `tricorder daemon stop`
   - `tricorder restart`: `tricorder daemon restart`
     They otherwise function identically to before.
+- The following commands `tricorder status` and `tricorder eval-comments` now
+  support the `--start-daemon` flag to automatically start the daemon if it is
+  not already running. This will become the default behavior for all
+  subcommands in the next `MAJOR.MAJOR` release.
 
 ### Deprecated
 

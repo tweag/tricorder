@@ -35,6 +35,7 @@ import Data.List qualified as List
 import Tricorder.API qualified as CLI
 import Tricorder.API.Daemon.Command qualified as Daemon.Command
 import Tricorder.API.Force qualified as Force
+import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.WaitMode qualified as WaitMode
 
 
@@ -230,6 +231,7 @@ toolCommand = \case
                     , format = JsonOutput
                     , verbosity = toVerbosity verbose
                     , expand
+                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
                     }
         )
     TestResults (TestResultsOptions {failed, wait, projectRoot}) ->
@@ -258,6 +260,7 @@ toolCommand = \case
                 CLI.EvalCommentsOptions
                     { wait = toWaitMode wait
                     , format = JsonOutput
+                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
                     }
         )
     LogPath (LogPathOptions {projectRoot}) ->

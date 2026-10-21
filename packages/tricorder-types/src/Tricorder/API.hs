@@ -10,6 +10,7 @@ module Tricorder.API
     )
 where
 
+import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
 import Tricorder.API.OutputFormat (OutputFormat (..))
 import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
@@ -35,6 +36,7 @@ data StatusOptions = StatusOptions
     , format :: OutputFormat
     , verbosity :: Verbosity
     , expand :: Maybe Int
+    , ifDaemonIsStopped :: IfDaemonIsStopped
     }
 
 
@@ -47,6 +49,7 @@ data TestOptions = TestOptions
 data EvalCommentsOptions = EvalCommentsOptions
     { wait :: WaitMode
     , format :: OutputFormat
+    , ifDaemonIsStopped :: IfDaemonIsStopped
     }
 
 
