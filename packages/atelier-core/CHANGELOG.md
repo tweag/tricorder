@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Effects.Console.runConsoleOut` and `Atelier.Effects.Console.Output`:
+  to run `Console` effects against specific well-known handlers, like `stdout`
+  and `stderr`.
+
 ## [0.8.0.0] - 2026-10-20
 
 ### Added

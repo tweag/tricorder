@@ -3,7 +3,7 @@ module Tricorder.CLI.Main (main) where
 import Atelier.Effects.Arguments (runArgumentsIO)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
-import Atelier.Effects.Console (Console, runConsole, runConsoleHandle)
+import Atelier.Effects.Console (Console, runConsole, runConsoleOut)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (exitFailure, runExit)
@@ -18,7 +18,6 @@ import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Provider (provideWith_, runProvider_)
-import System.IO (stderr)
 
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.FileSystem.Glob qualified as Glob
@@ -54,7 +53,7 @@ main =
         . runBrickChan
         . runBrick
         . runConsole
-        . runProvider_ runConsoleHandle
+        . runProvider_ @Console @Console.Output runConsoleOut
         . runExit
         . runClock
         . runDelay
@@ -83,7 +82,7 @@ main =
         $ do
             Session.load >>= \case
                 Left err -> do
-                    provideWith_ @Console stderr
+                    provideWith_ @Console Console.Stderr
                         $ Console.putTextLn
                         $ "Failed to load session: " <> err
                     exitFailure

@@ -6,6 +6,7 @@
 module Atelier.Effects.Console
     ( -- * Effect
       Console
+    , Output (..)
     , putStrLn
     , putStr
     , putTextLn
@@ -15,6 +16,7 @@ module Atelier.Effects.Console
     , runConsoleHandle
     , runConsole
     , runConsoleToList
+    , runConsoleOut
     )
 where
 
@@ -22,7 +24,7 @@ import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpret_, reinterpret_)
 import Effectful.State.Static.Shared (modify, runState)
 import Effectful.TH (makeEffect)
-import System.IO (Handle, stdout)
+import System.IO (Handle, stderr, stdout)
 import Prelude
 
 import Data.ByteString.Char8 qualified as B8
@@ -32,6 +34,9 @@ import Data.ByteString.Char8 qualified as B8
 data Console :: Effect where
     -- | Write raw bytes to the output.
     PutStr :: ByteString -> Console m ()
+
+
+data Output = Stdout | Stderr
 
 
 makeEffect ''Console
@@ -68,3 +73,9 @@ runConsole = runConsoleHandle stdout
 runConsoleToList :: Eff (Console : es) a -> Eff es (a, [ByteString])
 runConsoleToList = reinterpret_ (fmap (second reverse) . runState []) \case
     PutStr s -> modify (s :)
+
+
+runConsoleOut :: (IOE :> es) => Output -> Eff (Console : es) a -> Eff es a
+runConsoleOut = \case
+    Stderr -> runConsoleHandle stderr
+    Stdout -> runConsoleHandle stdout
