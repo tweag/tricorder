@@ -7,9 +7,9 @@ import MCP.Server
     , noHandlers
     , runMcpServerStdio
     )
-import MCP.Server.Derive (deriveToolHandlerWithOptions)
 
 import Paths_tricorder_mcp (version)
+import Tricorder.MCP.Derive (deriveCheckedToolHandler)
 import Tricorder.MCP.Tools (Tool, handleTool, toolDescriptions)
 
 
@@ -20,7 +20,7 @@ main = runMcpServerStdio serverInfo handlers
 handlers :: McpServerHandlers
 handlers =
     noHandlers
-        { tools = Just $(deriveToolHandlerWithOptions ''Tool 'handleTool toolDescriptions)
+        { tools = Just $(deriveCheckedToolHandler ''Tool 'handleTool toolDescriptions)
         }
 
 

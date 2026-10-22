@@ -55,6 +55,7 @@ in
         "directory"
         "mcp-server"
         "process"
+        "template-haskell"
         "tricorder-types"
         "typed-process"
         "unix"
