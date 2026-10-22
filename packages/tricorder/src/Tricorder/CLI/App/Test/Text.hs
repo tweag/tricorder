@@ -72,12 +72,13 @@ showBasePhase showTests = \case
             showTests postBuild.testSuites
     Finished result postBuild
         | buildFailed result postBuild ->
-            Left $ "build failed before tests ran"
+            Left "build failed before tests ran"
         | otherwise ->
             showTests postBuild.testSuites
     Failed err -> Left $ "Build failed: " <> err
   where
-    buildFailed result postBuild = postBuild.testSuites == mempty && any (\d -> d.severity >= SError) result.diagnostics
+    buildFailed result postBuild =
+        postBuild.testSuites == mempty && any (\d -> d.severity >= SError) result.diagnostics
 
 
 showTestProgress :: Test.Suites -> Text

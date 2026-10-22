@@ -14,7 +14,14 @@ import Data.Text qualified as T
 import Tricorder.API.FieldMask.Projection qualified as FieldMask.Projection
 import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema)
 
-import Tricorder.Build (BuildPhase (..), BuildState (..), PostBuild (..))
+import Tricorder.Build
+    ( BuildPhase (..)
+    , BuildResult (..)
+    , BuildState (..)
+    , Diagnostic (..)
+    , PostBuild (..)
+    , Severity (..)
+    )
 import Tricorder.CLI.App.Test.Json.Responses
     ( MessageWithLoc (..)
     , Response (..)
@@ -59,5 +66,11 @@ showBasePhase result mkResponse = case result of
             | Test.anyRunningTests postBuild.testSuites ->
                 Responses.Pending $ MessageWithLoc "postBuild" "testing"
             | otherwise -> mkResponse postBuild.testSuites
-        Finished _ postBuild -> mkResponse postBuild.testSuites
+        Finished buildResult postBuild
+            | buildFailed buildResult postBuild ->
+                Responses.Error $ MessageWithLoc "finished" "build failed before tests ran"
+            | otherwise -> mkResponse postBuild.testSuites
         Failed reason -> Responses.Error $ MessageWithLoc "build" $ "build failed: " <> reason
+  where
+    buildFailed buildResult postBuild =
+        postBuild.testSuites == mempty && any (\d -> d.severity >= SError) buildResult.diagnostics
