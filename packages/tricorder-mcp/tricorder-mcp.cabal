@@ -69,6 +69,7 @@ library tricorder-mcp-internal
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
     , mcp-server ==0.2.*
+    , optparse-applicative ==0.19.*
     , process ==1.6.*
     , template-haskell >=2.20 && <2.25
     , tricorder-types ==0.5.*

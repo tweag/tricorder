@@ -26,12 +26,14 @@ import Brick.Widgets.Core
     , withVScrollBars
     )
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, utcToLocalTime)
+import Tricorder.API.TestFilter (TestFilter)
 
 import Brick.Keybindings.KeyConfig qualified as KeyConfig
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
+import Tricorder.API.TestFilter qualified as TestFilter
 
 import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic, Severity (..))
 import Tricorder.Build.Duration (Duration (..))
@@ -41,7 +43,6 @@ import Tricorder.CLI.UI.Route (Route)
 import Tricorder.CLI.UI.State
     ( Processed (..)
     , State (..)
-    , TestFilter (..)
     , Viewports (..)
     , currentRoute
     )
@@ -171,8 +172,8 @@ viewHeading ws
     | ws.showHelp = Just "Help"
     | otherwise = case currentRoute ws of
         Route.Tests -> case ws.testFilter of
-            TestFilterAll -> Just "Tests"
-            TestFilterFailedOnly -> Just "Tests - Failed only"
+            TestFilter.All -> Just "Tests"
+            TestFilter.FailedOnly -> Just "Tests - Failed only"
         Route.Main -> Nothing
         Route.Evals -> Just "Eval comments"
 
@@ -489,9 +490,9 @@ viewTestRunDetail tvf tgt = \case
 
 
 viewTestOutput :: TestFilter -> Test.SuiteCompletion -> Widget n
-viewTestOutput TestFilterAll c =
+viewTestOutput TestFilter.All c =
     padLeft (Pad 2) $ vBox $ txt <$> stripGhciNoise (T.lines c.output)
-viewTestOutput TestFilterFailedOnly c
+viewTestOutput TestFilter.FailedOnly c
     | not (any Test.caseFailed c.testCases) && c.passed = emptyWidget
     | null c.testCases =
         padLeft (Pad 2)

@@ -22,6 +22,7 @@ import Tricorder.API.Test (Command)
 import Tricorder.API.FieldMask qualified as FieldMask
 import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
 import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema (..))
+import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
 import Tricorder.API.IfDaemonIsStopped.Args qualified as IfDaemonIsStopped.Args
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 import Tricorder.API.Test qualified as Test
@@ -61,10 +62,10 @@ suitesParser =
                     $ mconcat
                     $ Doc.punctuate
                         (Doc.line <> Doc.line)
-                        [ "Fields to return for each test suite."
+                        [ "Comma-separated list of fields to return for each test suite."
                         , "Available fields:"
                             <> Doc.line
-                            <> Doc.indent 4 (Doc.vsep $ renderSchema SuiteView.Schema.schema)
+                            <> Doc.indent 4 (Doc.vsep $ FieldMask.Schema.render SuiteView.Schema.schema)
                         , "Select nested fields with parentheses,"
                             <> Doc.line
                             <> "e.g. --fields 'name,cases(description,failure)'."
@@ -78,21 +79,6 @@ suitesParser =
             <*> OutputFormat.Args.parser
             <*> WaitMode.Args.parser
             <*> IfDaemonIsStopped.Args.parser
-  where
-    renderSchema (FieldMask.Schema fields) = renderField <$> fields
-    renderField (name, sub) =
-        Doc.pretty name
-            <> maybe
-                Doc.emptyDoc
-                ( \nestedSchema ->
-                    Doc.enclose
-                        "("
-                        ")"
-                        $ Doc.sep
-                        $ Doc.punctuate ","
-                        $ renderSchema nestedSchema
-                )
-                sub
 
 
 suitesFooter :: String

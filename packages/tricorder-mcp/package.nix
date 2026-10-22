@@ -54,6 +54,7 @@ in
         "bytestring"
         "directory"
         "mcp-server"
+        "optparse-applicative"
         "process"
         "template-haskell"
         "tricorder-types"

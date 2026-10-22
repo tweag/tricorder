@@ -12,7 +12,7 @@ import Tricorder.MCP.Tools
     , StartOptions (..)
     , StatusOptions (..)
     , StopOptions (..)
-    , TestResultsOptions (..)
+    , TestSuitesOptions (..)
     , Tool (..)
     , reportsBuildOutcome
     , toolCommand
@@ -27,13 +27,13 @@ test_Tools =
             "toolCommand"
             [ testCase "starts with just the directory"
                 $ toolCommand (StartDaemon StartOptions {projectRoot = Nothing})
-                    @?= (Nothing, ["start"])
+                    @?= (Nothing, Right ["start"])
             , testCase "omits --force when unset"
                 $ toolCommand (StopDaemon (StopOptions {force = Nothing, projectRoot = Nothing}))
-                    @?= (Nothing, ["stop"])
+                    @?= (Nothing, Right ["stop"])
             , testCase "omits --force when explicitly false"
                 $ toolCommand (RestartDaemon (RestartOptions {force = Just False, projectRoot = Nothing}))
-                    @?= (Nothing, ["restart"])
+                    @?= (Nothing, Right ["restart"])
             , testCase "includes --force when true"
                 $ toolCommand
                     ( StopDaemon
@@ -43,7 +43,7 @@ test_Tools =
                             }
                         )
                     )
-                    @?= (Nothing, ["stop", "--force"])
+                    @?= (Nothing, Right ["stop", "--force"])
             , testCase "combines status flags in order, with --expand carrying its argument"
                 $ toolCommand
                     ( Status
@@ -54,7 +54,7 @@ test_Tools =
                             , projectRoot = Nothing
                             }
                     )
-                    @?= (Nothing, ["status", "--wait", "--json", "--expand", "3"])
+                    @?= (Nothing, Right ["status", "--wait", "--json", "--expand", "3"])
             , testCase "turns modules into positional arguments"
                 $ toolCommand
                     ( Source
@@ -64,19 +64,20 @@ test_Tools =
                             }
                         )
                     )
-                    @?= (Nothing, ["source", "Data.Map.Strict", "Foo#bar"])
+                    @?= (Nothing, Right ["source", "Data.Map.Strict", "Foo#bar"])
             , testCase "maps log_path to --print-path"
                 $ toolCommand (LogPath LogPathOptions {projectRoot = Nothing})
-                    @?= (Nothing, ["log", "--print-path"])
+                    @?= (Nothing, Right ["log", "--print-path"])
             , testCase "maps log_contents to plain log"
                 $ toolCommand (LogContents LogContentsOptions {projectRoot = Nothing})
-                    @?= (Nothing, ["log"])
+                    @?= (Nothing, Right ["log"])
             ]
         , testGroup
             "reportsBuildOutcome"
             [ testCase "is true for status, test_results and eval_comments" do
                 reportsBuildOutcome (Status (StatusOptions Nothing Nothing Nothing Nothing)) @?= True
-                reportsBuildOutcome (TestResults (TestResultsOptions Nothing Nothing Nothing)) @?= True
+                reportsBuildOutcome (TestSuites (TestSuitesOptions Nothing Nothing Nothing Nothing Nothing))
+                    @?= True
                 reportsBuildOutcome (EvalComments (EvalCommentsOptions Nothing Nothing)) @?= True
             , testCase "is false for commands whose exit code reflects process failure" do
                 reportsBuildOutcome (StartDaemon $ StartOptions Nothing) @?= False

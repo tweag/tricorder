@@ -3,11 +3,15 @@ module Tricorder.API.FieldMask.Schema
     , leaf
     , nested
     , select
+    , render
     )
 where
 
+import Options.Applicative.Help (Doc)
+
 import Data.List qualified as List
 import Data.Text qualified as T
+import Options.Applicative.Help qualified as Doc
 
 import Tricorder.API.FieldMask (Field (..), FieldMask (..))
 
@@ -51,3 +55,23 @@ select = go []
 
     fieldPath path name = T.intercalate "." $ reverse $ name : path
     quote name = "'" <> name <> "'"
+
+
+render :: Schema -> [Doc]
+render (Schema fields) = renderField <$> fields
+
+
+renderField :: (Text, Maybe Schema) -> Doc
+renderField (name, sub) =
+    Doc.pretty name
+        <> maybe
+            Doc.emptyDoc
+            ( \nestedSchema ->
+                Doc.enclose
+                    "("
+                    ")"
+                    $ Doc.sep
+                    $ Doc.punctuate ","
+                    $ render nestedSchema
+            )
+            sub

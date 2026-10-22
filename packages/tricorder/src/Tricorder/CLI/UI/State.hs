@@ -2,7 +2,6 @@ module Tricorder.CLI.UI.State
     ( Viewports (..)
     , State (..)
     , Processed (..)
-    , TestFilter (..)
     , init
     , currentRoute
     , viewToViewport
@@ -12,9 +11,11 @@ module Tricorder.CLI.UI.State
 where
 
 import Atelier.Effects.Clock (Clock, TimeZone)
+import Tricorder.API.TestFilter (TestFilter)
 import Prelude hiding (init)
 
 import Atelier.Effects.Clock qualified as Clock
+import Tricorder.API.TestFilter qualified as TestFilter
 
 import Tricorder.Build (BuildState)
 import Tricorder.CLI.UI.Route (Route)
@@ -37,10 +38,6 @@ data State = State
     , testFilter :: TestFilter
     , showHelp :: Bool
     }
-
-
-data TestFilter = TestFilterAll | TestFilterFailedOnly
-    deriving stock (Bounded, Enum, Eq)
 
 
 cycleTestFilter :: TestFilter -> TestFilter
@@ -76,6 +73,6 @@ init = do
             { buildState = Waiting
             , timeZone = tz
             , route = Route.Main
-            , testFilter = minBound
+            , testFilter = TestFilter.All
             , showHelp = False
             }

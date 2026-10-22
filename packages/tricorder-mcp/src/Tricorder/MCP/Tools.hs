@@ -4,7 +4,7 @@ module Tricorder.MCP.Tools
     , StopOptions (..)
     , RestartOptions (..)
     , StatusOptions (..)
-    , TestResultsOptions (..)
+    , TestSuitesOptions (..)
     , SourceOptions (..)
     , EvalCommentsOptions (..)
     , LogPathOptions (..)
@@ -26,16 +26,25 @@ import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
 import Tricorder.API.Force (Force)
 import Tricorder.API.OutputFormat (OutputFormat (..))
+import Tricorder.API.TestFilter (TestFilter)
 import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 import Prelude hiding (force)
 
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
+import Options.Applicative.Help qualified as Doc
 import Tricorder.API.Command qualified as Command
 import Tricorder.API.Daemon.Command qualified as Daemon.Command
+import Tricorder.API.FieldMask qualified as FieldMask
+import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
+import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
 import Tricorder.API.Force qualified as Force
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
+import Tricorder.API.OutputFormat qualified as OutputFormat
+import Tricorder.API.Test qualified as Test
+import Tricorder.API.Test.SuiteView.Schema qualified as Test.SuiteView.Schema
+import Tricorder.API.TestFilter qualified as TestFilter
 import Tricorder.API.WaitMode qualified as WaitMode
 
 
@@ -44,7 +53,7 @@ data Tool
     | StopDaemon StopOptions
     | RestartDaemon RestartOptions
     | Status StatusOptions
-    | TestResults TestResultsOptions
+    | TestSuites TestSuitesOptions
     | Source SourceOptions
     | EvalComments EvalCommentsOptions
     | LogPath LogPathOptions
@@ -74,10 +83,12 @@ data StatusOptions = StatusOptions
     }
 
 
-data TestResultsOptions = TestResultsOptions
-    { failed :: Maybe Bool
+data TestSuitesOptions = TestSuitesOptions
+    { testFilter :: Maybe TestFilter
     , wait :: Maybe Bool
     , projectRoot :: Maybe Text
+    , fields :: Maybe Text
+    , suiteNames :: Maybe [Text]
     }
 
 
@@ -119,7 +130,7 @@ toolDescriptions =
             { optDescription = Just "Stop the tricorder daemon."
             , optTitle = Just "Stop daemon"
             , optFieldDescriptions =
-                [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                [ forceDesc
                 , projectRootDesc
                 ]
             }
@@ -130,7 +141,7 @@ toolDescriptions =
             { optDescription = Just "Restart the tricorder daemon."
             , optTitle = Just "Restart daemon"
             , optFieldDescriptions =
-                [ ("force", "Ignore pending queries instead of waiting for them to finish.")
+                [ forceDesc
                 , projectRootDesc
                 ]
             }
@@ -141,7 +152,7 @@ toolDescriptions =
             { optDescription = Just "Get the current GHCi build status: diagnostics, errors and warnings."
             , optTitle = Just "View built status"
             , optFieldDescriptions =
-                [ ("wait", "Block until the current build cycle finishes before returning.")
+                [ waitDesc
                 , ("verbose", "Include full GHC message bodies and full test suite error messages.")
                 , ("expand", "Only show the summary line and full message body for diagnostic #N.")
                 , projectRootDesc
@@ -149,13 +160,35 @@ toolDescriptions =
             }
         )
     ,
-        ( "TestResults"
+        ( "TestSuites"
         , defaultDefinitionOptions
             { optDescription = Just "Show output from the latest test suite runs."
             , optTitle = Just "View test results"
             , optFieldDescriptions =
-                [ ("wait", "Block until the current build cycle finishes before returning.")
-                , ("failed", "Only show output from failed test suites.")
+                [ waitDesc
+                ,
+                    ( "testFilter"
+                    , "Whether to show all test results, or only the test results that failed. Valid options are 'All' and 'FailedOnly'. Defaults to 'All' if not set."
+                    )
+                ,
+                    ( "fields"
+                    , show
+                        $ mconcat
+                        $ Doc.punctuate
+                            Doc.hardline
+                            [ "Comma-separated list of fields to include in the result."
+                            , "Available fields:"
+                            , Doc.indent 4 (Doc.vsep $ FieldMask.Schema.render Test.SuiteView.Schema.schema)
+                            , "Select nested fields with parentheses,"
+                            , "e.g. --fields 'name,cases(description,failure)'."
+                            , "Default fields, when unspecified, are as follows:"
+                            , Doc.pretty $ FieldMask.render Test.SuiteView.Schema.defaultFields
+                            ]
+                    )
+                ,
+                    ( "suiteNames"
+                    , "Test suites to focus on. In the form '<package>:<kind>:<component-name>'. E.g. 'tricorder:test:tricorder-test'"
+                    )
                 , projectRootDesc
                 ]
             }
@@ -179,7 +212,7 @@ toolDescriptions =
             { optDescription = Just "Show eval comments and their evaluated results from the latest build."
             , optTitle = Just "View eval comments"
             , optFieldDescriptions =
-                [ ("wait", "Block until the current build cycle finishes before returning.")
+                [ waitDesc
                 , projectRootDesc
                 ]
             }
@@ -208,33 +241,41 @@ toolDescriptions =
           \commands. Usually where the `cabal.project`, `.cabal` file or\
           \`package.yaml` lives. Defaults to the current working directory."
         )
+    waitDesc =
+        ( "wait"
+        , "Block and wait until the current build cycle finishes to provide the most up-to-date result."
+        )
+    forceDesc = ("force", "Ignore pending queries instead of waiting for them to finish.")
 
 
 -- | The @tricorder@ invocation for a tool call: the project directory to run
 -- it in, and the subcommand plus flags to pass. Builds the shared 'CLI.Command'
 -- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
-toolCommand :: Tool -> (Maybe Text, [String])
+toolCommand :: Tool -> (Maybe Text, Either Text [String])
 toolCommand = \case
     StartDaemon (StartOptions {projectRoot}) ->
         ( projectRoot
-        , Daemon.Command.toArgs Daemon.Command.Start
+        , Right $ Daemon.Command.toArgs Daemon.Command.Start
         )
     StopDaemon (StopOptions {force, projectRoot}) ->
         ( projectRoot
-        , Daemon.Command.toArgs
+        , Right
+            $ Daemon.Command.toArgs
             $ Daemon.Command.Stop
             $ toForce force
         )
     RestartDaemon (RestartOptions {force, projectRoot}) ->
         ( projectRoot
-        , Daemon.Command.toArgs
+        , Right
+            $ Daemon.Command.toArgs
             $ Daemon.Command.Restart
             $ toForce force
         )
     Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
         ( projectRoot
-        , Command.toArgs
+        , Right
+            $ Command.toArgs
             $ Command.Status
                 Command.StatusOptions
                     { wait = toWaitMode wait
@@ -244,18 +285,27 @@ toolCommand = \case
                     , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
                     }
         )
-    TestResults (TestResultsOptions {failed, wait, projectRoot}) ->
-        ( projectRoot
-        , Command.toArgs
-            $ Command.TestResults
-                Command.TestOptions
-                    { failedOnly = fromMaybe False failed
-                    , wait = toWaitMode wait
+    TestSuites opts ->
+        ( opts.projectRoot
+        , do
+            fields <- traverse FieldMask.Args.parse opts.fields
+            Right
+                $ Command.toArgs
+                $ Command.Test
+                $ Test.Suites
+                $ Test.SuitesOptions
+                    { testFilter = fromMaybe TestFilter.All opts.testFilter
+                    , wait = toWaitMode opts.wait
+                    , suiteNames = fromMaybe [] opts.suiteNames
+                    , format = OutputFormat.JsonOutput
+                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
+                    , fields
                     }
         )
     Source (SourceOptions {modules, projectRoot}) ->
         ( projectRoot
-        , Command.toArgs
+        , Right
+            $ Command.toArgs
             $ Command.Source
                 Command.SourceOptions
                     { queries = parseSourceQuery <$> modules
@@ -265,7 +315,8 @@ toolCommand = \case
         )
     EvalComments (EvalCommentsOptions {wait, projectRoot}) ->
         ( projectRoot
-        , Command.toArgs
+        , Right
+            $ Command.toArgs
             $ Command.EvalComments
                 Command.EvalCommentsOptions
                     { wait = toWaitMode wait
@@ -275,12 +326,14 @@ toolCommand = \case
         )
     LogPath (LogPathOptions {projectRoot}) ->
         ( projectRoot
-        , Command.toArgs
+        , Right
+            $ Command.toArgs
             $ Command.Log Command.ShowLogPath
         )
     LogContents (LogContentsOptions {projectRoot}) ->
         ( projectRoot
-        , Command.toArgs
+        , Right
+            $ Command.toArgs
             $ Command.Log Command.ShowLog
         )
 
@@ -308,7 +361,7 @@ toVerbosity = maybe Command.Concise (\enabled -> if enabled then Command.Verbose
 -- genuine execution failure.
 reportsBuildOutcome :: Tool -> Bool
 reportsBuildOutcome (Status _) = True
-reportsBuildOutcome (TestResults _) = True
+reportsBuildOutcome (TestSuites _) = True
 reportsBuildOutcome (EvalComments _) = True
 reportsBuildOutcome _ = False
 
@@ -319,27 +372,29 @@ reportsBuildOutcome _ = False
 -- uncaught it would take the whole server down with it, not just this
 -- request.
 handleTool :: ClientContext -> Tool -> IO ToolResult
-handleTool _ tool = do
-    mDir <- case passedDir of
-        Just dir -> pure $ Right $ toString dir
-        Nothing -> getProjectRoot
-    case mDir of
-        Left err ->
-            pure $ toolError $ "Failed to run tricorder: " <> err
-        Right directory -> do
-            outcome <-
-                try @IOException
-                    $ readProcess
-                    $ setWorkingDir directory
-                    $ proc "tricorder" args
-            pure $ case outcome of
-                Left ex -> toolError $ "Failed to run tricorder: " <> show ex
-                Right (ExitSuccess, out, _) -> toolResult [ContentText (decodeUtf8 out)]
-                Right (ExitFailure _, out, _) | reportsBuildOutcome tool -> toolResult [ContentText (decodeUtf8 out)]
-                Right (ExitFailure _, out, err) ->
-                    toolError $ "tricorder failed: " <> decodeUtf8 (if BSL.null err then out else err)
+handleTool _ tool = case argsRes of
+    Left err -> pure $ toolError $ "Tool failed with given input: " <> err
+    Right args -> do
+        mDir <- case passedDir of
+            Just dir -> pure $ Right $ toString dir
+            Nothing -> getProjectRoot
+        case mDir of
+            Left err ->
+                pure $ toolError $ "Failed to run tricorder: " <> err
+            Right directory -> do
+                outcome <-
+                    try @IOException
+                        $ readProcess
+                        $ setWorkingDir directory
+                        $ proc "tricorder" args
+                pure $ case outcome of
+                    Left ex -> toolError $ "Failed to run tricorder: " <> show ex
+                    Right (ExitSuccess, out, _) -> toolResult [ContentText (decodeUtf8 out)]
+                    Right (ExitFailure _, out, _) | reportsBuildOutcome tool -> toolResult [ContentText (decodeUtf8 out)]
+                    Right (ExitFailure _, out, err) ->
+                        toolError $ "tricorder failed: " <> decodeUtf8 (if BSL.null err then out else err)
   where
-    (passedDir, args) = toolCommand tool
+    (passedDir, argsRes) = toolCommand tool
 
 
 getProjectRoot :: IO (Either Text FilePath)

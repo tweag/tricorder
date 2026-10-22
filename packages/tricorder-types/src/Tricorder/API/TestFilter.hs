@@ -10,6 +10,7 @@ import Prelude hiding (All (..))
 
 
 data TestFilter = All | FailedOnly
+    deriving stock (Bounded, Enum, Eq)
 
 
 toArgs :: TestFilter -> [String]
