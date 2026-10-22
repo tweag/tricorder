@@ -32,7 +32,7 @@ import Prelude hiding (force)
 
 import Data.ByteString.Lazy qualified as BSL
 import Data.List qualified as List
-import Tricorder.API qualified as CLI
+import Tricorder.API.Command qualified as Command
 import Tricorder.API.Daemon.Command qualified as Daemon.Command
 import Tricorder.API.Force qualified as Force
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
@@ -217,16 +217,26 @@ toolDescriptions =
 toolCommand :: Tool -> (Maybe Text, [String])
 toolCommand = \case
     StartDaemon (StartOptions {projectRoot}) ->
-        (projectRoot, Daemon.Command.toArgs Daemon.Command.Start)
+        ( projectRoot
+        , Daemon.Command.toArgs Daemon.Command.Start
+        )
     StopDaemon (StopOptions {force, projectRoot}) ->
-        (projectRoot, Daemon.Command.toArgs $ Daemon.Command.Stop $ toForce force)
+        ( projectRoot
+        , Daemon.Command.toArgs
+            $ Daemon.Command.Stop
+            $ toForce force
+        )
     RestartDaemon (RestartOptions {force, projectRoot}) ->
-        (projectRoot, Daemon.Command.toArgs $ Daemon.Command.Restart $ toForce force)
+        ( projectRoot
+        , Daemon.Command.toArgs
+            $ Daemon.Command.Restart
+            $ toForce force
+        )
     Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
         ( projectRoot
-        , CLI.commandToArgs
-            $ CLI.Status
-                CLI.StatusOptions
+        , Command.toArgs
+            $ Command.Status
+                Command.StatusOptions
                     { wait = toWaitMode wait
                     , format = JsonOutput
                     , verbosity = toVerbosity verbose
@@ -236,18 +246,18 @@ toolCommand = \case
         )
     TestResults (TestResultsOptions {failed, wait, projectRoot}) ->
         ( projectRoot
-        , CLI.commandToArgs
-            $ CLI.TestResults
-                CLI.TestOptions
+        , Command.toArgs
+            $ Command.TestResults
+                Command.TestOptions
                     { failedOnly = fromMaybe False failed
                     , wait = toWaitMode wait
                     }
         )
     Source (SourceOptions {modules, projectRoot}) ->
         ( projectRoot
-        , CLI.commandToArgs
-            $ CLI.Source
-                CLI.SourceOptions
+        , Command.toArgs
+            $ Command.Source
+                Command.SourceOptions
                     { queries = parseSourceQuery <$> modules
                     , maxDepth = Nothing
                     , maxModules = Nothing
@@ -255,18 +265,24 @@ toolCommand = \case
         )
     EvalComments (EvalCommentsOptions {wait, projectRoot}) ->
         ( projectRoot
-        , CLI.commandToArgs
-            $ CLI.EvalComments
-                CLI.EvalCommentsOptions
+        , Command.toArgs
+            $ Command.EvalComments
+                Command.EvalCommentsOptions
                     { wait = toWaitMode wait
                     , format = JsonOutput
                     , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
                     }
         )
     LogPath (LogPathOptions {projectRoot}) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLogPath)
+        ( projectRoot
+        , Command.toArgs
+            $ Command.Log Command.ShowLogPath
+        )
     LogContents (LogContentsOptions {projectRoot}) ->
-        (projectRoot, CLI.commandToArgs $ CLI.Log CLI.ShowLog)
+        ( projectRoot
+        , Command.toArgs
+            $ Command.Log Command.ShowLog
+        )
 
 
 toForce :: Maybe Bool -> Force
@@ -280,8 +296,8 @@ toWaitMode =
         (\enabled -> if enabled then WaitMode.WaitForBuild else WaitMode.ShowCurrent)
 
 
-toVerbosity :: Maybe Bool -> CLI.Verbosity
-toVerbosity = maybe CLI.Concise (\enabled -> if enabled then CLI.Verbose else CLI.Concise)
+toVerbosity :: Maybe Bool -> Command.Verbosity
+toVerbosity = maybe Command.Concise (\enabled -> if enabled then Command.Verbose else Command.Concise)
 
 
 -- | Whether a tool's exit code reports a build/test outcome (errors present,

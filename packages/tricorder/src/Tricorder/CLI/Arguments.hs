@@ -3,18 +3,17 @@ module Tricorder.CLI.Arguments (runArguments, parseArguments) where
 import Atelier.Effects.Arguments (Arguments)
 import Effectful.Reader.Static (Reader)
 import Options.Applicative (Parser, ParserInfo)
-import Tricorder.API (Command)
+import Tricorder.API.Command (Command)
 
 import Atelier.Effects.Arguments qualified as Args
 import Effectful.Reader.Static qualified as Reader
 import Options.Applicative qualified as Opt
-import Tricorder.API qualified as API
-import Tricorder.API.Args qualified as API.Args
+import Tricorder.API.Command.Args qualified as Command.Args
 
 import Tricorder.Version qualified as Version
 
 
-runArguments :: (Arguments :> es) => Eff (Reader API.Command : es) a -> Eff es a
+runArguments :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
 runArguments eff = do
     args <- parseArguments
     Reader.runReader args eff
@@ -26,7 +25,7 @@ parseArguments = Args.execParser opts
 
 opts :: ParserInfo Command
 opts =
-    Opt.info (API.Args.parser <**> versionOption <**> Opt.helper)
+    Opt.info (Command.Args.parser <**> versionOption <**> Opt.helper)
         $ Opt.fullDesc
             <> Opt.progDesc "tricorder — daemon-based GHCi build status"
             <> Opt.header "tricorder — robust GHCi daemon with structured querying"

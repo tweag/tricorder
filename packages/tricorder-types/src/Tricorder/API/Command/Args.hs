@@ -1,4 +1,4 @@
-module Tricorder.API.Args
+module Tricorder.API.Command.Args
     ( parser
     )
 where
@@ -22,7 +22,7 @@ import Options.Applicative
     , short
     )
 
-import Tricorder.API
+import Tricorder.API.Command
     ( Command (..)
     , EvalCommentsOptions (..)
     , LogMode (..)

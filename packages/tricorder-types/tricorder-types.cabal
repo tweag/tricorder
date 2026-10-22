@@ -34,9 +34,9 @@ source-repository head
 
 library
   exposed-modules:
-      Tricorder.API
-      Tricorder.API.Args
       Tricorder.API.Args.Deprecated
+      Tricorder.API.Command
+      Tricorder.API.Command.Args
       Tricorder.API.Daemon.Args
       Tricorder.API.Daemon.Command
       Tricorder.API.FieldMask

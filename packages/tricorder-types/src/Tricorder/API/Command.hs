@@ -1,4 +1,4 @@
-module Tricorder.API
+module Tricorder.API.Command
     ( Command (..)
     , EvalCommentsOptions (..)
     , LogMode (..)
@@ -6,7 +6,7 @@ module Tricorder.API
     , StatusOptions (..)
     , TestOptions (..)
     , Verbosity (..)
-    , commandToArgs
+    , toArgs
     )
 where
 
@@ -80,8 +80,8 @@ data Command
 -- constructor forces both the parser and this renderer to be updated
 -- together; this is what @tricorder-mcp@ uses to invoke @tricorder@ without
 -- duplicating flag names.
-commandToArgs :: Command -> [String]
-commandToArgs = \case
+toArgs :: Command -> [String]
+toArgs = \case
     Status (StatusOptions {wait, format, verbosity, expand}) ->
         "status"
             : WaitMode.toArgs wait

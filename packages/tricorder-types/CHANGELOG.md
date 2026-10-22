@@ -16,6 +16,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - `Tricorder.API.Daemon.Command.DaemonCommand` renamed to
   `Tricorder.API.Daemon.Command.Command`.
+- `Tricorder.API` moved to `Tricorder.API.Command`.
+- `Tricorder.API.Args` moved to `Tricorder.API.Command.Args`.
+- `Tricorder.API.Command.commandToArgs` renamed to `Tricorder.API.Command.toArgs`.
 
 ## [0.5.0.0] - 2026-10-20
 

@@ -15,7 +15,7 @@ import Options.Applicative
 
 import Options.Applicative.Help qualified as Doc
 
-import Tricorder.API (Command (..), TestOptions (..))
+import Tricorder.API.Command (Command (..), TestOptions (..))
 
 import Tricorder.API.Daemon.Args qualified as Daemon.Args
 import Tricorder.API.Daemon.Command qualified as Daemon.Command

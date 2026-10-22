@@ -15,7 +15,7 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Reader.Static (Reader, ask, asks)
-import Tricorder.API
+import Tricorder.API.Command
     ( Command (..)
     , EvalCommentsOptions (..)
     , LogMode (..)

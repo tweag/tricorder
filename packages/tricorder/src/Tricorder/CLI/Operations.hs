@@ -19,7 +19,7 @@ import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
 import Effectful.Reader.Static (Reader, ask)
-import Tricorder.API
+import Tricorder.API.Command
     ( EvalCommentsOptions (..)
     , SourceOptions (..)
     , StatusOptions (..)
