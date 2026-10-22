@@ -14,6 +14,7 @@ import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
+import Effectful.Provider (Provider_)
 import Effectful.Reader.Static (Reader, ask, asks)
 import Tricorder.API.Command
     ( Command (..)
@@ -67,6 +68,7 @@ run
        , Log :> es
        , PackageStore :> es
        , Process :> es
+       , Provider_ Console Console.Output :> es
        , Reader Command :> es
        , Reader Keys.Config :> es
        , Reader LogPath :> es

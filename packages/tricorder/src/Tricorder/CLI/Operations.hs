@@ -18,6 +18,7 @@ import Atelier.Effects.Log (Log)
 import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
+import Effectful.Provider (Provider_, provideWith_)
 import Effectful.Reader.Static (Reader, ask)
 import Tricorder.API.Command
     ( EvalCommentsOptions (..)
@@ -76,13 +77,14 @@ showStatus
        , Console :> es
        , Exit :> es
        , File :> es
+       , Provider_ Console Console.Output :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
     => StatusOptions -> Eff es ()
 showStatus opts = do
     when (opts.wait == WaitForBuild && opts.format == TextOutput) do
-        displayPendingBuildStatus
+        provideWith_ @Console Console.Stderr displayPendingBuildStatus
     result <- awaitBuildStatus opts.wait
     case result of
         Left err -> Console.putTextLn $ "Error: " <> err
@@ -420,10 +422,8 @@ displayPendingBuildStatus = do
     case current of
         Right BuildState {phase = Build.Starting} -> Console.putStrLn "Starting..."
         Right BuildState {phase = Build.Building _ _} -> Console.putStrLn "Building..."
-        Right BuildState {phase = Build.Finished _ postBuild} ->
-            displayPostBuildStatus postBuild
-        Right BuildState {phase = Build.PostBuilding _ postBuild} ->
-            displayPostBuildStatus postBuild
+        Right BuildState {phase = Build.Finished _ postBuild} -> displayPostBuildStatus postBuild
+        Right BuildState {phase = Build.PostBuilding _ postBuild} -> displayPostBuildStatus postBuild
         Right BuildState {phase = Build.Failed _} -> pure ()
         Left _ -> pure ()
   where
