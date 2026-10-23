@@ -83,9 +83,10 @@ import Data.Text qualified as T
 import Effectful.Concurrent qualified as Concurrent
 import System.FSNotify qualified as FSN
 
-import Atelier.Effects.Debounce (Debounce, debouncedWith)
+import Atelier.Effects.Debounce (Debounce)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Debounce qualified as Debounce
 
 
 -- | The kind of filesystem change that triggered a watch callback.
@@ -183,7 +184,7 @@ watchFilePathsDebounced
     -> Eff es Void
 watchFilePathsDebounced watches callback =
     watchFilePaths watches \path event ->
-        debouncedWith 100 mergeFileEvent path event (callback path)
+        Debounce.withArg 100 mergeFileEvent path event (callback path)
 
 
 -- | Production interpreter backed by fsnotify.

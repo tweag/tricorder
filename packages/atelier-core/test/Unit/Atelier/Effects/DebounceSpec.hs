@@ -10,27 +10,21 @@ import Data.IORef qualified as IORef
 import Effectful.Concurrent.STM qualified as STM
 import StmContainers.Map qualified as Map
 
-import Atelier.Effects.Debounce
-    ( Entry (..)
-    , debounced
-    , debouncedWith
-    , ensureCallback
-    , ensureEntry
-    , runDebounce
-    )
+import Atelier.Effects.Debounce (Entry (..), ensureCallback, ensureEntry)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Time (Millisecond)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Console qualified as Console
+import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.Delay qualified as Delay
 
 
 test_Debounce :: TestTree
 test_Debounce =
     testGroup
-        "Debounce"
-        [ testGroup "runDebounce" testRunDebounce
+        "Atelier.Effects.Debounce"
+        [ testGroup "run" testRun
         , testGroup "ensureEntry" testEnsureEntry
         , testGroup "ensureCallback" testEnsureCallback
         ]
@@ -142,16 +136,16 @@ testEnsureCallback =
 -- fires. Multi-burst tests sequence by waiting for each burst's fire, so bursts
 -- cannot merge regardless of timing. A short grace after the fire guards against
 -- a spurious second fire.
-testRunDebounce :: [TestTree]
-testRunDebounce =
+testRun :: [TestTree]
+testRun =
     [ testGroup
-        "debounced"
+        "Debounce.with"
         [ testGroup
             "when invoked once"
             [ testCase "fires once" do
                 n <- runTest do
                     (count, fired) <- newCounter
-                    debounced 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
                     awaitFire fired
                     Delay.wait @Millisecond 80
                     readCount count
@@ -162,9 +156,9 @@ testRunDebounce =
             [ testCase "fires once" do
                 n <- runTest do
                     (count, fired) <- newCounter
-                    debounced 50 () (bump count fired)
-                    debounced 50 () (bump count fired)
-                    debounced 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
                     awaitFire fired
                     Delay.wait @Millisecond 80
                     readCount count
@@ -175,11 +169,11 @@ testRunDebounce =
             [ testCase "fires once per burst" do
                 n <- runTest do
                     (count, fired) <- newCounter
-                    debounced 50 () (bump count fired)
-                    debounced 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
                     awaitFire fired -- burst 1 settled and cleared the entry
-                    debounced 50 () (bump count fired)
-                    debounced 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
+                    Debounce.with 50 () (bump count fired)
                     awaitFire fired -- burst 2 is therefore independent
                     readCount count
                 n @?= 2
@@ -189,7 +183,7 @@ testRunDebounce =
             [ testCase "should not crash" do
                 n <- runTest do
                     (count, fired) <- newCounter
-                    replicateM_ 10_000 $ debounced 50 () (bump count fired)
+                    replicateM_ 10_000 $ Debounce.with 50 () (bump count fired)
                     awaitFire fired
                     Delay.wait @Millisecond 80
                     readCount count
@@ -197,13 +191,13 @@ testRunDebounce =
             ]
         ]
     , testGroup
-        "debouncedWith"
+        "Debounce.withArg"
         [ testGroup
             "when invoked once"
             [ testCase "fires callback with the provided arg" do
                 got <- runTest do
                     result <- STM.atomically STM.newEmptyTMVar
-                    debouncedWith 50 (+) () (42 :: Int) (signal result)
+                    Debounce.withArg 50 (+) () (42 :: Int) (signal result)
                     awaitValue result
                 got @?= Just 42
             ]
@@ -213,9 +207,9 @@ testRunDebounce =
                 n <- runTest do
                     (count, fired) <- newCounter
                     let cb _ = bump count fired
-                    debouncedWith 50 (+) () (1 :: Int) cb
-                    debouncedWith 50 (+) () (2 :: Int) cb
-                    debouncedWith 50 (+) () (3 :: Int) cb
+                    Debounce.withArg 50 (+) () (1 :: Int) cb
+                    Debounce.withArg 50 (+) () (2 :: Int) cb
+                    Debounce.withArg 50 (+) () (3 :: Int) cb
                     awaitFire fired
                     Delay.wait @Millisecond 80
                     readCount count
@@ -224,9 +218,9 @@ testRunDebounce =
                 got <- runTest do
                     result <- STM.atomically STM.newEmptyTMVar
                     let cb = signal result
-                    debouncedWith 50 (+) () (1 :: Int) cb
-                    debouncedWith 50 (+) () (2 :: Int) cb
-                    debouncedWith 50 (+) () (3 :: Int) cb
+                    Debounce.withArg 50 (+) () (1 :: Int) cb
+                    Debounce.withArg 50 (+) () (2 :: Int) cb
+                    Debounce.withArg 50 (+) () (3 :: Int) cb
                     awaitValue result
                 got @?= Just 6
             ]
@@ -237,11 +231,11 @@ testRunDebounce =
                     fired <- STM.atomically STM.newEmptyTMVar
                     ref <- STM.atomically (STM.newTVar @[Int] [])
                     let cb v = STM.atomically (STM.modifyTVar' ref (<> [v]) >> void (STM.tryPutTMVar fired ()))
-                    debouncedWith 50 (+) () (1 :: Int) cb
-                    debouncedWith 50 (+) () (2 :: Int) cb
+                    Debounce.withArg 50 (+) () (1 :: Int) cb
+                    Debounce.withArg 50 (+) () (2 :: Int) cb
                     awaitFire fired -- burst 1 fired (1+2=3); entry cleared
-                    debouncedWith 50 (+) () (10 :: Int) cb
-                    debouncedWith 50 (+) () (20 :: Int) cb
+                    Debounce.withArg 50 (+) () (10 :: Int) cb
+                    Debounce.withArg 50 (+) () (20 :: Int) cb
                     awaitFire fired -- burst 2 fired (10+20=30)
                     STM.atomically (STM.readTVar ref)
                 xs @?= [3, 30]
@@ -254,7 +248,7 @@ testRunDebounce =
             . runConcurrent
             . Conc.runIO
             . runDelay
-            . runDebounce
+            . Debounce.run
 
     -- A fire counter paired with a TMVar signalling that a fire happened.
     newCounter = do

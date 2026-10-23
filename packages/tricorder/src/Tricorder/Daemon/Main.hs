@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Debounce (runDebounce)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (runExit)
@@ -17,6 +16,7 @@ import Effectful.Concurrent (runConcurrent)
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
@@ -65,7 +65,7 @@ main =
         . Clock.runIO
         . runDelay
         . runTimeout
-        . runDebounce @FilePath
+        . Debounce.run @FilePath
         . runFileWatcherIO
         . runFileSystemIO
         . Glob.runIO

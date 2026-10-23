@@ -2,11 +2,11 @@
 --
 -- == Overview
 --
--- 'debouncedWith' is the fundamental operation: it accumulates rapid successive
+-- 'with' is the fundamental operation: it accumulates rapid successive
 -- calls with the same key using a merge function, then fires the callback once
 -- after the settle window with the merged result.
 --
--- 'debounced' is a convenience wrapper for the common case where only timing
+-- 'debounce' is a convenience wrapper for the common case where only timing
 -- matters and the last-registered action should fire.
 --
 -- == Example
@@ -14,25 +14,25 @@
 -- @
 -- -- Coalesce rapid saves per file: only the last edit within a 200ms window
 -- -- triggers a rebuild, keyed by path.
--- onEdit :: (Debounce FilePath :> es) => FilePath -> Eff es ()
+-- onEdit :: (Debouncing FilePath :> es) => FilePath -> Eff es ()
 -- onEdit path = debounced 200 path (rebuild path)
 --
 -- -- Or merge the burst instead of keeping just the last value. Here every
 -- -- event seen within the window is combined (list append) before a single
 -- -- rebuild fires with the full batch.
--- onChange :: (Debounce FilePath :> es) => FilePath -> FileEvent -> Eff es ()
+-- onChange :: (Debouncing FilePath :> es) => FilePath -> FileEvent -> Eff es ()
 -- onChange path event =
---     debouncedWith 200 (<>) path [event] (rebuildWith path)
+--     with 200 (<>) path [event] (rebuildWith path)
 -- @
 module Atelier.Effects.Debounce
     ( -- * Effect
       Debounce
-    , debouncedWith
-    , debounced
+    , with
+    , withArg
 
       -- * Interpreters
-    , runDebounce
-    , runDebounceNoOp
+    , run
+    , runNoOp
 
       -- * Helpers
     , ensureEntry
@@ -42,11 +42,17 @@ module Atelier.Effects.Debounce
 where
 
 import Data.Dynamic (Dynamic, fromDynamic, toDyn)
-import Effectful (Effect, Limit (..), Persistence (..), UnliftStrategy (..))
+import Effectful
+    ( Dispatch (..)
+    , DispatchOf
+    , Effect
+    , Limit (..)
+    , Persistence (..)
+    , UnliftStrategy (..)
+    )
 import Effectful.Concurrent (Concurrent)
 import Effectful.Concurrent.STM (STM)
-import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift, localUnlift)
-import Effectful.TH (makeEffect)
+import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift, localUnlift, send)
 
 import Effectful.Concurrent.STM qualified as STM
 import StmContainers.Map qualified as Map
@@ -62,11 +68,7 @@ import Atelier.Effects.Delay qualified as Delay
 -- | Effect for coalescing rapid bursts of keyed events into a single delayed
 -- callback.
 data Debounce key :: Effect where
-    -- | Schedule @callback merged@ after the settle window. If another call
-    -- with the same @key@ arrives before the window expires, the two values are
-    -- combined with @merge old new@ and the timer resets. The callback fires at
-    -- most once per burst.
-    DebouncedWith
+    WithArg
         :: (Typeable arg)
         => Millisecond
         -> (arg -> arg -> arg)
@@ -76,13 +78,23 @@ data Debounce key :: Effect where
         -> Debounce key m ()
 
 
-makeEffect ''Debounce
+type instance DispatchOf (Debounce _) = 'Dynamic
+
+
+-- | Schedule @callback merged@ after the settle window. If another call
+-- with the same @key@ arrives before the window expires, the two values are
+-- combined with @merge old new@ and the timer resets. The callback fires at
+-- most once per burst.
+withArg
+    :: (Debounce key :> es, Typeable arg)
+    => Millisecond -> (arg -> arg -> arg) -> key -> arg -> (arg -> Eff es a) -> Eff es ()
+withArg settleWindow merge key arg callback = send $ WithArg settleWindow merge key arg callback
 
 
 -- | Schedule @action@ to run after the settle window unless a newer call with
 -- the same @key@ arrives first. The last-registered action fires.
-debounced :: (Debounce key :> es) => Millisecond -> key -> Eff es a -> Eff es ()
-debounced settleMs key action = debouncedWith settleMs (\_ _ -> ()) key () (\_ -> action)
+with :: (Debounce key :> es) => Millisecond -> key -> Eff es a -> Eff es ()
+with settleMs key action = withArg settleMs (\_ _ -> ()) key () (\_ -> action)
 
 
 -- | Per-key debounce state: the latest (merged) pending argument and a
@@ -100,7 +112,7 @@ data Entry = Entry
 --
 -- Each key maintains a generation counter. Rapid calls for the same key merge
 -- their values and reset the settle timer; only the last generation fires.
-runDebounce
+run
     :: forall key es a
      . ( Conc :> es
        , Concurrent :> es
@@ -109,10 +121,10 @@ runDebounce
        )
     => Eff (Debounce key : es) a
     -> Eff es a
-runDebounce eff = do
+run eff = do
     state <- STM.atomically (Map.new @key @Entry)
     interpretWith eff \env -> \case
-        DebouncedWith settleMs merge key arg callback -> do
+        WithArg settleMs merge key arg callback -> do
             entry <- STM.atomically $ ensureEntry key arg state merge
             localUnlift env (ConcUnlift Persistent (Limited 1)) \unlift ->
                 void
@@ -177,6 +189,6 @@ ensureEntry key value state merge = do
 
 -- | No-op interpreter — fires every callback immediately with its value, without
 -- debouncing. Useful for tests where timing is controlled externally.
-runDebounceNoOp :: Eff (Debounce key : es) a -> Eff es a
-runDebounceNoOp eff = interpretWith eff \env -> \case
-    DebouncedWith _ _ _ value callback -> localSeqUnlift env \unlift -> void $ unlift (callback value)
+runNoOp :: Eff (Debounce key : es) a -> Eff es a
+runNoOp eff = interpretWith eff \env -> \case
+    WithArg _ _ _ value callback -> localSeqUnlift env \unlift -> void $ unlift (callback value)
