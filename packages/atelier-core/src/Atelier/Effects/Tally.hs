@@ -42,12 +42,13 @@ import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, reinterpret)
 import Effectful.Reader.Static (Reader)
 import Effectful.TH (makeEffect)
 
-import Atelier.Effects.Cache (cacheModify, runCacheTtl)
 import Atelier.Effects.Cache.Config
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
+
+import Atelier.Effects.Cache qualified as Cache
 
 
 -- | Tally tracking effect parameterized by key type
@@ -77,9 +78,9 @@ runTally
        )
     => Eff (Tally key : es) a
     -> Eff es a
-runTally = reinterpret (runCacheTtl @key @Int) $ \env -> \case
+runTally = reinterpret (Cache.runTTL @key @Int) $ \env -> \case
     WithTallyCheck key classify continuation -> localSeqUnlift env $ \unlift -> do
-        count <- cacheModify key (maybe 1 (+ 1))
+        count <- Cache.modify key (maybe 1 (+ 1))
         unlift $ continuation (classify count)
 
 

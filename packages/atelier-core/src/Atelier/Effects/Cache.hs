@@ -2,18 +2,18 @@
 module Atelier.Effects.Cache
     ( -- * Effect
       Cache
-    , cacheLookup
-    , cacheInsert
-    , cacheDelete
-    , cacheModify
+    , lookup
+    , insert
+    , delete
+    , modify
 
       -- * Re-exports
     , module Atelier.Effects.Cache.Config
 
       -- * Interpreters
-    , runCacheTtl
-    , runCacheTtlWithWait
-    , runCacheForever
+    , runTTL
+    , runTTLWithWait
+    , runForever
     )
 where
 
@@ -46,14 +46,14 @@ import Atelier.Effects.Log qualified as Log
 -- | Effect for a generic key-value cache.
 data Cache key value :: Effect where
     -- | Look up a key, returning 'Nothing' if it is absent.
-    CacheLookup :: key -> Cache key value m (Maybe value)
+    Lookup :: key -> Cache key value m (Maybe value)
     -- | Insert or overwrite the value at a key.
-    CacheInsert :: key -> value -> Cache key value m ()
+    Insert :: key -> value -> Cache key value m ()
     -- | Remove a key from the cache.
-    CacheDelete :: key -> Cache key value m ()
+    Delete :: key -> Cache key value m ()
     -- | Apply a function to a key's current value (or its absence), store the
     -- result, and return it.
-    CacheModify :: key -> (Maybe value -> value) -> Cache key value m value
+    Modify :: key -> (Maybe value -> value) -> Cache key value m value
 
 
 makeEffect ''Cache
@@ -71,7 +71,7 @@ data CacheEntry value = CacheEntry
 -- Entries are evicted after @entryTtl@ from their first insertion.
 -- Subsequent updates to the same key preserve the original timestamp.
 -- A background thread runs every @cleanupInterval@ to remove expired entries.
-runCacheTtl
+runTTL
     :: forall key value es a
      . ( Clock :> es
        , Conc :> es
@@ -82,16 +82,16 @@ runCacheTtl
        , Reader Config :> es
        )
     => Eff (Cache key value : es) a -> Eff es a
-runCacheTtl act = do
+runTTL act = do
     cfg <- ask
-    runCacheTtlWithWait (Delay.wait $ nominalDiffTime @Microsecond cfg.cleanupInterval) act
+    runTTLWithWait (Delay.wait $ nominalDiffTime @Microsecond cfg.cleanupInterval) act
 
 
--- | Like 'runCacheTtl', but with the cleanup cadence supplied explicitly as a
+-- | Like 'runTtl', but with the cleanup cadence supplied explicitly as a
 -- waiting action rather than read from 'Config'. Each time the action
 -- completes, expired entries are swept. Useful for tests that drive cleanup
 -- deterministically.
-runCacheTtlWithWait
+runTTLWithWait
     :: forall key value es a
      . ( Clock :> es
        , Conc :> es
@@ -104,7 +104,7 @@ runCacheTtlWithWait
     -- ^ Action that completes when it is time to perform cleanup.
     -> Eff (Cache key value : es) a
     -> Eff es a
-runCacheTtlWithWait waitForNextCleanup action = do
+runTTLWithWait waitForNextCleanup action = do
     cfg <- ask @Config
     store <- STM.atomically (Map.new :: STM (Map key (CacheEntry value)))
 
@@ -118,9 +118,9 @@ runCacheTtlWithWait waitForNextCleanup action = do
             $ "Evicted " <> show evicted <> " entries"
 
     interpretWith action $ \_ -> \case
-        CacheLookup key ->
+        Lookup key ->
             fmap (.value) <$> STM.atomically (Map.lookup key store)
-        CacheInsert key val -> do
+        Insert key val -> do
             now <- currentTime
             STM.atomically $ do
                 existing <- Map.lookup key store
@@ -128,9 +128,9 @@ runCacheTtlWithWait waitForNextCleanup action = do
                         Nothing -> CacheEntry {value = val, createdAt = now}
                         Just e -> e {value = val} -- preserve original timestamp
                 Map.insert entry key store
-        CacheDelete key ->
+        Delete key ->
             STM.atomically $ Map.delete key store
-        CacheModify key f -> do
+        Modify key f -> do
             now <- currentTime
             STM.atomically $ do
                 existing <- Map.lookup key store
@@ -164,21 +164,21 @@ evictExpiredEntries store ttl now =
 --
 -- Uses a plain STM 'Map' with no eviction. Useful for tests and
 -- session-scoped caches where eviction is never needed.
-runCacheForever
+runForever
     :: forall key value es a
      . (Concurrent :> es, Hashable key)
     => Eff (Cache key value : es) a
     -> Eff es a
-runCacheForever action = do
+runForever action = do
     store <- STM.atomically (Map.new :: STM (Map key value))
     interpretWith action $ \_ -> \case
-        CacheLookup key ->
+        Lookup key ->
             STM.atomically $ Map.lookup key store
-        CacheInsert key val ->
+        Insert key val ->
             STM.atomically $ Map.insert val key store
-        CacheDelete key ->
+        Delete key ->
             STM.atomically $ Map.delete key store
-        CacheModify key f ->
+        Modify key f ->
             STM.atomically $ do
                 existing <- Map.lookup key store
                 let newVal = f existing
