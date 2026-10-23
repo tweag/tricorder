@@ -141,4 +141,4 @@ run
     :: Map FilePath ByteString
     -> Eff '[FileSystem, State (Map FilePath ByteString)] a
     -> a
-run fs = runPureEff . evalState fs . runFileSystemState
+run fs = runPureEff . evalState fs . runState

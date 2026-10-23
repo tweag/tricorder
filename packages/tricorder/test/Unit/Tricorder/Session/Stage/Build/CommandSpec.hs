@@ -1,12 +1,13 @@
 module Unit.Tricorder.Session.Stage.Build.CommandSpec (test_Command) where
 
-import Atelier.Effects.FileSystem (FileSystem, runFileSystemState)
+import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (def)
 import Effectful (runPureEff)
 import Effectful.State.Static.Shared (State, evalState)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
@@ -171,7 +172,7 @@ renderBuildFor files cfg targets =
 -- @stack.yaml@, which is parsed for its @packages@ key).
 withFiles :: [(FilePath, ByteString)] -> Eff '[FileSystem, State (Map FilePath ByteString)] a -> a
 withFiles files action =
-    runPureEff $ evalState (Map.fromList files) $ runFileSystemState action
+    runPureEff $ evalState (Map.fromList files) $ FileSystem.runState action
 
 
 cfg0 :: Config
