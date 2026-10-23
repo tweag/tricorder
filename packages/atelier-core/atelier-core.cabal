@@ -54,6 +54,7 @@ library
       Atelier.Effects.FileWatcher.Watch
       Atelier.Effects.FSNotify
       Atelier.Effects.FSNotify.Devel
+      Atelier.Effects.GenUUID
       Atelier.Effects.Input
       Atelier.Effects.Internal.Coroutine
       Atelier.Effects.Iterator
@@ -68,7 +69,6 @@ library
       Atelier.Effects.Reader
       Atelier.Effects.Tally
       Atelier.Effects.Timeout
-      Atelier.Effects.UUID
       Atelier.Effects.Yield
       Atelier.Exception
       Atelier.Signal

@@ -52,6 +52,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   continuation, so now the continuation just receives the count as-is.
 - `Atelier.Effects.Timeout`: converted to static effect, and renamed members to
   make more suited for qualified use.
+- `Atelier.Effects.UUID`: renamed to `Atelier.Effects.GenUUID`, and renamed
+  members to make more suited for qualified use.
 
 ### Removed
 
