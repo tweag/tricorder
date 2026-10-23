@@ -9,7 +9,7 @@ module Tricorder.Session.Hooks
 where
 
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
-import Atelier.Types.WithDefaults (WithDefaults (..))
+import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Default (Default (..))
 

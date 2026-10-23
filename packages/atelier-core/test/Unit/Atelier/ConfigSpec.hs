@@ -11,7 +11,7 @@ import Data.Aeson.KeyMap qualified as KM
 
 import Atelier.Config (LoadedConfig (..), extractNestedConfig)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
-import Atelier.Types.WithDefaults (WithDefaults (..))
+import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
 
 
 test_Config :: TestTree

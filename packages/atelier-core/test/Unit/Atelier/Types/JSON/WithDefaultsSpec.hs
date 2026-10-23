@@ -1,4 +1,4 @@
-module Unit.Atelier.Types.WithDefaultsSpec (test_WithDefaults) where
+module Unit.Atelier.Types.JSON.WithDefaultsSpec (test_WithDefaults) where
 
 import Data.Aeson (FromJSON, ToJSON, eitherDecode)
 import Data.Default (Default (..))
@@ -8,7 +8,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Data.ByteString.Lazy qualified as LBS
 
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
-import Atelier.Types.WithDefaults (WithDefaults (..))
+import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
 
 
 -- | A minimal fixture type with non-Maybe list fields to exercise WithDefaults.

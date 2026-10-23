@@ -15,7 +15,7 @@
 -- @
 --
 -- Parsing @{\"verbose\": true}@ then yields @Config { retries = 3, verbose = True }@.
-module Atelier.Types.WithDefaults
+module Atelier.Types.JSON.WithDefaults
     ( WithDefaults (..)
     )
 where

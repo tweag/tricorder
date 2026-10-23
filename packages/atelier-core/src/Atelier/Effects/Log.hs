@@ -62,7 +62,7 @@ import Data.ByteString.Char8 qualified as B8
 import Atelier.Effects.Env (Env, getEnvironment)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.JSON.ReadShow (ReadShow (..))
-import Atelier.Types.WithDefaults (WithDefaults (..))
+import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
 
 
 -- | Effect for structured logging with hierarchical namespaces.

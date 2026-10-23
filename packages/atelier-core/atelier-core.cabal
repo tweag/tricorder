@@ -77,11 +77,9 @@ library
       Atelier.Types.JSON.QuietSnake
       Atelier.Types.JSON.ReadShow
       Atelier.Types.JSON.StringLiteral
-      Atelier.Types.JsonReadShow
-      Atelier.Types.QuietSnake
+      Atelier.Types.JSON.WithDefaults
       Atelier.Types.Semaphore
       Atelier.Types.Semaphore.STM
-      Atelier.Types.WithDefaults
   other-modules:
       Paths_atelier_core
   autogen-modules:
@@ -171,9 +169,9 @@ test-suite atelier-test
       Unit.Atelier.Effects.PubSubSpec
       Unit.Atelier.Effects.TallySpec
       Unit.Atelier.Effects.YieldSpec
+      Unit.Atelier.Types.JSON.WithDefaultsSpec
       Unit.Atelier.Types.Semaphore.STMSpec
       Unit.Atelier.Types.SemaphoreSpec
-      Unit.Atelier.Types.WithDefaultsSpec
       Paths_atelier_core
   autogen-modules:
       Paths_atelier_core
