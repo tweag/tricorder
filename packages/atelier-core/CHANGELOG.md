@@ -48,6 +48,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Removed
 
 - Deprecated functions in `Atelier.Effects.Input`.
+- Deprecated modules `Atelier.Effects.Publishing`,
+  `Atelier.Effects.Publishing.Sub` and `Atelier.Effects.Publishing.Pub`.
 
 ## [0.8.1.0] - 2026-10-23
 

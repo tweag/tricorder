@@ -62,9 +62,6 @@ library
       Atelier.Effects.Posix.IO
       Atelier.Effects.Process
       Atelier.Effects.Process.Internal
-      Atelier.Effects.Publishing
-      Atelier.Effects.Publishing.Pub
-      Atelier.Effects.Publishing.Sub
       Atelier.Effects.PubSub
       Atelier.Effects.PubSub.Pub
       Atelier.Effects.PubSub.Sub
