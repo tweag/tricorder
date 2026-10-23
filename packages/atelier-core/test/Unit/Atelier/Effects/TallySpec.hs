@@ -13,16 +13,18 @@ import Data.Map.Strict qualified as Map
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
+import Atelier.Effects.Cache.Config (Config (..))
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log)
-import Atelier.Effects.Tally (Config (..), Tally, runTally, withTallyCheck)
+import Atelier.Effects.Tally (Tally)
 
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Tally qualified as Tally
 
 
 test_Tally :: TestTree
@@ -36,34 +38,17 @@ test_Tally =
                 result @?= Map.fromList [(1, 1), (42, 1), (999, 1)]
             ]
         , testGroup
-            "Custom Classifiers"
-            [ testCase "identity classifier returns the raw hit count" do
-                result <- runTallyTest $ replicateM 4 (withTallyCheck @Int 1 id pure)
-                result @?= [1, 2, 3, 4 :: Int]
-            , testCase "multi-mark classifier yields correct mark for each hit" do
-                -- Two thresholds: warning at >2, critical at >4
-                let classify c
-                        | c > 4 = Just True -- critical
-                        | c > 2 = Just False -- warning
-                        | otherwise = Nothing -- ok
-                result <- runTallyTest $ replicateM 6 (withTallyCheck @Int 1 classify pure)
-                result @?= [Nothing, Nothing, Just False, Just False, Just True, Just True]
-            , testCase "classifier producing tuples gives both count and flag" do
-                let classify c = (c, c > 2)
-                result <- runTallyTest $ replicateM 4 (withTallyCheck @Int 1 classify pure)
-                result @?= [(1, False), (2, False), (3, True), (4, True)]
-            ]
-        , testGroup
             "Action Execution"
             [ testCase "continuation with side effects executes correctly" do
                 result <- runTallyTest $ do
-                    ref <- liftIO $ IORef.newIORef ([] :: [(Int, Bool)])
+                    ref <- liftIO $ IORef.newIORef ([] :: [Int])
                     replicateM_ 3
-                        $ withTallyCheck @Int 1 (\c -> (c, c > 2))
-                        $ \(count, exceeded) ->
-                            liftIO $ IORef.modifyIORef' ref ((count, exceeded) :)
+                        $ Tally.count @Int
+                            1
+                            \count ->
+                                liftIO $ IORef.modifyIORef' ref (count :)
                     liftIO $ reverse <$> IORef.readIORef ref
-                result @?= [(1, False), (2, False), (3, True)]
+                result @?= [1, 2, 3]
             ]
         , testGroup
             "Properties"
@@ -77,11 +62,6 @@ test_Tally =
                     replicateM_ n checkCount
                     checkCount
                 finalCount === n + 1
-            , testProperty "classifier output is passed through unchanged" $ property $ do
-                n <- forAll $ Gen.int (Range.linear 1 50)
-                offset <- forAll $ Gen.int (Range.linear 0 200)
-                results <- liftIO $ runTallyTest $ replicateM n (withTallyCheck @Int 1 (+ offset) pure)
-                results === map (+ offset) [1 .. n]
             ]
         ]
 
@@ -100,18 +80,18 @@ runTallyTest action =
         . Delay.runIO
         . Clock.runIO
         . runReader (Config {entryTtl = 3600, cleanupInterval = 3600})
-        . runTally @Int
+        . Tally.run @Int
         $ action
 
 
 -- | Increment the tally for the default test key and return the raw count
 checkCount :: (Tally Int :> es) => Eff es Int
-checkCount = withTallyCheck @Int 1 id pure
+checkCount = Tally.count @Int 1 pure
 
 
 -- | Increment the tally for a specific key and return the raw count
 checkCountForKey :: (Hashable key, Ord key, Tally key :> es) => key -> Eff es Int
-checkCountForKey key = withTallyCheck key id pure
+checkCountForKey key = Tally.count key pure
 
 
 -- | Increment the tally for each key and return a map of key → count
