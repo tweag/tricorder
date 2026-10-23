@@ -42,6 +42,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Atelier.Effects.FileWatcher`: renamed members to make more suited for
   qualified use.
 
+### Removed
+
+- Deprecated functions in `Atelier.Effects.Input`.
+
 ## [0.8.1.0] - 2026-10-23
 
 ### Added
