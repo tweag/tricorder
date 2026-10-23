@@ -3,8 +3,7 @@
 -- 'Conc' exposes forking, awaiting, racing and nurseries ('scoped') as an
 -- effect, so concurrent code stays in 'Eff' and inherits structured-concurrency
 -- guarantees: every child thread is bound to a scope and is cancelled when that
--- scope closes. The base interpreter ('runConc') ignores tracing; use
--- "Atelier.Effects.Conc.Traced" to propagate OpenTelemetry context across forks.
+-- scope closes.
 module Atelier.Effects.Conc
     ( -- * Effect
       Conc (..)
@@ -24,11 +23,11 @@ module Atelier.Effects.Conc
     , restartableForkLoop
 
       -- * Interpreters
-    , runConcBase
-    , runConc
+    , runScope
+    , runIO
 
       -- * Unlift Strategy
-    , concStrat
+    , strategy
     )
 where
 
@@ -134,30 +133,27 @@ restartableForkLoop initial signal action = go initial
 
 
 -- | Base interpreter: resolves 'Conc' operations using Ki.
---
--- Does not handle trace context propagation. Use 'Atelier.Effects.Conc.Traced.runConc'
--- for automatic span link propagation across forks.
-runConcBase :: forall es a. (Concurrent :> es, IOE :> es) => Scope -> Eff (Conc : es) a -> Eff es a
-runConcBase (Scope scope0) = interpret $ handler @es scope0
+runScope :: forall es a. (Concurrent :> es, IOE :> es) => Scope -> Eff (Conc : es) a -> Eff es a
+runScope (Scope scope0) = interpret $ handler @es scope0
   where
     handler :: forall es'. (Concurrent :> es', IOE :> es') => Ki.Scope -> EffectHandler Conc es'
     handler scope env = \case
         Fork action ->
-            localUnliftIO env concStrat \unlift ->
+            localUnliftIO env strategy \unlift ->
                 fmap Thread . liftIO . Ki.fork scope $ unlift action
         Fork_ action ->
-            localUnliftIO env concStrat \unlift ->
+            localUnliftIO env strategy \unlift ->
                 Ki.fork_ scope $ unlift action
         ForkTry action ->
-            localUnliftIO env concStrat \unlift ->
+            localUnliftIO env strategy \unlift ->
                 fmap Thread . liftIO . Ki.forkTry scope $ unlift action
         Await (Thread thread) ->
             runConcurrent . atomically $ Ki.await thread
         AwaitAll ->
             runConcurrent . atomically $ Ki.awaitAll scope
         Race ma mb ->
-            localLend @'[Concurrent] env concStrat \lend ->
-                localUnliftIO env concStrat \unlift ->
+            localLend @'[Concurrent] env strategy \lend ->
+                localUnliftIO env strategy \unlift ->
                     Ki.scoped \raceScope -> do
                         ref <- unlift $ inject $ lend newEmptyMVar
                         void
@@ -170,9 +166,9 @@ runConcBase (Scope scope0) = interpret $ handler @es scope0
                             $ lend . putMVar ref . Right =<< mb
                         unlift $ lend $ takeMVar ref
         Scoped m ->
-            localUnlift env concStrat \unliftEff ->
-                localLend @'[IOE, Concurrent] env concStrat \lend ->
-                    withEffToIO concStrat \unliftIO ->
+            localUnlift env strategy \unliftEff ->
+                localLend @'[IOE, Concurrent] env strategy \lend ->
+                    withEffToIO strategy \unliftIO ->
                         Ki.scoped \subScope ->
                             unliftIO
                                 . unliftEff
@@ -185,14 +181,14 @@ runConcBase (Scope scope0) = interpret $ handler @es scope0
 -- | Run 'Conc' in a new Ki scope without trace context propagation.
 --
 -- Suitable for tests and contexts where tracing is not needed.
-runConc :: (Concurrent :> es, IOE :> es) => Eff (Conc : es) a -> Eff es a
-runConc eff = withEffToIO concStrat $ \unlift ->
+runIO :: (Concurrent :> es, IOE :> es) => Eff (Conc : es) a -> Eff es a
+runIO eff = withEffToIO strategy $ \unlift ->
     Ki.scoped $ \scope ->
-        unlift $ runConcBase (Scope scope) eff
+        unlift $ runScope (Scope scope) eff
 
 
 -- | The unlift strategy used when running forked actions: a persistent,
 -- unlimited concurrent unlift, so forked threads may themselves use the effects
--- of the enclosing computation. Shared with "Atelier.Effects.Conc.Traced".
-concStrat :: UnliftStrategy
-concStrat = ConcUnlift Persistent Unlimited
+-- of the enclosing computation.
+strategy :: UnliftStrategy
+strategy = ConcUnlift Persistent Unlimited

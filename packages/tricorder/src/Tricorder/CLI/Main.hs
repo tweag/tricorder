@@ -1,6 +1,5 @@
 module Tricorder.CLI.Main (main) where
 
-import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Console (Console, runConsole, runConsoleOut)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
@@ -19,6 +18,7 @@ import Effectful.Provider (provideWith_, runProvider_)
 
 import Atelier.Effects.Arguments qualified as Arguments
 import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
@@ -49,7 +49,7 @@ main =
     runEff
         . runTimeout
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . runBrickChan
         . runBrick
         . runConsole

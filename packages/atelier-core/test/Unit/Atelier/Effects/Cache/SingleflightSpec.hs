@@ -9,7 +9,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Cache.Singleflight (Singleflight, runSingleflight, updateCache, withCache)
-import Atelier.Effects.Conc (Conc, runConc)
+import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay, runDelay)
 import Atelier.Time (Millisecond)
 import Atelier.Types.Semaphore (Semaphore)
@@ -32,7 +32,7 @@ runSingleflightTest
 runSingleflightTest action =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . runDelay
         . runState @Int 0
         . runSingleflight @Int @Int

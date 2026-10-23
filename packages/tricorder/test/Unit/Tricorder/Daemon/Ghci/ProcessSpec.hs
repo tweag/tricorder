@@ -1,6 +1,5 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
-import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
@@ -239,7 +238,7 @@ testExecGhciStaleMarker =
                 . runDelay
                 . runFile
                 . runLogNoOp
-                . runConc
+                . Conc.runIO
                 $ do
                     -- A stale 'marker 5' (left by a prior interrupted reload)
                     -- precedes the fresh command's real output + its 'marker 9'
@@ -298,7 +297,7 @@ testSyncMarkerScopeIndependent =
                 . runDelay
                 . runFile
                 . runLogNoOp
-                . runConc
+                . Conc.runIO
                 $ do
                     -- Pre-seed the marker on both streams so the drain returns
                     -- immediately; we only care about what was written to stdin.
@@ -342,7 +341,7 @@ testWaitForBannerOrFail =
                 . runTimeout
                 . runDelay
                 . runFile
-                . runConc
+                . Conc.runIO
                 $ do
                     -- No banner will ever arrive: close the write end so the
                     -- wait sees EOF at once and takes the "command exited"
@@ -386,7 +385,7 @@ testWithProcessGroupCleanup =
                     . runTimeout
                     . runDelay
                     . runFile
-                    . runConc
+                    . Conc.runIO
                     . runProcessIO
                     $ withProcessGroup procConfig \p -> do
                         -- First stdout line is the long-lived child's pid.
@@ -536,7 +535,7 @@ testExecGhciScope =
                 . runDelay
                 . runFile
                 . runLogNoOp
-                . runConc
+                . Conc.runIO
                 $ Conc.scoped do
                     -- A sibling fork in the SAME ambient scope. If the bug
                     -- regresses, the drain exception will tear this scope

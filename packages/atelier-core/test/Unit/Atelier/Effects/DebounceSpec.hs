@@ -10,7 +10,6 @@ import Data.IORef qualified as IORef
 import Effectful.Concurrent.STM qualified as STM
 import StmContainers.Map qualified as Map
 
-import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Debounce
     ( Entry (..)
     , debounced
@@ -129,7 +128,7 @@ testEnsureCallback =
             . runConcurrent
             . Console.runConsole
             . Delay.runDelay
-            . runConc
+            . Conc.runIO
     entry generation =
         Entry
             { generation
@@ -253,7 +252,7 @@ testRunDebounce =
     runTest =
         runEff
             . runConcurrent
-            . runConc
+            . Conc.runIO
             . runDelay
             . runDebounce
 

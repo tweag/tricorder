@@ -83,8 +83,9 @@ import Data.Text qualified as T
 import Effectful.Concurrent qualified as Concurrent
 import System.FSNotify qualified as FSN
 
-import Atelier.Effects.Conc (concStrat)
 import Atelier.Effects.Debounce (Debounce, debouncedWith)
+
+import Atelier.Effects.Conc qualified as Conc
 
 
 -- | The kind of filesystem change that triggered a watch callback.
@@ -189,7 +190,7 @@ watchFilePathsDebounced watches callback =
 runFileWatcherIO :: (IOE :> es) => Eff (FileWatcher : es) a -> Eff es a
 runFileWatcherIO eff = interpretWith eff \env -> \case
     WatchFilePaths watches callback ->
-        localUnliftIO env concStrat \unliftIO -> do
+        localUnliftIO env Conc.strategy \unliftIO -> do
             absWatches <- forM watches \(Watch p predicate) ->
                 (\absP -> Watch absP predicate) <$> makeAbsolute p
             withManager \mgr -> do

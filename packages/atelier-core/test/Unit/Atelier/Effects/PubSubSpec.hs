@@ -9,12 +9,13 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
-import Atelier.Effects.Conc (Conc, runConc)
+import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
@@ -72,7 +73,7 @@ runPubSubTest
 runPubSubTest =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . Clock.runIO
         . Chan.run
         . PubSub.run @TestEvent
@@ -85,7 +86,7 @@ runPubSubTestWithClock
 runPubSubTestWithClock t =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . Clock.runConst t
         . Chan.run
         . PubSub.run @TestEvent

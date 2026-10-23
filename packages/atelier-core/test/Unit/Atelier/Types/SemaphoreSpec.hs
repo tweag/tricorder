@@ -19,7 +19,7 @@ test_Semaphore =
         [ testGroup
             "wait"
             [ testCase "should halt the computation" do
-                runEff . runConcurrent . Conc.runConc . evalState @Int 0 $ do
+                runEff . runConcurrent . Conc.runIO . evalState @Int 0 $ do
                     sem <- Sem.new
 
                     thread <- Conc.fork do
@@ -135,7 +135,7 @@ test_Semaphore =
                     Sem.peek sem
                 result @?= True
             , testCase "waits for the semaphore before running" do
-                result <- runEff . runConcurrent . Conc.runConc $ do
+                result <- runEff . runConcurrent . Conc.runIO $ do
                     sem <- Sem.new
                     ref <- liftIO $ IORef.newIORef False
                     _ <- Conc.fork $ do

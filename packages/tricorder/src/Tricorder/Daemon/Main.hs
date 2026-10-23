@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Debounce (runDebounce)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
@@ -62,7 +61,7 @@ main :: IO ()
 main =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . Clock.runIO
         . runDelay
         . runTimeout

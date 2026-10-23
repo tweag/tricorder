@@ -8,12 +8,13 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
-import Atelier.Effects.Conc (Conc, fork, runConc)
+import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Iterator qualified as Iter
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
@@ -34,7 +35,7 @@ testFromEvents =
     [ testCase "yields a published event" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     Pub.publish (42 :: Int)
                 Iter.next iter
@@ -42,7 +43,7 @@ testFromEvents =
     , testCase "yields events in publication order" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next iter)
@@ -50,7 +51,7 @@ testFromEvents =
     , testCase "buffers events so next can catch up" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1, 2, 3]
                 liftIO $ threadDelay 5_000
@@ -64,7 +65,7 @@ testFilter =
     [ testCase "passes values that satisfy the predicate" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1 .. 4]
                 Iter.next (Iter.filter even iter)
@@ -72,7 +73,7 @@ testFilter =
     , testCase "skips values that do not satisfy the predicate" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1 .. 6]
                 replicateM 3 (Iter.next (Iter.filter even iter))
@@ -85,7 +86,7 @@ testChanges =
     [ testCase "skips values equal to the initial value" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [0, 0, 1]
                 Iter.next (Iter.changes 0 iter)
@@ -93,7 +94,7 @@ testChanges =
     , testCase "yields values that differ from the initial value" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [1, 2, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
@@ -101,7 +102,7 @@ testChanges =
     , testCase "skips initial values interspersed with non-initial values" do
         result <- runTest $ do
             Iter.fromEvents @Int \iter -> do
-                _ <- fork do
+                _ <- Conc.fork do
                     liftIO $ threadDelay 10
                     traverse_ Pub.publish [0, 1, 0, 2, 0, 3]
                 replicateM 3 (Iter.next (Iter.changes 0 iter))
@@ -117,7 +118,7 @@ runTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Conc, Concurrent, IOE] a -> IO a
 runTest =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . Clock.runIO
         . Chan.run
         . PubSub.run @Int

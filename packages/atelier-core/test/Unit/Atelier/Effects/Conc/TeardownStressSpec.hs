@@ -27,12 +27,13 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
-import Atelier.Effects.Conc (Conc, fork, fork_, runConc, scoped)
+import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Iterator qualified as Iter
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
@@ -60,16 +61,16 @@ test_ConcTeardownStress = do
                         timeout testTimeoutMicros
                             $ runConcTest
                             $ replicateM_ iterations
-                            $ scoped (void (fork_ blockForever))
+                            $ Conc.scoped (void (Conc.fork_ blockForever))
                     completed @?= Just ()
                 , testCase "reaps a two-child scope (one parked, one transient) across many scopes" do
                     completed <-
                         timeout testTimeoutMicros
                             $ runConcTest
                             $ replicateM_ iterations
-                            $ scoped do
-                                _ <- fork (liftIO (threadDelay 5))
-                                void (fork_ blockForever)
+                            $ Conc.scoped do
+                                _ <- Conc.fork (liftIO (threadDelay 5))
+                                void (Conc.fork_ blockForever)
                     completed @?= Just ()
                 ]
           , -- Faithful repro of the actual full-suite victim: the 'fromEvents' Iterator
@@ -87,7 +88,7 @@ test_ConcTeardownStress = do
                             $ runIterTest
                             $ replicateM_ iterations
                             $ Iter.fromEvents @Int \iter -> do
-                                _ <- fork do
+                                _ <- Conc.fork do
                                     liftIO (threadDelay publishDelayUs)
                                     traverse_ Pub.publish [1, 2, 3 :: Int]
                                 _ <- replicateM 3 (Iter.next iter)
@@ -107,7 +108,7 @@ test_ConcTeardownStress = do
                         completed <-
                             timeout testTimeoutMicros
                                 $ runConcTest
-                                $ scoped (void (fork_ nonAllocatingSpin))
+                                $ Conc.scoped (void (Conc.fork_ nonAllocatingSpin))
                         completed @?= Just ()
                     ]
                | runSpin
@@ -130,9 +131,9 @@ test_ConcTeardownStress = do
 
 
 runConcTest :: Eff '[Conc, Concurrent, IOE] a -> IO a
-runConcTest = runEff . runConcurrent . runConc
+runConcTest = runEff . runConcurrent . Conc.runIO
 
 
 -- | Mirrors 'IteratorSpec.runTest' — the full effect stack the real victim runs on.
 runIterTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Conc, Concurrent, IOE] a -> IO a
-runIterTest = runEff . runConcurrent . runConc . Clock.runIO . Chan.run . PubSub.run @Int
+runIterTest = runEff . runConcurrent . Conc.runIO . Clock.runIO . Chan.run . PubSub.run @Int

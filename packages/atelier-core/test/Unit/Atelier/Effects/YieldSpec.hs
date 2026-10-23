@@ -7,10 +7,9 @@ import Effectful.Writer.Static.Shared (execWriter, tell)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.Conc (runConc)
-
 import Atelier.Effects.Await qualified as Await
 import Atelier.Effects.Chan qualified as Chan
+import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Yield qualified as Yield
 
 
@@ -115,7 +114,7 @@ testCycleToYield =
         xs @?= [1, 2, 3, 1, 2, 3, 1]
     ]
   where
-    runTest = runEff . runConcurrent . runConc . Chan.run . execWriter
+    runTest = runEff . runConcurrent . Conc.runIO . Chan.run . execWriter
 
 
 testWithYieldToList :: [TestTree]

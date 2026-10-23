@@ -1,6 +1,6 @@
 module Unit.Tricorder.WaitersSpec (test_Waiters) where
 
-import Atelier.Effects.Conc (Conc, runConc)
+import Atelier.Effects.Conc (Conc)
 import Control.Exception (try)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
@@ -30,7 +30,7 @@ runWaitersTest
 runWaitersTest =
     runEff
         . runConcurrent
-        . runConc
+        . Conc.runIO
         . runState @[Text] []
         . Waiters.run
 
