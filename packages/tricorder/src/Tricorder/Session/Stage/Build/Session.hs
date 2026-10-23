@@ -57,7 +57,7 @@ resolve config repl projectFiles = do
             , ghci = maybe def Ghci.Config.File.toConfig config.build.ghci
             }
   where
-    rawBuildTargets = fromMaybe config.targets config.build.targets
+    rawBuildTargets = fromMaybe [] config.build.targets
     effectiveTargets = Target.resolve projectFiles rawBuildTargets
 
 

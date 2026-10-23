@@ -75,22 +75,6 @@ testRenderBuild =
 testResolveBuildCommand :: [TestTree]
 testResolveBuildCommand =
     [ testGroup
-        "deprecated top-level command"
-        [ testCase "is used as the build template when build.command_template is unset" do
-            renderBuildFor [] def {command = Just "foo"} [] @?= "foo"
-        ]
-    , testGroup
-        "build.command_template"
-        [ testCase "overrides the deprecated top-level command" do
-            let cfg =
-                    cfg0
-                        { command = Just "should be ignored"
-                        , build = cfg0.build {commandTemplate = Just "cabal repl {targets}"}
-                        }
-            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
-                @?= "cabal repl lib:foo"
-        ]
-    , testGroup
         "explicit targets"
         [ testCase "spell them out verbatim" do
             renderBuildFor [("/cabal.project", "")] cfg0 (Target.parse <$> ["lib:foo"])
@@ -143,14 +127,6 @@ testResolveBuildCommand =
                                 { commandTemplate = Just "cabal repl {targets}"
                                 , extraAutoArguments = ["--extra-flag"]
                                 }
-                        }
-            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
-                @?= "cabal repl lib:foo"
-        , testCase "is ignored when the deprecated top-level command is set" do
-            let cfg =
-                    cfg0
-                        { command = Just "cabal repl {targets}"
-                        , build = cfg0.build {extraAutoArguments = ["--extra-flag"]}
                         }
             renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
                 @?= "cabal repl lib:foo"

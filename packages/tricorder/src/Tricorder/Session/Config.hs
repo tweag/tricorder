@@ -25,15 +25,9 @@ data Config = Config
     , generateWithHpack :: Bool
     , hooks :: Maybe Hooks
     , idleTimeoutSeconds :: Int
-    , command :: Maybe Text
-    -- ^ DEPRECATED: use 'build'.'commandTemplate' instead.
-    -- TODO: Remove at or after version 0.8.0.0.
-    , targets :: [Text]
-    -- ^ DEPRECATED: use 'build'.'targets' instead.
-    -- TODO: Remove at or after version 0.8.0.0.
-    , testTargets :: Maybe [Text]
-    -- ^ DEPRECATED: use 'test'.'targets' instead.
-    -- TODO: Remove at or after version 0.8.0.0.
+    , command :: Maybe (Renamed "command" "build.command_template")
+    , targets :: Maybe (Renamed "targets" "build.targets")
+    , testTargets :: Maybe (Renamed "test_targets" "test.targets")
     }
     deriving stock (Eq, Generic, Show)
     deriving (ToJSON) via QuietSnake Config
@@ -55,6 +49,6 @@ instance Default Config where
             , hooks = Nothing
             , idleTimeoutSeconds = 300
             , command = Nothing
-            , targets = []
+            , targets = Nothing
             , testTargets = Nothing
             }

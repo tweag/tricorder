@@ -135,10 +135,7 @@ mkSession cfgFile = do
     warnMissingTargetPlaceholder "test" cfgFile.test.commandConfig.commandTemplate
     warnMissingTargetPlaceholder "eval" cfgFile.eval.commandTemplate
 
-    warnIgnoredextraAutoArguments
-        "build"
-        (cfgFile.build.commandTemplate <|> cfgFile.command)
-        cfgFile.build.extraAutoArguments
+    warnIgnoredextraAutoArguments "build" cfgFile.build.commandTemplate cfgFile.build.extraAutoArguments
     warnIgnoredextraAutoArguments
         "test"
         cfgFile.test.commandConfig.commandTemplate

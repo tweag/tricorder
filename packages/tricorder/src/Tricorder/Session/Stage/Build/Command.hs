@@ -34,22 +34,20 @@ resolve
     -> [Target]
     -> Eff es (CommandTemplate 'Build, [Target])
 resolve projectRoot cfg repl effectiveTargets = do
-    template <- case customTemplate of
+    template <- case cfg.build.commandTemplate of
         Just tpl -> pure tpl
         Nothing -> defaultBuildTemplate projectRoot repl cfg.replBuildDir
     pure
         ( CommandTemplate
             { repl
             , template
-            , arguments = maybe cfg.build.extraAutoArguments (const []) customTemplate
+            , arguments = maybe cfg.build.extraAutoArguments (const []) cfg.build.commandTemplate
             , placeholder = targetsPlaceholder
             }
         , if not (null effectiveTargets)
             then effectiveTargets
             else [Bare "all"]
         )
-  where
-    customTemplate = cfg.build.commandTemplate <|> cfg.command
 
 
 -- | Whether the project has a @cabal.project@ or any @*.cabal@ file. Used
