@@ -1,6 +1,7 @@
 module Unit.Tricorder.Daemon.WatchSpec (test_Watch) where
 
-import Atelier.Effects.FileWatcher (FileEvent (..), matchesAny)
+import Atelier.Effects.FileWatcher (matchesAny)
+import Atelier.Effects.FileWatcher.Event (Event (..))
 import Effectful (runEff)
 import Effectful.Writer.Static.Shared (execWriter, runWriter)
 import Test.Tasty (TestTree, testGroup)
@@ -9,10 +10,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 
 import Atelier.Effects.PubSub.Pub qualified as Pub
 
-import Tricorder.Build.Changes
-    ( CabalChangeDetected (..)
-    , SourceChangeDetected (..)
-    )
+import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))

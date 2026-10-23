@@ -50,6 +50,8 @@ library
       Atelier.Effects.FileSystem
       Atelier.Effects.FileSystem.Glob
       Atelier.Effects.FileWatcher
+      Atelier.Effects.FileWatcher.Event
+      Atelier.Effects.FileWatcher.Watch
       Atelier.Effects.FSNotify
       Atelier.Effects.FSNotify.Devel
       Atelier.Effects.Input

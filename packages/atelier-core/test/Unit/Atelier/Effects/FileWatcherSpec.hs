@@ -14,16 +14,16 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.FileWatcher
-    ( FileEvent (..)
-    , FileWatcher
-    , Watch
+    ( FileWatcher
     , deduplicateDirs
-    , dir
-    , dirWhere
     , matchesAny
-    , runFileWatcherScripted
     , watchFilePaths
     )
+import Atelier.Effects.FileWatcher.Event (Event (..))
+import Atelier.Effects.FileWatcher.Watch (Watch)
+
+import Atelier.Effects.FileWatcher qualified as FileWatcher
+import Atelier.Effects.FileWatcher.Watch qualified as Watch
 
 
 test_FileWatcher :: TestTree
@@ -54,17 +54,17 @@ test_FileWatcher =
         , testGroup
             "matchesAny"
             [ testCase "matches a file under a watched directory" do
-                matchesAny [dir "/proj/src"] "/proj/src/Foo.hs"
+                matchesAny [Watch.dir "/proj/src"] "/proj/src/Foo.hs"
                     @?= True
             , testCase "does not match a relative watch dir against an absolute event path" do
                 -- runFileWatcherIO must canonicalize Watch paths to absolute before
                 -- calling matchesAny, because fsnotify always reports absolute paths.
-                matchesAny [dir "src"] "/proj/src/Foo.hs"
+                matchesAny [Watch.dir "src"] "/proj/src/Foo.hs"
                     @?= False
             , testCase "applies the file predicate" do
-                matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.hs"
+                matchesAny [Watch.dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.hs"
                     @?= True
-                matchesAny [dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.js"
+                matchesAny [Watch.dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.js"
                     @?= False
             ]
         , testGroup "runFileWatcherScripted" testScripted
@@ -86,7 +86,7 @@ testScripted =
             paths <- collectPaths ["/src/Foo.hs", "/src/Bar.hs"]
             paths @?= ["/src/Foo.hs", "/src/Bar.hs"]
         , testCase "ignores the watch specification" do
-            paths <- collectPathsWith [dir "/any"] ["/src/Foo.hs"]
+            paths <- collectPathsWith [Watch.dir "/any"] ["/src/Foo.hs"]
             paths @?= ["/src/Foo.hs"]
         , testCase "passes the full path to the callback unchanged" do
             let path = "/home/user/project/src/Some/Deep/Module.hs"
@@ -119,7 +119,7 @@ collectPathsWith watches scripted = do
 
 
 runScripted :: [FilePath] -> Eff '[FileWatcher, Concurrent, IOE] a -> IO a
-runScripted paths = runEff . runConcurrent . runFileWatcherScripted (map (,Modified) paths)
+runScripted paths = runEff . runConcurrent . FileWatcher.runScripted (map (,Modified) paths)
 
 
 --------------------------------------------------------------------------------

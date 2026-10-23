@@ -11,6 +11,7 @@ import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileWatcher qualified as FileWatcher
+import Atelier.Effects.FileWatcher.Watch qualified as FileWatcher.Watch
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
@@ -73,7 +74,7 @@ watchPackageYaml
     => ProjectRoot -> Eff es Void
 watchPackageYaml root = do
     FileWatcher.watchFilePathsDebounced
-        [FileWatcher.dirWhere root.getProjectRoot (packageYaml `List.isSuffixOf`)]
+        [FileWatcher.Watch.dirWhere root.getProjectRoot (packageYaml `List.isSuffixOf`)]
         \path _ -> Pub.publish $ RePack path
 
 

@@ -3,7 +3,6 @@ module Tricorder.Daemon.Core (main) where
 import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.PubSub.Pub (Pub)
@@ -15,6 +14,7 @@ import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
@@ -66,7 +66,7 @@ import Tricorder.Waiters qualified as Waiters
 data RestartBuilder = RestartBuilder
 
 
-data ReloadBuilder = ReloadBuilder FilePath FileEvent
+data ReloadBuilder = ReloadBuilder FilePath FileWatcher.Event
 
 
 -- | Top of the build loop. Responsible for handling changes to the Tricorder

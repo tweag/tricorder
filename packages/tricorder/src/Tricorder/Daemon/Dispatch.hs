@@ -12,9 +12,10 @@ module Tricorder.Daemon.Dispatch
     )
 where
 
-import Atelier.Effects.FileWatcher (FileEvent (..))
 import System.FilePath (isAbsolute, normalise, splitDirectories, takeExtension, (</>))
 
+import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
+import Atelier.Effects.FileWatcher.Event qualified as FileWatcher.Event
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -126,22 +127,22 @@ dispatch
     :: KnownTargetNames
     -> Maybe Ghci.LoadedModule
     -> FilePath
-    -> FileEvent
+    -> FileWatcher.Event
     -> Maybe DispatchAction
 dispatch knownTargets known fp event = case known of
     Just lm -> Just $ case event of
-        Added -> Reload
-        Modified -> Reload
-        Removed -> Unadd lm.moduleName
+        FileWatcher.Event.Added -> Reload
+        FileWatcher.Event.Modified -> Reload
+        FileWatcher.Event.Removed -> Unadd lm.moduleName
     Nothing
         | fileMatchesAnyTarget knownTargets fp -> case event of
-            Added -> Just Reload
-            Modified -> Just Reload
-            Removed -> Nothing
+            FileWatcher.Event.Added -> Just Reload
+            FileWatcher.Event.Modified -> Just Reload
+            FileWatcher.Event.Removed -> Nothing
         | otherwise -> case event of
-            Added -> Just (Add fp)
-            Modified -> Just (Add fp)
-            Removed -> Nothing
+            FileWatcher.Event.Added -> Just (Add fp)
+            FileWatcher.Event.Modified -> Just (Add fp)
+            FileWatcher.Event.Removed -> Nothing
 
 
 -- | Keep only diagnostics whose file is under one of the watched directories.
