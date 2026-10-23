@@ -6,7 +6,7 @@ module Tricorder.SourceLookup
 where
 
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
-import Atelier.Effects.Input (Input, input)
+import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import System.FilePath (normalise, takeDirectory, (</>))
 import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
@@ -14,13 +14,15 @@ import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..))
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
+import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
 
 import Tricorder.Session.CabalFile (CabalFile (..))
-import Tricorder.Session.Repl (Repl)
+import Tricorder.Session.CommandTemplate (CommandTemplate (..))
+import Tricorder.Session.Stage.Build.Session (Session (..))
 import Tricorder.Session.WatchDirs (allSourceDirs)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
 import Tricorder.SourceLookup.Hackage (Hackage)
@@ -34,6 +36,7 @@ import Tricorder.SourceLookup.Tarball
     , sourceExtensions
     )
 
+import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
 import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 
 
@@ -83,7 +86,7 @@ lookupModuleSource
     :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
-       , Input Repl :> es
+       , Input Build.Session :> es
        , Log :> es
        , PackageStore :> es
        )
@@ -111,7 +114,7 @@ lookupLocal
     :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
-       , Input Repl :> es
+       , Input Build.Session :> es
        , Log :> es
        , PackageStore :> es
        )
@@ -180,7 +183,7 @@ followReexports
     :: ( FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
-       , Input Repl :> es
+       , Input Build.Session :> es
        , Log :> es
        , PackageStore :> es
        )
@@ -238,14 +241,14 @@ followReexports dirs limits query symbol origin
 -- | Resolve a module to its package, consulting the module -> package cache first.
 resolvePackage
     :: ( GhcPkg :> es
-       , Input Repl :> es
+       , Input Build.Session :> es
        , Log :> es
        )
     => ModuleName
     -> Eff es (Maybe PackageId)
 resolvePackage modName = do
-    repl <- input
-    result <- GhcPkg.findModule repl modName
+    session <- Input.input @Build.Session
+    result <- GhcPkg.findModule session.commandTemplate.repl modName
     Log.debug $ "Source: find-module " <> unModuleName modName <> " → " <> show result
     pure result
 

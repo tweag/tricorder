@@ -48,7 +48,6 @@ import Tricorder.CLI.Render
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.CabalFile (CabalFile)
-import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup (lookupModuleSource, projectSourceDirs)
@@ -61,6 +60,7 @@ import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
+import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
 import Tricorder.Session.Target qualified as Target
 import Tricorder.Session.TestTarget qualified as TestTarget
 
@@ -272,7 +272,7 @@ showSource
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
-       , Input Repl :> es
+       , Input Build.Session :> es
        , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es
