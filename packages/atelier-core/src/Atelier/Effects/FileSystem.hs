@@ -22,9 +22,9 @@ module Atelier.Effects.FileSystem
     , getModificationTime
     , getCurrentDirectory
     , getXdgRuntimeDir
-    , runFileSystemIO
-    , runFileSystemNoOp
-    , runFileSystemState
+    , runIO
+    , runNoOp
+    , runState
     )
 where
 
@@ -110,8 +110,8 @@ followFile path onChunk = go 0
 
 
 -- | Interpret 'FileSystem' against the real filesystem.
-runFileSystemIO :: (IOE :> es) => Eff (FileSystem : es) a -> Eff es a
-runFileSystemIO = interpret_ $ \case
+runIO :: (IOE :> es) => Eff (FileSystem : es) a -> Eff es a
+runIO = interpret_ $ \case
     ReadFileBs path -> liftIO $ BS.readFile path
     ReadFileLbsFrom path offset ->
         liftIO
@@ -135,8 +135,8 @@ runFileSystemIO = interpret_ $ \case
 
 -- | Interpret 'FileSystem' with inert results: reads return empty, existence
 -- checks return 'False', and mutations do nothing. Useful for tests.
-runFileSystemNoOp :: Eff (FileSystem : es) a -> Eff es a
-runFileSystemNoOp = interpret_ $ \case
+runNoOp :: Eff (FileSystem : es) a -> Eff es a
+runNoOp = interpret_ $ \case
     ReadFileBs _ -> pure mempty
     ReadFileLbsFrom _ _ -> pure mempty
     DoesFileExist _ -> pure False
@@ -156,10 +156,10 @@ runFileSystemNoOp = interpret_ $ \case
 -- | Run `FileSystem` effect backed by a `State` effect with a `Map`. The keys
 -- of the `Map` are treated as file names. Only the `dirname` of files are
 -- counted as existing directories.
-runFileSystemState
+runState
     :: (State (Map FilePath ByteString) :> es)
     => Eff (FileSystem : es) a -> Eff es a
-runFileSystemState = interpret_ \case
+runState = interpret_ \case
     ReadFileBs fp ->
         maybe (throwIO $ userError "No such file") pure
             =<< gets (M.lookup fp)

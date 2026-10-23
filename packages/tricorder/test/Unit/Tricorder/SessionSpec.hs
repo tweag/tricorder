@@ -1,6 +1,5 @@
 module Unit.Tricorder.SessionSpec (test_Session) where
 
-import Atelier.Effects.FileSystem (runFileSystemState)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Data.Aeson (object, (.=))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
@@ -11,6 +10,7 @@ import Effectful.Writer.Static.Shared (execWriter)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
+import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
@@ -80,7 +80,7 @@ testLoadSession =
             . execWriter @[Message]
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
-            . runFileSystemState
+            . FileSystem.runState
             . Input.withConst cabalFiles
             . runReader (ProjectRoot "/")
             . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
@@ -124,7 +124,7 @@ testMissingTargetPlaceholder =
             . execWriter @[Message]
             . runLogWriter
             . evalState @(Map FilePath ByteString) mempty
-            . runFileSystemState
+            . FileSystem.runState
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
             . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
@@ -147,7 +147,7 @@ testIdleTimeout =
         runPureEff
             . runLogNoOp
             . evalState @(Map FilePath ByteString) mempty
-            . runFileSystemState
+            . FileSystem.runState
             . Input.withConst ([] :: [CabalFile])
             . runReader (ProjectRoot "/")
             . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)

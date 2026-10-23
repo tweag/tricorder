@@ -81,4 +81,4 @@ runScripted script = runEff . File.run . UnixSocket.runScripted script
 
 -- | Run socket operations against the real IO interpreter.
 runIO' :: Eff '[UnixSocket, File, FileSystem, IOE] a -> IO a
-runIO' = runEff . FileSystem.runFileSystemIO . File.run . UnixSocket.runIO
+runIO' = runEff . FileSystem.runIO . File.run . UnixSocket.runIO
