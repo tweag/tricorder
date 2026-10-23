@@ -11,7 +11,6 @@ module Tricorder.Daemon.Builder
 where
 
 import Atelier.Effects.Clock (Clock, UTCTime)
-import Atelier.Effects.FileWatcher (FileEvent)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Time (nominalDiffTime)
@@ -25,6 +24,7 @@ import Effectful.TH (makeEffect)
 import System.FilePath (normalise)
 
 import Atelier.Effects.Clock qualified as Clock
+import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Data.Map.Strict qualified as Map
@@ -58,7 +58,7 @@ import Tricorder.Session.Stage qualified as Stage
 
 
 data Builder :: Effect where
-    Consider :: FilePath -> FileEvent -> Builder m BuildConsideration
+    Consider :: FilePath -> FileWatcher.Event -> Builder m BuildConsideration
     Build :: DispatchAction -> Builder m (Either BuildFailure NewLoadResult)
 
 
@@ -127,7 +127,7 @@ with buildId command watchDirs action = do
 considerBuild
     :: (State BuilderState :> es)
     => FilePath
-    -> FileEvent
+    -> FileWatcher.Event
     -> Eff es BuildConsideration
 considerBuild fp event = do
     builderState <- get

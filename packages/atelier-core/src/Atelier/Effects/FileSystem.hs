@@ -22,6 +22,7 @@ module Atelier.Effects.FileSystem
     , getModificationTime
     , getCurrentDirectory
     , getXdgRuntimeDir
+    , makeAbsolute
     , runIO
     , runNoOp
     , runState
@@ -83,6 +84,16 @@ data FileSystem :: Effect where
     GetXdgRuntimeDir :: FileSystem m FilePath
     -- | Obtain the time at which the file or directory was last modified.
     GetModificationTime :: FilePath -> FileSystem m UTCTime
+    -- | Convert a path into an absolute path. If the given path is relative,
+    -- the current directory is prepended and then the combined result is
+    -- normalized. If the path is already absolute, the path is simply
+    -- normalized. The function preserves the presence or absence of the
+    -- trailing path separator unless the path refers to the root directory /.
+    --
+    -- If the path is already absolute, the operation never fails. Otherwise,
+    -- the operation may fail with the same exceptions as
+    -- 'getCurrentDirectory'.
+    MakeAbsolute :: FilePath -> FileSystem m FilePath
 
 
 makeEffect ''FileSystem
@@ -131,6 +142,7 @@ runIO = interpret_ $ \case
     GetCurrentDirectory -> liftIO Dir.getCurrentDirectory
     GetXdgRuntimeDir -> liftIO $ fromMaybe "/tmp" <$> lookupEnv "XDG_RUNTIME_DIR"
     GetModificationTime path -> liftIO $ Dir.getModificationTime path
+    MakeAbsolute path -> liftIO $ Dir.makeAbsolute path
 
 
 -- | Interpret 'FileSystem' with inert results: reads return empty, existence
@@ -151,6 +163,7 @@ runNoOp = interpret_ $ \case
     GetCurrentDirectory -> pure "."
     GetXdgRuntimeDir -> pure "/tmp"
     GetModificationTime _ -> pure $ UTCTime (Day.fromOrdinalDate 1970 1) 0
+    MakeAbsolute path -> pure path
 
 
 -- | Run `FileSystem` effect backed by a `State` effect with a `Map`. The keys
@@ -183,3 +196,4 @@ runState = interpret_ \case
     GetCurrentDirectory -> pure "/"
     GetXdgRuntimeDir -> pure "/tmp"
     GetModificationTime _ -> pure $ UTCTime (Day.fromOrdinalDate 1970 1) 0
+    MakeAbsolute path -> pure path

@@ -37,30 +37,14 @@
 -- watchFilePathsDebounced (sourceWatches ++ cabalWatches) (markDirty . changeKindFor)
 -- @
 module Atelier.Effects.FileWatcher
-    ( -- * Watch specification
-      Watch
-
-      -- ** Constructors
-    , dir
-    , dirExt
-    , dirWhere
-
-      -- ** Combinators
-    , excluding
-    , containing
-
-      -- * File events
-    , FileEvent (..)
-    , mergeFileEvent
-
-      -- * Effect
-    , FileWatcher
+    ( -- * Effect
+      FileWatcher
     , watchFilePaths
     , watchFilePathsDebounced
 
       -- * Interpreters
-    , runFileWatcherIO
-    , runFileWatcherScripted
+    , runIO
+    , runScripted
 
       -- * Internals (exported for testing)
     , deduplicateDirs
@@ -68,98 +52,34 @@ module Atelier.Effects.FileWatcher
     )
 where
 
-import Control.Concurrent (threadDelay)
 import Data.List (nub)
-import Effectful (Effect, IOE)
+import Effectful (Effect, Limit (..), Persistence (..), UnliftStrategy (..))
 import Effectful.Concurrent (Concurrent)
-import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift, localUnliftIO, reinterpret)
+import Effectful.Dispatch.Dynamic
+    ( interpret
+    , localSeqUnlift
+    , localUnlift
+    , reinterpret
+    )
 import Effectful.State.Static.Shared (evalState, get, put)
 import Effectful.TH (makeEffect)
-import System.Directory (makeAbsolute)
-import System.FSNotify (eventPath, watchTree, withManager)
-import System.FilePath (takeExtension)
+import System.FSNotify (eventPath)
 
-import Data.Text qualified as T
 import Effectful.Concurrent qualified as Concurrent
-import System.FSNotify qualified as FSN
 
 import Atelier.Effects.Debounce (Debounce)
+import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.FSNotify (FSNotify)
+import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.FileWatcher.Event (Event)
+import Atelier.Effects.FileWatcher.Watch (Watch)
 
-import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Debounce qualified as Debounce
-
-
--- | The kind of filesystem change that triggered a watch callback.
-data FileEvent
-    = -- | A new file was created.
-      Added
-    | -- | An existing file was modified.
-      Modified
-    | -- | A file was deleted.
-      Removed
-    deriving stock (Eq, Show)
-
-
--- | Merge two 'FileEvent's for the same path within a debounce window.
---
--- Rules (old, new) → result:
---
--- * @(_, Removed)@ → @Removed@: deletion always wins.
--- * @(Removed, Added)@ → @Added@: explicit re-creation after deletion.
--- * @(Added, _)@ → @Added@: a create-then-write is still a creation.
--- * Otherwise → the newer event.
-mergeFileEvent :: FileEvent -> FileEvent -> FileEvent
-mergeFileEvent _ Removed = Removed
-mergeFileEvent Removed Added = Added
-mergeFileEvent Added _ = Added
-mergeFileEvent _ event = event
-
-
--- | Specification of a directory to watch recursively, with a file predicate.
-data Watch = Watch FilePath (FilePath -> Bool)
-
-
--- | Watch all files in a directory recursively.
-dir :: FilePath -> Watch
-dir p = Watch p (const True)
-
-
--- | Watch files matching a predicate in a directory recursively.
---
--- @
--- dirWhere "src" (\f -> takeExtension f == ".hs")
--- @
-dirWhere :: FilePath -> (FilePath -> Bool) -> Watch
-dirWhere = Watch
-
-
--- | Watch files with a specific extension in a directory recursively.
---
--- @
--- dirExt "src" ".hs"
--- @
-dirExt :: FilePath -> Text -> Watch
-dirExt p ext = dirWhere p (\f -> toText (takeExtension f) == ext)
-
-
--- | Narrow a 'Watch' to exclude files matching a predicate.
---
--- @
--- dirExt "src" ".hs" \`excluding\` containing "dist-newstyle"
--- @
-excluding :: Watch -> (FilePath -> Bool) -> Watch
-excluding (Watch p predicate) excl = Watch p (\f -> predicate f && not (excl f))
-
-
--- | Predicate: the file path contains the given fragment.
---
--- Intended for use with 'excluding':
---
--- @
--- dir "src" \`excluding\` containing "dist-newstyle"
--- @
-containing :: Text -> FilePath -> Bool
-containing fragment f = fragment `T.isInfixOf` toText f
+import Atelier.Effects.Delay qualified as Delay
+import Atelier.Effects.FSNotify qualified as FSNotify
+import Atelier.Effects.FileWatcher.Event qualified as Event
+import Atelier.Effects.FileWatcher.Watch qualified as Watch
+import Atelier.Time qualified as Time
 
 
 data FileWatcher :: Effect where
@@ -168,7 +88,7 @@ data FileWatcher :: Effect where
     -- the minimal set of OS watchers needed to cover all entries (deduplication
     -- by path prefix). The callback is invoked at most once per raw filesystem
     -- event regardless of how many entries match. Never returns.
-    WatchFilePaths :: [Watch] -> (FilePath -> FileEvent -> m a) -> FileWatcher m Void
+    WatchFilePaths :: [Watch] -> (FilePath -> Event -> m a) -> FileWatcher m Void
 
 
 makeEffect ''FileWatcher
@@ -180,55 +100,49 @@ makeEffect ''FileWatcher
 watchFilePathsDebounced
     :: (Debounce FilePath :> es, FileWatcher :> es)
     => [Watch]
-    -> (FilePath -> FileEvent -> Eff es ())
+    -> (FilePath -> Event -> Eff es ())
     -> Eff es Void
 watchFilePathsDebounced watches callback =
     watchFilePaths watches \path event ->
-        Debounce.withArg 100 mergeFileEvent path event (callback path)
+        Debounce.withArg 100 (<>) path event (callback path)
 
 
 -- | Production interpreter backed by fsnotify.
-runFileWatcherIO :: (IOE :> es) => Eff (FileWatcher : es) a -> Eff es a
-runFileWatcherIO eff = interpretWith eff \env -> \case
-    WatchFilePaths watches callback ->
-        localUnliftIO env Conc.strategy \unliftIO -> do
-            absWatches <- forM watches \(Watch p predicate) ->
-                (\absP -> Watch absP predicate) <$> makeAbsolute p
-            withManager \mgr -> do
-                let dedupedDirs = deduplicateDirs [p | Watch p _ <- absWatches]
+runIO :: (Delay :> es, FSNotify :> es, FileSystem :> es) => Eff (FileWatcher : es) a -> Eff es a
+runIO = interpret \env -> \case
+    WatchFilePaths watches callback -> do
+        absWatches <- forM watches Watch.makeAbsolute
+        FSNotify.withManager \mgr -> do
+            let dedupedDirs = deduplicateDirs $ Watch.path <$> absWatches
+            localUnlift env (ConcUnlift Persistent Unlimited) \unlift ->
                 for_ dedupedDirs \d ->
-                    watchTree mgr d (matchesAny absWatches . eventPath) \fsEvent ->
-                        void $ unliftIO $ callback (eventPath fsEvent) (toFileEvent fsEvent)
-                -- Park indefinitely to hold the manager open. fsnotify delivers
-                -- events on its own threads, so there is nothing to do here, and
-                -- waking up is not free: each wake-up ends the RTS idle period
-                -- and re-arms idle GC, costing a full major collection. 'forever'
-                -- is belt-and-braces in case the delay ever returns early.
-                --
-                -- Preferred over @atomically retry@: a transaction that retries
-                -- without having read a 'TVar' has no wakeup path, so it stays
-                -- parked only for as long as GC still sees this thread as
-                -- reachable. Should it ever become unreachable the RTS throws
-                -- @BlockedIndefinitelyOnSTM@, which would unwind 'withManager'
-                -- and silently stop all watching. A delay carries no such
-                -- dependency on how callers happen to retain the thread.
-                forever $ threadDelay maxBound
+                    FSNotify.watchTree mgr d (matchesAny absWatches . eventPath) \fsEvent ->
+                        void $ unlift $ callback (eventPath fsEvent) (Event.fromFS fsEvent)
+            -- Park indefinitely to hold the manager open. fsnotify delivers
+            -- events on its own threads, so there is nothing to do here, and
+            -- waking up is not free: each wake-up ends the RTS idle period
+            -- and re-arms idle GC, costing a full major collection. 'forever'
+            -- is belt-and-braces in case the delay ever returns early.
+            forever
+                $ Delay.wait @Time.Microsecond
+                $ Time.fromMicroseconds
+                $ fromIntegral (maxBound :: Int)
 
 
 -- | Scripted interpreter for testing.
 --
 -- Delivers all scripted events to the callback in order, then parks forever,
--- matching the blocking semantics of 'runFileWatcherIO' — 'WatchFilePaths'
--- returns 'Void', so callers must never be resumed. Parks with a delay rather
--- than @atomically retry@ for the same reason as 'runFileWatcherIO': a retry
--- that read no 'TVar' stays parked only while GC sees the thread as reachable,
--- so whether it survives depends on whether the test happens to hold onto the
+-- matching the blocking semantics of 'runIO' — 'WatchFilePaths' returns
+-- 'Void', so callers must never be resumed. Parks with a delay rather than
+-- @atomically retry@ for the same reason as 'runIO': a retry that
+-- read no 'TVar' stays parked only while GC sees the thread as reachable, so
+-- whether it survives depends on whether the test happens to hold onto the
 -- 'ThreadId'.
 --
 -- The 'Watch' specification is ignored; the caller controls what events are fed in.
-runFileWatcherScripted
-    :: (Concurrent :> es) => [(FilePath, FileEvent)] -> Eff (FileWatcher : es) a -> Eff es a
-runFileWatcherScripted events = reinterpret (evalState events) \env -> \case
+runScripted
+    :: (Concurrent :> es) => [(FilePath, Event)] -> Eff (FileWatcher : es) a -> Eff es a
+runScripted events = reinterpret (evalState events) \env -> \case
     WatchFilePaths _ callback ->
         localSeqUnlift env \unlift -> do
             events' <- get
@@ -239,32 +153,13 @@ runFileWatcherScripted events = reinterpret (evalState events) \env -> \case
 
 -- Helpers
 
-toFileEvent :: FSN.Event -> FileEvent
-toFileEvent = \case
-    FSN.Added {} -> Added
-    FSN.Modified {} -> Modified
-    FSN.ModifiedAttributes {} -> Modified
-    FSN.CloseWrite {} -> Modified
-    FSN.Removed {} -> Removed
-    FSN.WatchedDirectoryRemoved {} -> Removed
-    FSN.Unknown {} -> Modified
-
-
 -- | Remove dirs that are proper subdirectories of another dir in the list.
 deduplicateDirs :: [FilePath] -> [FilePath]
 deduplicateDirs dirs = filter notRedundant (nub dirs)
   where
-    notRedundant d = not $ any (\d' -> d' /= d && isStrictAncestor d' d) dirs
-
-
--- | @isStrictAncestor parent child@ is true iff @parent@ is a proper ancestor
--- of @child@ in the filesystem hierarchy.
-isStrictAncestor :: FilePath -> FilePath -> Bool
-isStrictAncestor parent child = (parent <> "/") `isPrefixOf` child
+    notRedundant d = not $ any (\d' -> d' /= d && Watch.isStrictAncestor d' d) dirs
 
 
 -- | Check whether a file path matches at least one 'Watch' entry.
 matchesAny :: [Watch] -> FilePath -> Bool
-matchesAny watches path = any matches watches
-  where
-    matches (Watch d predicate) = (d == path || isStrictAncestor d path) && predicate path
+matchesAny watches path = any (Watch.matches path) watches

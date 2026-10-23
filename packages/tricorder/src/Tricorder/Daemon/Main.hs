@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.FileWatcher (runFileWatcherIO)
 import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
@@ -15,9 +14,11 @@ import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
+import Atelier.Effects.FSNotify qualified as FSNotify
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
+import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
@@ -66,8 +67,9 @@ main =
         . Delay.runIO
         . runTimeout
         . Debounce.run @FilePath
-        . runFileWatcherIO
         . FileSystem.runIO
+        . FSNotify.run
+        . FileWatcher.runIO
         . Glob.runIO
         . runProjectRoot
         . Exit.runIO

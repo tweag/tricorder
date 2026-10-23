@@ -27,6 +27,7 @@ import System.FilePath ((</>))
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileWatcher qualified as FileWatcher
+import Atelier.Effects.FileWatcher.Watch qualified as Watch
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
@@ -136,7 +137,7 @@ watchConfigFile
 watchConfigFile = do
     root <- Reader.ask
     FileWatcher.watchFilePathsDebounced
-        [FileWatcher.dirWhere root.getProjectRoot (LoadedConfig.configFileName `List.isSuffixOf`)]
+        [Watch.dirWhere root.getProjectRoot (LoadedConfig.configFileName `List.isSuffixOf`)]
         \_ _ -> Pub.publish Reload
 
 
@@ -154,7 +155,7 @@ conditionallyWatchStackYaml = do
     exists <- FileSystem.doesFileExist $ root.getProjectRoot </> "stack.yaml"
     when exists do
         Conc.fork_ $ FileWatcher.watchFilePathsDebounced
-            [FileWatcher.dirWhere root.getProjectRoot ("stack.yaml" `List.isSuffixOf`)]
+            [Watch.dirWhere root.getProjectRoot ("stack.yaml" `List.isSuffixOf`)]
             \_ _ -> Pub.publish Reload
 
 
