@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Debounce (runDebounce)
 import Atelier.Effects.Delay (runDelay)
@@ -17,6 +16,7 @@ import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 
 import Atelier.Effects.Chan qualified as Chan
+import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
@@ -63,7 +63,7 @@ main =
     runEff
         . runConcurrent
         . runConc
-        . runClock
+        . Clock.runIO
         . runDelay
         . runTimeout
         . runDebounce @FilePath

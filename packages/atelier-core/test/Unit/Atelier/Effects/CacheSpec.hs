@@ -16,12 +16,12 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.Cache (Config (..))
-import Atelier.Effects.Clock (runClockState)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Log (runLogNoOp)
 
 import Atelier.Effects.Cache qualified as Cache
+import Atelier.Effects.Clock qualified as Clock
 
 
 test_Cache :: TestTree
@@ -179,7 +179,7 @@ test_Cache =
             . runConc
             . runDelay
             . evalState epoch
-            . runClockState
+            . Clock.runState
             . runReader (Config {entryTtl = ttl, cleanupInterval = 3600})
             . Cache.runTTLWithWait @Int @Int wait
     epoch = UTCTime (fromGregorian 1970 1 1) 0

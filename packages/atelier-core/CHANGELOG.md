@@ -18,6 +18,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   use.
 - `Atelier.Effects.Chan`: renamed members to make more suited for qualified
   use.
+- `Atelier.Effects.Clock`: renamed members to make more suited for qualified
+  use.
 
 ## [0.8.1.0] - 2026-10-23
 

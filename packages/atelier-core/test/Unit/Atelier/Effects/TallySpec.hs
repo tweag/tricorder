@@ -13,11 +13,13 @@ import Data.Map.Strict qualified as Map
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
-import Atelier.Effects.Clock (Clock, runClock)
+import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.Delay (Delay, runDelay)
 import Atelier.Effects.Log (Log, runLogNoOp)
 import Atelier.Effects.Tally (Config (..), Tally, runTally, withTallyCheck)
+
+import Atelier.Effects.Clock qualified as Clock
 
 
 test_Tally :: TestTree
@@ -93,7 +95,7 @@ runTallyTest action =
         . runLogNoOp
         . runConc
         . runDelay
-        . runClock
+        . Clock.runIO
         . runReader (Config {entryTtl = 3600, cleanupInterval = 3600})
         . runTally @Int
         $ action

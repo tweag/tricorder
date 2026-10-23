@@ -9,10 +9,10 @@ module Atelier.Effects.Clock
     , TimeZone
     , currentTime
     , currentTimeZone
-    , runClock
-    , runClockConst
-    , runClockState
-    , runClockList
+    , runIO
+    , runConst
+    , runState
+    , runList
     )
 where
 
@@ -36,24 +36,24 @@ makeEffect ''Clock
 
 
 -- | Interpret 'Clock' against the real system clock.
-runClock :: (IOE :> es) => Eff (Clock : es) a -> Eff es a
-runClock = interpret_ $ \case
+runIO :: (IOE :> es) => Eff (Clock : es) a -> Eff es a
+runIO = interpret_ $ \case
     CurrentTime -> liftIO getCurrentTime
     CurrentTimeZone -> liftIO getCurrentTimeZone
 
 
 -- | Interpret 'Clock' so 'currentTime' always returns a fixed time. The time
 -- zone is reported as 'utc'.
-runClockConst :: UTCTime -> Eff (Clock : es) a -> Eff es a
-runClockConst time = interpret_ $ \case
+runConst :: UTCTime -> Eff (Clock : es) a -> Eff es a
+runConst time = interpret_ $ \case
     CurrentTime -> pure time
     CurrentTimeZone -> pure utc
 
 
 -- | Interpret 'Clock' so 'currentTime' reads from a mutable 'State' cell,
 -- letting a test advance \"now\" explicitly. The time zone is reported as 'utc'.
-runClockState :: (State UTCTime :> es) => Eff (Clock : es) a -> Eff es a
-runClockState = interpret_ $ \case
+runState :: (State UTCTime :> es) => Eff (Clock : es) a -> Eff es a
+runState = interpret_ $ \case
     CurrentTime -> get
     CurrentTimeZone -> pure utc
 
@@ -61,8 +61,8 @@ runClockState = interpret_ $ \case
 -- | Scripted interpreter for testing: returns times from a pre-loaded list in
 -- order. Each 'currentTime' call pops the next item. Crashes if the list is
 -- exhausted.
-runClockList :: [UTCTime] -> Eff (Clock : es) a -> Eff es a
-runClockList times = reinterpret (evalState times) $ \_ -> \case
+runList :: [UTCTime] -> Eff (Clock : es) a -> Eff es a
+runList times = reinterpret (evalState times) $ \_ -> \case
     CurrentTime ->
         get >>= \case
             [] -> error "runClockList: no more times in queue"
