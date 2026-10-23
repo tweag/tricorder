@@ -1,6 +1,5 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
-import Atelier.Effects.File (runFile)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Atelier.Effects.Process (runProcessIO, terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
@@ -80,7 +79,7 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . runLogWriter
-                . runFile
+                . File.run
                 $ do
                     for_ ["line1", "line2", finishMarker 1, "line3"] (File.hPutTextLn w)
                     File.hClose w
@@ -93,7 +92,7 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . runLogWriter
-                . runFile
+                . File.run
                 $ do
                     for_ ["a", "b", "c", finishMarker 2] (File.hPutTextLn w)
                     File.hClose w
@@ -107,7 +106,7 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . runLogWriter
-                . runFile
+                . File.run
                 $ do
                     -- 'finishMarker 5' is a leftover from a prior, interrupted
                     -- command; the drain waiting for 'finishMarker 9' must
@@ -124,7 +123,7 @@ testDrainUntil =
                 runEff
                     . runWriter @[Message]
                     . runLogWriter
-                    . runFile
+                    . File.run
                     $ do
                         for_ ["first", "second", "third"] (File.hPutTextLn w)
                         File.hClose w -- EOF before the marker ever arrives
@@ -143,7 +142,7 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . runLogWriter
-                . runFile
+                . File.run
                 $ do
                     File.hClose w
                     trySync (Process.drainUntil r (finishMarker 1) (\_ -> pure ()))
@@ -169,7 +168,7 @@ testDrainUntil =
                 runEff
                     . runWriter @[Message]
                     . runLogWriter
-                    . runFile
+                    . File.run
                     $ do
                         File.hClose w
                         trySync (Process.drainUntil r (finishMarker 3) (\_ -> pure ()))
@@ -184,7 +183,7 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . runLogWriter
-                . runFile
+                . File.run
                 $ do
                     for_ ["oops-line-1", "oops-line-2"] (File.hPutTextLn w)
                     File.hClose w
@@ -235,7 +234,7 @@ testExecGhciStaleMarker =
                 . runConcurrent
                 . runTimeout
                 . Delay.runIO
-                . runFile
+                . File.run
                 . runLogNoOp
                 . Conc.runIO
                 $ do
@@ -294,7 +293,7 @@ testSyncMarkerScopeIndependent =
                 . runConcurrent
                 . runTimeout
                 . Delay.runIO
-                . runFile
+                . File.run
                 . runLogNoOp
                 . Conc.runIO
                 $ do
@@ -339,7 +338,7 @@ testWaitForBannerOrFail =
                 . runConcurrent
                 . runTimeout
                 . Delay.runIO
-                . runFile
+                . File.run
                 . Conc.runIO
                 $ do
                     -- No banner will ever arrive: close the write end so the
@@ -383,7 +382,7 @@ testWithProcessGroupCleanup =
                     . runConcurrent
                     . runTimeout
                     . Delay.runIO
-                    . runFile
+                    . File.run
                     . Conc.runIO
                     . runProcessIO
                     $ withProcessGroup procConfig \p -> do
@@ -532,7 +531,7 @@ testExecGhciScope =
                 . runConcurrent
                 . runTimeout
                 . Delay.runIO
-                . runFile
+                . File.run
                 . runLogNoOp
                 . Conc.runIO
                 $ Conc.scoped do

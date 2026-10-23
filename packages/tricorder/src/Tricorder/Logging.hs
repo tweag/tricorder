@@ -31,7 +31,7 @@ runLogging
     => Eff (Log : es) a -> Eff es a
 runLogging act = do
     path <- asks @LogPath (.getLogPath)
-    File.withFile path AppendMode \h -> do
+    File.with path AppendMode \h -> do
         File.hSetBuffering h LineBuffering
         (maybeErr, sev) <- getMinimumSeverity
         runLogToHandle h sev do

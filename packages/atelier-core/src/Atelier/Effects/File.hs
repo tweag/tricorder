@@ -1,17 +1,12 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | A handle-based file IO effect.
---
--- A thin 'Eff' wrapper over the handle operations in "System.IO" and
--- "Data.Text.IO" ('withFile', 'hPutText', 'hGetLine', …), so file IO passes
--- through the effect system instead of raw 'IO'. 'Handle' and 'BufferMode' are
--- re-exported for convenience.
 module Atelier.Effects.File
     ( File
     , Handle
     , BufferMode (..)
     , IOMode (..)
-    , withFile
+    , with
     , hClose
     , hFlush
     , hGetLine
@@ -21,7 +16,7 @@ module Atelier.Effects.File
     , hPutLBsLn
     , hIsEOF
     , hSetBuffering
-    , runFile
+    , run
     )
 where
 
@@ -52,8 +47,8 @@ data instance StaticRep File = File
 
 
 -- | Lifted `System.IO.withFile`:
-withFile :: (File :> es, HasCallStack) => FilePath -> IOMode -> (Handle -> Eff es a) -> Eff es a
-withFile fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile fp m (unlift . f)
+with :: (File :> es, HasCallStack) => FilePath -> IOMode -> (Handle -> Eff es a) -> Eff es a
+with fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile fp m (unlift . f)
 
 
 -- | Lifted `System.IO.hClose`.
@@ -103,5 +98,5 @@ hPutLBsLn h = hPutLBs h . (<> "\n")
 
 
 -- | Run file operations.
-runFile :: (HasCallStack, IOE :> es) => Eff (File : es) a -> Eff es a
-runFile = evalStaticRep File
+run :: (HasCallStack, IOE :> es) => Eff (File : es) a -> Eff es a
+run = evalStaticRep File
