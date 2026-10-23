@@ -10,6 +10,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Added
 
 - `Atelier.Effects.FSNotify`: `System.FSNotify` lifted to `Eff`.
+- `Atelier.Types.JSON.Renamed`: used to mark properties that have been renamed.
+  Attempting to JSON parse a property that is `Renamed "from" "to"` will
+  produce an error message denoting that the property `"from"` has been renamed
+  to `"to"`.
 
 ### Changed
 

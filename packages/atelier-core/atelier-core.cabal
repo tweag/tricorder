@@ -77,6 +77,7 @@ library
       Atelier.Types.JSON.Base64
       Atelier.Types.JSON.QuietSnake
       Atelier.Types.JSON.ReadShow
+      Atelier.Types.JSON.Renamed
       Atelier.Types.JSON.StringLiteral
       Atelier.Types.JSON.WithDefaults
       Atelier.Types.Semaphore
