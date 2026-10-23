@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Effects.FSNotify`: `System.FSNotify` lifted to `Eff`.
+
 ### Changed
 
 - `Atelier.Effects.Arguments`: converted to a static effect.
