@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.6.0.0] - 2026-10-23
+
 ### Added
 
 - Moved all argument parsing functionality from `tricorder` to
