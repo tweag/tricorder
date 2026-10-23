@@ -1,6 +1,5 @@
 module Tricorder.CLI.Main (main) where
 
-import Atelier.Effects.Arguments (runArgumentsIO)
 import Atelier.Effects.Clock (runClock)
 import Atelier.Effects.Conc (runConc)
 import Atelier.Effects.Console (Console, runConsole, runConsoleOut)
@@ -19,6 +18,7 @@ import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import Effectful.Provider (provideWith_, runProvider_)
 
+import Atelier.Effects.Arguments qualified as Arguments
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
@@ -71,7 +71,7 @@ main =
         . Input.toReader @Keys.Config
         . runDaemons
         . runProcessIO
-        . runArgumentsIO
+        . Arguments.runIO
         . runArguments
         . UnixSocket.runIO
         . runEnv

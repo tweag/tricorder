@@ -7,6 +7,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `Atelier.Effects.Arguments`: converted to a static effect.
+- `Atelier.Effects.Arguments.runArgumentsIO` renamed to
+  `Atelier.Effects.Arguments.runIO`.
+
 ## [0.8.1.0] - 2026-10-23
 
 ### Added

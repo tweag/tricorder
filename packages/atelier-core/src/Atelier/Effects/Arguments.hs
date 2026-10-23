@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- | Effect for parsing command-line arguments.
 --
 -- A thin wrapper over @optparse-applicative@'s 'Opt.execParser', so callers
@@ -13,28 +15,32 @@ module Atelier.Effects.Arguments
     , execParser
 
       -- * Interpreters
-    , runArgumentsIO
+    , runIO
     )
 where
 
-import Effectful (Effect, IOE)
-import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.TH (makeEffect)
+import Effectful (Dispatch (..), DispatchOf, Effect, IOE)
+import Effectful.Dispatch.Static (SideEffects (..), StaticRep, evalStaticRep, unsafeEff_)
 import Options.Applicative (ParserInfo)
 
 import Options.Applicative qualified as Opt
 
 
 -- | Reading and parsing command-line arguments.
-data Arguments :: Effect where
-    -- | Read @argv@ and parse it with the given parser, printing usage and
-    -- exiting on failure (see @optparse-applicative@'s 'Opt.execParser').
-    ExecParser :: ParserInfo a -> Arguments m a
+data Arguments :: Effect
 
 
-makeEffect ''Arguments
+type instance DispatchOf Arguments = Static WithSideEffects
 
 
-runArgumentsIO :: (IOE :> es) => Eff (Arguments : es) a -> Eff es a
-runArgumentsIO = interpret_ \case
-    ExecParser pinfo -> liftIO $ Opt.execParser pinfo
+data instance StaticRep Arguments = Arguments
+
+
+-- \| Read @argv@ and parse it with the given parser, printing usage and
+-- exiting on failure (see @optparse-applicative@'s 'Opt.execParser').
+execParser :: (Arguments :> es) => ParserInfo a -> Eff es a
+execParser = unsafeEff_ . Opt.execParser
+
+
+runIO :: (IOE :> es) => Eff (Arguments : es) a -> Eff es a
+runIO = evalStaticRep Arguments
