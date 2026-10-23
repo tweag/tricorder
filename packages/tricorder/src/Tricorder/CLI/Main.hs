@@ -2,7 +2,6 @@ module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Posix.Daemons (runDaemons)
-import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
@@ -22,6 +21,7 @@ import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Process
+import Atelier.Effects.Timeout qualified as Timeout
 
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
@@ -47,7 +47,7 @@ import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 main :: IO ()
 main =
     runEff
-        . runTimeout
+        . Timeout.run
         . runConcurrent
         . Conc.runIO
         . runBrickChan

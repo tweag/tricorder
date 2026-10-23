@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
@@ -24,6 +23,7 @@ import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
+import Atelier.Effects.Timeout qualified as Timeout
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
@@ -65,7 +65,7 @@ main =
         . Conc.runIO
         . Clock.runIO
         . Delay.runIO
-        . runTimeout
+        . Timeout.run
         . Debounce.run @FilePath
         . FileSystem.runIO
         . FSNotify.run

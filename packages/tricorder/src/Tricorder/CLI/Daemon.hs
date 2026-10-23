@@ -9,7 +9,7 @@ where
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Posix.Daemons (Daemons)
-import Atelier.Effects.Timeout (Timeout, timeout)
+import Atelier.Effects.Timeout (Timeout)
 import Atelier.Time (Millisecond, Second)
 import Effectful (IOE)
 import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
@@ -20,6 +20,7 @@ import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Posix.Daemons qualified as Daemons
+import Atelier.Effects.Timeout qualified as Timeout
 import Tricorder.API.Force qualified as Force
 
 import Tricorder.Runtime (PidFile, SocketPath (..))
@@ -71,7 +72,7 @@ stopDaemon force = do
         Force.NoForce -> 6
     requestStop sockPath pidFile = do
         timeout1second (requestShutdown force sockPath) >>= \_ -> do
-            didStop <- fmap isJust $ timeout timeoutDelay $ waitForStop pidFile
+            didStop <- fmap isJust $ Timeout.with timeoutDelay $ waitForStop pidFile
             if didStop
                 then
                     pure "Daemon stopped."
@@ -86,7 +87,7 @@ stopDaemon force = do
                 tell ["Daemon did not respond to SIGKILL: " <> show ex]
                 emptyEff
 
-    timeout1second = fmap (join . fmap rightToMaybe) . timeout (1 :: Second)
+    timeout1second = fmap (join . fmap rightToMaybe) . Timeout.with (1 :: Second)
 
     waitForStop :: forall es'. (Daemons :> es', Delay :> es') => PidFile -> Eff es' ()
     waitForStop pidFile = fix \rec -> do

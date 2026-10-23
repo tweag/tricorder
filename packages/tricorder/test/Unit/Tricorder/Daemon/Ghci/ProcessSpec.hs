@@ -3,7 +3,6 @@ module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 import Atelier.Effects.Log (Message (..), Severity (..))
 import Atelier.Effects.Process (terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
-import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Time (Millisecond)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (newTVarIO)
@@ -40,6 +39,7 @@ import Atelier.Effects.File qualified as File
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as AProc
 import Atelier.Effects.Process qualified as Atelier.Process
+import Atelier.Effects.Timeout qualified as Timeout
 import Data.Text qualified as T
 import System.Process qualified as Process
 import System.Timeout qualified
@@ -234,7 +234,7 @@ testExecGhciStaleMarker =
         result <-
             runEff
                 . runConcurrent
-                . runTimeout
+                . Timeout.run
                 . Delay.runIO
                 . File.run
                 . Log.runNoOp
@@ -293,7 +293,7 @@ testSyncMarkerScopeIndependent =
         written <-
             runEff
                 . runConcurrent
-                . runTimeout
+                . Timeout.run
                 . Delay.runIO
                 . File.run
                 . Log.runNoOp
@@ -338,7 +338,7 @@ testWaitForBannerOrFail =
         result <-
             runEff
                 . runConcurrent
-                . runTimeout
+                . Timeout.run
                 . Delay.runIO
                 . File.run
                 . Conc.runIO
@@ -382,7 +382,7 @@ testWithProcessGroupCleanup =
         let scenario =
                 runEff
                     . runConcurrent
-                    . runTimeout
+                    . Timeout.run
                     . Delay.runIO
                     . File.run
                     . Conc.runIO
@@ -531,7 +531,7 @@ testExecGhciScope =
         result <-
             runEff
                 . runConcurrent
-                . runTimeout
+                . Timeout.run
                 . Delay.runIO
                 . File.run
                 . Log.runNoOp

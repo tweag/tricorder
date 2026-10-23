@@ -30,7 +30,7 @@ import Atelier.Effects.Process
     , setWorkingDir
     , shell
     )
-import Atelier.Effects.Timeout (Timeout, timeout)
+import Atelier.Effects.Timeout (Timeout)
 import Control.Concurrent.STM (TVar, modifyTVar', readTVar, retry, writeTVar)
 import Data.Sequence ((|>))
 import Data.Time.Units (Second)
@@ -43,6 +43,7 @@ import Atelier.Effects.File qualified as File
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Atelier
 import Atelier.Effects.Process qualified as Process
+import Atelier.Effects.Timeout qualified as Timeout
 import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.Config (Config (..))
@@ -289,7 +290,7 @@ quitGhci config ghciProcess = do
     void $ trySync $ do
         File.hPutTextLn ghciProcess.stdin ":quit"
         File.hFlush ghciProcess.stdin
-    void $ timeout config.shutdownTimeout (Process.waitExitCode ghciProcess.handle)
+    void $ Timeout.with config.shutdownTimeout (Process.waitExitCode ghciProcess.handle)
 
 
 -- ---------------------------------------------------------------------------
@@ -407,7 +408,7 @@ waitForBannerOrFail delay out err = do
 
     Conc.scoped do
         stderrThread <- Conc.fork drainStderr
-        result <- timeout delay $ trySync watchStdout
+        result <- Timeout.with delay $ trySync watchStdout
         case result of
             Just (Right ()) -> pure ()
             Just (Left ex) -> do
@@ -416,7 +417,7 @@ waitForBannerOrFail delay out err = do
                 -- pipe lingers) so we surface its *complete* output — e.g.
                 -- cabal's dependency-resolution error — rather than whatever
                 -- the drain happened to have read so far.
-                _ <- timeout (1 :: Second) (Conc.await stderrThread)
+                _ <- Timeout.with (1 :: Second) (Conc.await stderrThread)
                 captured <- atomically $ readTVar capturedVar
                 throwIO $ StartupFailed $ fromMaybe (startupExitedMessage ex) (renderCapturedLines captured)
             Nothing -> do
