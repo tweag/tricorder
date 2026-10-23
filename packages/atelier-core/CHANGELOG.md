@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.8.1.0] - 2026-10-23
+
 ### Added
 
 - `Atelier.Effects.Console.runConsoleOut` and `Atelier.Effects.Console.Output`:
