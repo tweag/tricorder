@@ -1,6 +1,5 @@
 module Unit.Tricorder.Session.CabalFileSpec (test_CabalFile) where
 
-import Atelier.Effects.Log (runLogNoOp)
 import Effectful (runPureEff)
 import Effectful.Reader.Static (runReader)
 import Effectful.State.Static.Shared (evalState)
@@ -11,6 +10,7 @@ import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
+import Atelier.Effects.Log qualified as Log
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime (ProjectRoot (..))
@@ -182,7 +182,7 @@ testDiscoverStackPackages =
     runStack result =
         runPureEff
             . runReader pr
-            . runLogNoOp
+            . Log.runNoOp
             . Input.withConst result
 
 

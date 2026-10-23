@@ -5,14 +5,16 @@ import Effectful.Writer.Static.Shared (Writer, execWriter)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.Log (Log, Message (..), info, runLogWriter, withNamespace)
+import Atelier.Effects.Log (Log, Message (..), info, withNamespace)
+
+import Atelier.Effects.Log qualified as Log
 
 
 runLogTest :: Eff [Log, Writer [Message]] a -> [Message]
 runLogTest =
     runPureEff
         . execWriter @[Message]
-        . runLogWriter
+        . Log.runWriter
 
 
 test_Log :: TestTree
@@ -61,7 +63,7 @@ test_Log =
                             fmap (\m -> (m.namespace, m.text))
                                 . runPureEff
                                 . execWriter @[Message]
-                                . runLogWriter
+                                . Log.runWriter
                                 $ do
                                     info "before"
                                     withNamespace "scoped" $ info "inside"
@@ -76,7 +78,7 @@ test_Log =
                             fmap (\m -> (m.namespace, m.text))
                                 . runPureEff
                                 . execWriter @[Message]
-                                . runLogWriter
+                                . Log.runWriter
                                 . withNamespace "outer"
                                 $ do
                                     info "outer msg"

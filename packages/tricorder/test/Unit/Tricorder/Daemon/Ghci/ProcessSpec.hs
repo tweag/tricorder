@@ -1,6 +1,6 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
-import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
+import Atelier.Effects.Log (Message (..), Severity (..))
 import Atelier.Effects.Process (runProcessIO, terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
 import Atelier.Effects.Timeout (runTimeout)
@@ -37,6 +37,7 @@ import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.File qualified as File
+import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as AProc
 import Data.Text qualified as T
 import System.Process qualified as Process
@@ -78,7 +79,7 @@ testDrainUntil =
         (result, _msgs) <-
             runEff
                 . runWriter @[Message]
-                . runLogWriter
+                . Log.runWriter
                 . File.run
                 $ do
                     for_ ["line1", "line2", finishMarker 1, "line3"] (File.hPutTextLn w)
@@ -91,7 +92,7 @@ testDrainUntil =
         (result, _msgs) <-
             runEff
                 . runWriter @[Message]
-                . runLogWriter
+                . Log.runWriter
                 . File.run
                 $ do
                     for_ ["a", "b", "c", finishMarker 2] (File.hPutTextLn w)
@@ -105,7 +106,7 @@ testDrainUntil =
         (result, _msgs) <-
             runEff
                 . runWriter @[Message]
-                . runLogWriter
+                . Log.runWriter
                 . File.run
                 $ do
                     -- 'finishMarker 5' is a leftover from a prior, interrupted
@@ -122,7 +123,7 @@ testDrainUntil =
             (outcome, _msgs) <-
                 runEff
                     . runWriter @[Message]
-                    . runLogWriter
+                    . Log.runWriter
                     . File.run
                     $ do
                         for_ ["first", "second", "third"] (File.hPutTextLn w)
@@ -141,7 +142,7 @@ testDrainUntil =
         (outcome, _msgs) <-
             runEff
                 . runWriter @[Message]
-                . runLogWriter
+                . Log.runWriter
                 . File.run
                 $ do
                     File.hClose w
@@ -167,7 +168,7 @@ testDrainUntil =
             (_outcome, msgs) <-
                 runEff
                     . runWriter @[Message]
-                    . runLogWriter
+                    . Log.runWriter
                     . File.run
                     $ do
                         File.hClose w
@@ -182,7 +183,7 @@ testDrainUntil =
         (_outcome, msgs) <-
             runEff
                 . runWriter @[Message]
-                . runLogWriter
+                . Log.runWriter
                 . File.run
                 $ do
                     for_ ["oops-line-1", "oops-line-2"] (File.hPutTextLn w)
@@ -235,7 +236,7 @@ testExecGhciStaleMarker =
                 . runTimeout
                 . Delay.runIO
                 . File.run
-                . runLogNoOp
+                . Log.runNoOp
                 . Conc.runIO
                 $ do
                     -- A stale 'marker 5' (left by a prior interrupted reload)
@@ -294,7 +295,7 @@ testSyncMarkerScopeIndependent =
                 . runTimeout
                 . Delay.runIO
                 . File.run
-                . runLogNoOp
+                . Log.runNoOp
                 . Conc.runIO
                 $ do
                     -- Pre-seed the marker on both streams so the drain returns
@@ -532,7 +533,7 @@ testExecGhciScope =
                 . runTimeout
                 . Delay.runIO
                 . File.run
-                . runLogNoOp
+                . Log.runNoOp
                 . Conc.runIO
                 $ Conc.scoped do
                     -- A sibling fork in the SAME ambient scope. If the bug
