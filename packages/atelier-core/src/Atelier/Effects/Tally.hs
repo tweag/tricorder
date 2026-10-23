@@ -1,38 +1,12 @@
 -- | Tally tracking effect for counting occurrences per key
---
--- Tracks the total number of occurrences per key, delegating storage and
--- eviction to a 'Cache' interpreter.
---
--- The effect is polymorphic over both the key type and the status type returned
--- by a caller-supplied classifier function. This allows callers to define their
--- own thresholds and result types rather than relying on a single hard limit.
---
--- == Basic Usage
---
--- @
--- checkDuplicate :: (Tally DuplicateKey :> es) => DuplicateKey -> Config -> Eff es ()
--- checkDuplicate key cfg =
---     withTallyCheck key classify $ \case
---         Nothing      -> pure ()
---         Just Minor   -> warnAboutPeer
---         Just Critical -> banPeer
---   where
---     classify c
---         | c > cfg.criticalThreshold = Just Critical
---         | c > cfg.warningThreshold  = Just Minor
---         | otherwise                 = Nothing
--- @
 module Atelier.Effects.Tally
     ( -- * Effect
       Tally
-    , withTallyCheck
-
-      -- * Re-exports
-    , module Atelier.Effects.Cache.Config
+    , count
 
       -- * Interpreters
-    , runTally
-    , runTallyConst
+    , run
+    , runConst
     )
 where
 
@@ -53,20 +27,32 @@ import Atelier.Effects.Cache qualified as Cache
 
 -- | Tally tracking effect parameterized by key type
 data Tally key :: Effect where
-    -- | Increment the hit count for a key and run an action based on a classifier.
+    -- | Increment the hit count for a key and run an action with said count.
     --
-    -- The classifier receives the new count and produces a status value of any
-    -- type the caller chooses. The continuation then receives that status.
-    WithTallyCheck
+    -- @
+    -- checkDuplicate :: (Tally DuplicateKey :> es) => DuplicateKey -> Config -> Eff es ()
+    -- checkDuplicate key cfg =
+    --     withTallyCheck key $ action . classify
+    --   where
+    --     action = \case
+    --         Nothing      -> pure ()
+    --         Just Minor   -> warnAboutPeer
+    --         Just Critical -> banPeer
+    --     classify c
+    --         | c > cfg.criticalThreshold = Just Critical
+    --         | c > cfg.warningThreshold  = Just Minor
+    --         | otherwise                 = Nothing
+    -- @
+    Count
         :: (Hashable key, Ord key)
-        => key -> (Int -> status) -> (status -> m a) -> Tally key m a
+        => key -> (Int -> m a) -> Tally key m a
 
 
 makeEffect ''Tally
 
 
 -- | Run the Tally effect, using a TTL-evicting cache as the backing store
-runTally
+run
     :: forall key es a
      . ( Clock :> es
        , Conc :> es
@@ -78,15 +64,15 @@ runTally
        )
     => Eff (Tally key : es) a
     -> Eff es a
-runTally = reinterpret (Cache.runTTL @key @Int) $ \env -> \case
-    WithTallyCheck key classify continuation -> localSeqUnlift env $ \unlift -> do
-        count <- Cache.modify key (maybe 1 (+ 1))
-        unlift $ continuation (classify count)
+run = reinterpret (Cache.runTTL @key @Int) $ \env -> \case
+    Count key continuation -> localSeqUnlift env $ \unlift -> do
+        c <- Cache.modify key (maybe 1 (+ 1))
+        unlift $ continuation c
 
 
 -- | Interpret 'Tally' with a fixed count for every key, ignoring real
 -- tallying. The classifier is always handed @c@, making the outcome
 -- deterministic for tests.
-runTallyConst :: Int -> Eff (Tally key : es) a -> Eff es a
-runTallyConst c = interpret \env -> \case
-    WithTallyCheck _ classify f -> localSeqUnlift env \unlift -> unlift $ f (classify c)
+runConst :: Int -> Eff (Tally key : es) a -> Eff es a
+runConst c = interpret \env -> \case
+    Count _ f -> localSeqUnlift env \unlift -> unlift $ f c
