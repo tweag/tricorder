@@ -1,7 +1,7 @@
 module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Exit (Exit, exitSuccess)
+import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input, input)
@@ -14,6 +14,7 @@ import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Log qualified as Log
@@ -154,7 +155,7 @@ quit h = \case
     doQuit = do
         sendJson h True
         Log.info "Shutting down."
-        exitSuccess
+        Exit.success
 
 
 respondOnce

@@ -8,7 +8,7 @@ where
 import Atelier.Effects.Clock (Clock, currentTime)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay)
-import Atelier.Effects.Exit (Exit, exitSuccess)
+import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Time (Second, nominalDiffTime)
@@ -22,6 +22,7 @@ import Effectful.TH (makeEffect)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
+import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.Log qualified as Log
 
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
@@ -78,7 +79,7 @@ quitOnTimeout act = do
                             $ "Idle for "
                                 <> show secs
                                 <> " with no active connections, shutting down."
-                        exitSuccess
+                        Exit.success
 
     interpretWith act \env -> \case
         WithActivity action -> do

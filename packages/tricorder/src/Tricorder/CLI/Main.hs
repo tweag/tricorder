@@ -1,7 +1,6 @@
 module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Exit (exitFailure, runExit)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
 import Atelier.Effects.Log (runLogNoOp)
@@ -20,6 +19,7 @@ import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
+import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 
@@ -54,7 +54,7 @@ main =
         . runBrick
         . Console.runIO
         . runProvider_ @Console @Console.Output Console.runOut
-        . runExit
+        . Exit.runIO
         . Clock.runIO
         . Delay.runIO
         . runFile
@@ -85,7 +85,7 @@ main =
                     provideWith_ @Console Console.Stderr
                         $ Console.putTextLn
                         $ "Failed to load session: " <> err
-                    exitFailure
+                    Exit.failure
                 Right session ->
                     Input.withConst session
                         -- TODO: Make whatever uses this 'Repl' value use it
