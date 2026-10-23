@@ -2,7 +2,6 @@ module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Posix.Daemons (runDaemons)
-import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
@@ -22,6 +21,7 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Process qualified as Process
 
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
@@ -70,7 +70,7 @@ main =
         . Input.map (either @_ @Keys.Config (const def) id)
         . Input.toReader @Keys.Config
         . runDaemons
-        . runProcessIO
+        . Process.run
         . Arguments.runIO
         . CLI.Arguments.reader
         . UnixSocket.runIO

@@ -13,4 +13,4 @@ import System.Process.Typed qualified as TP
 
 -- | A process run in its own group by 'Atelier.Effects.Process.withProcessGroup'.
 -- Parameterised by its stdin, stdout and stderr stream types.
-newtype RunningProcess i o e = RunningProcess (TP.Process i o e)
+newtype RunningProcess i o e = RunningProcess {getRunningProcess :: TP.Process i o e}

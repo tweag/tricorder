@@ -42,6 +42,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Atelier.Effects.FileWatcher`: renamed members to make more suited for
   qualified use.
 - `Atelier.Effects.Log`: renamed members to make more suited for qualified use.
+- `Atelier.Effects.Process`: converted to static effect, and renamed members to
+  make more suited for qualified use.
 
 ### Removed
 
