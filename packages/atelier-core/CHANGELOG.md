@@ -54,6 +54,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   make more suited for qualified use.
 - `Atelier.Effects.UUID`: renamed to `Atelier.Effects.GenUUID`, and renamed
   members to make more suited for qualified use.
+- `Atelier.Effects.Cache.Singleflight`: renamed members to make more suited for
+  qualified use.
 
 ### Removed
 

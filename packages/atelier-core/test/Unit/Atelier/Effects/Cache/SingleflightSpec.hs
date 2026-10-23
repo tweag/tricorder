@@ -8,7 +8,12 @@ import Effectful.State.Static.Shared (State, modify, runState)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.Cache.Singleflight (Singleflight, runSingleflight, updateCache, withCache)
+import Atelier.Effects.Cache.Singleflight
+    ( Singleflight
+    , runIO
+    , update
+    , with
+    )
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Time (Millisecond)
@@ -35,7 +40,7 @@ runSingleflightTest action =
         . Conc.runIO
         . Delay.runIO
         . runState @Int 0
-        . runSingleflight @Int @Int
+        . runIO @Int @Int
         $ action
 
 
@@ -64,7 +69,7 @@ test_Singleflight =
                 "First request executes computation"
                 [ testCase "executes the computation on first request" $ do
                     (result, execCount) <- runSingleflightTest $ do
-                        withCache 1 (compute 42)
+                        with 1 (compute 42)
                     result @?= 42
                     execCount @?= 1
                 ]
@@ -72,16 +77,16 @@ test_Singleflight =
                 "Cached value returned on second request"
                 [ testCase "returns cached value without re-executing" $ do
                     (result, execCount) <- runSingleflightTest $ do
-                        r1 <- withCache 1 (compute 42)
-                        r2 <- withCache 1 (compute 42)
+                        r1 <- with 1 (compute 42)
+                        r2 <- with 1 (compute 42)
                         pure (r1, r2)
                     result @?= (42, 42)
                     execCount @?= 1
                 , testCase "returns cached value across multiple sequential requests" $ do
                     (results, execCount) <- runSingleflightTest $ do
-                        r1 <- withCache 1 (compute 42)
-                        r2 <- withCache 1 (compute 42)
-                        r3 <- withCache 1 (compute 42)
+                        r1 <- with 1 (compute 42)
+                        r2 <- with 1 (compute 42)
+                        r3 <- with 1 (compute 42)
                         pure [r1, r2, r3]
                     results @?= [42, 42, 42]
                     execCount @?= 1
@@ -93,7 +98,7 @@ test_Singleflight =
                         -- Launch 10 concurrent requests for the same key
                         asyncs <- replicateM 10 do
                             sem <- Sem.new
-                            async <- Conc.fork $ withCache 1 (slowCompute sem 42)
+                            async <- Conc.fork $ with 1 (slowCompute sem 42)
                             pure (sem, async)
                         traverse_ Sem.set $ fst <$> asyncs
                         traverse Conc.await $ snd <$> asyncs
@@ -104,10 +109,10 @@ test_Singleflight =
                     (results, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
                         -- Launch concurrent requests with different delays
-                        a1 <- Conc.fork $ withCache 1 (slowCompute sem 99)
+                        a1 <- Conc.fork $ with 1 (slowCompute sem 99)
                         Delay.wait (1 :: Millisecond) -- Ensure first request starts
-                        a2 <- Conc.fork $ withCache 1 (compute 99)
-                        a3 <- Conc.fork $ withCache 1 (compute 99)
+                        a2 <- Conc.fork $ with 1 (compute 99)
+                        a3 <- Conc.fork $ with 1 (compute 99)
                         Sem.signal sem -- Let first request continue
                         r1 <- Conc.await a1
                         r2 <- Conc.await a2
@@ -120,18 +125,18 @@ test_Singleflight =
                 "Different keys execute independently"
                 [ testCase "executes separate computations for different keys" $ do
                     (results, execCount) <- runSingleflightTest $ do
-                        r1 <- withCache 1 (compute 10)
-                        r2 <- withCache 2 (compute 20)
-                        r3 <- withCache 3 (compute 30)
+                        r1 <- with 1 (compute 10)
+                        r2 <- with 2 (compute 20)
+                        r3 <- with 3 (compute 30)
                         pure [r1, r2, r3]
                     results @?= [10, 20, 30]
                     execCount @?= 3
                 , testCase "different keys can run concurrently" $ do
                     (results, execCount) <- runSingleflightTest $ do
                         sem <- Sem.newSet
-                        a1 <- Conc.fork $ withCache 1 (slowCompute sem 10)
-                        a2 <- Conc.fork $ withCache 2 (slowCompute sem 20)
-                        a3 <- Conc.fork $ withCache 3 (slowCompute sem 30)
+                        a1 <- Conc.fork $ with 1 (slowCompute sem 10)
+                        a2 <- Conc.fork $ with 2 (slowCompute sem 20)
+                        a3 <- Conc.fork $ with 3 (slowCompute sem 30)
                         replicateM_ 3 $ Sem.signal sem
                         r1 <- Conc.await a1
                         r2 <- Conc.await a2
@@ -144,15 +149,15 @@ test_Singleflight =
                 "UpdateCache pre-populates the cache"
                 [ testCase "returns pre-populated value without executing computation" $ do
                     (result, execCount) <- runSingleflightTest $ do
-                        updateCache [(1, 99)]
-                        withCache 1 (compute 42)
+                        update [(1, 99)]
+                        with 1 (compute 42)
                     result @?= 99
                     execCount @?= 0
                 , testCase "pre-populated values are returned by subsequent requests" $ do
                     (results, execCount) <- runSingleflightTest $ do
-                        updateCache [(1, 99)]
-                        r1 <- withCache 1 (compute 42)
-                        r2 <- withCache 1 (compute 42)
+                        update [(1, 99)]
+                        r1 <- with 1 (compute 42)
+                        r2 <- with 1 (compute 42)
                         pure [r1, r2]
                     results @?= [99, 99]
                     execCount @?= 0
@@ -161,10 +166,10 @@ test_Singleflight =
                 "UpdateCache handles multiple entries"
                 [ testCase "correctly handles multiple key-value pairs" $ do
                     (results, execCount) <- runSingleflightTest $ do
-                        updateCache [(1, 10), (2, 20), (3, 30)]
-                        r1 <- withCache 1 (compute 99)
-                        r2 <- withCache 2 (compute 99)
-                        r3 <- withCache 3 (compute 99)
+                        update [(1, 10), (2, 20), (3, 30)]
+                        r1 <- with 1 (compute 99)
+                        r2 <- with 2 (compute 99)
+                        r3 <- with 3 (compute 99)
                         pure [r1, r2, r3]
                     results @?= [10, 20, 30]
                     execCount @?= 0
@@ -176,7 +181,7 @@ test_Singleflight =
                         -- Start one slow computation and many fast waiters
                         asyncs <- replicateM 20 do
                             sem <- Sem.new
-                            async <- Conc.fork $ withCache 1 (slowCompute sem 777)
+                            async <- Conc.fork $ with 1 (slowCompute sem 777)
                             pure (sem, async)
                         traverse_ Sem.signal $ fst <$> asyncs
                         traverse Conc.await $ snd <$> asyncs
@@ -191,26 +196,26 @@ test_Singleflight =
                 "Computation throws exception"
                 [ testCase "propagates exception to the first caller" $ do
                     let action = runSingleflightTest $ do
-                            withCache @Int @Int 1 (throwIO $ TestException "boom")
+                            with @Int @Int 1 (throwIO $ TestException "boom")
                     result <- try action
                     result @?= Left (TestException "boom")
                 , testCase "exception does not get cached" $ do
                     (result, execCount) <- runSingleflightTest $ do
                         -- First request throws
                         _ <-
-                            (withCache @Int @Int 1 (throwIO $ TestException "boom"))
+                            (with @Int @Int 1 (throwIO $ TestException "boom"))
                                 `catch` \(_ :: TestException) -> pure 0
                         -- Second request should re-execute
-                        withCache 1 (compute 42)
+                        with 1 (compute 42)
                     result @?= 42
                     execCount @?= 1
                 , testCase "propagates exception to all concurrent waiters" $ do
                     let action = runSingleflightTest $ do
                             sem <- Sem.new
                             a1 <-
-                                Conc.fork $ withCache @Int @Int 1 (slowCompute sem 42 >> throwIO (TestException "concurrent-boom"))
+                                Conc.fork $ with @Int @Int 1 (slowCompute sem 42 >> throwIO (TestException "concurrent-boom"))
                             Delay.wait (1 :: Millisecond)
-                            a2 <- Conc.fork $ withCache @Int @Int 1 (compute 99)
+                            a2 <- Conc.fork $ with @Int @Int 1 (compute 99)
                             Sem.signal sem
                             _ <- Conc.await a1
                             Conc.await a2
@@ -223,10 +228,10 @@ test_Singleflight =
                     (result, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
                         -- Start slow computation
-                        a1 <- Conc.fork $ withCache 1 (slowCompute sem 42)
+                        a1 <- Conc.fork $ with 1 (slowCompute sem 42)
                         Delay.wait (1 :: Millisecond) -- Let it start
                         -- Update cache while computation is running
-                        updateCache [(1, 999)]
+                        update [(1, 999)]
                         -- Both should get the updated value
                         Sem.signal sem
                         Conc.await a1
@@ -236,12 +241,12 @@ test_Singleflight =
                     (results, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
                         -- Start slow computation and waiters
-                        a1 <- Conc.fork $ withCache 1 (slowCompute sem 42)
+                        a1 <- Conc.fork $ with 1 (slowCompute sem 42)
                         Delay.wait (1 :: Millisecond)
-                        a2 <- Conc.fork $ withCache 1 (compute 42)
+                        a2 <- Conc.fork $ with 1 (compute 42)
                         Delay.wait (1 :: Millisecond)
                         -- Update while they're all waiting/running
-                        updateCache [(1, 888)]
+                        update [(1, 888)]
                         Sem.signal sem
                         r1 <- Conc.await a1
                         r2 <- Conc.await a2
