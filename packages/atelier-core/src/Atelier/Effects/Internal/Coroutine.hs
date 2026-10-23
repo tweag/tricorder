@@ -217,9 +217,9 @@ awaitYield
     -> Eff (Await a : es) r
     -> Eff es r
 awaitYield yields awaits = Conc.scoped do
-    (inChan, outChan) <- Chan.newChan @a
-    let yielder = interpretWith_ yields \(Yield x) -> Chan.writeChan inChan x
-        awaiter = interpretWith_ awaits \Await -> Chan.readChan outChan
+    (inChan, outChan) <- Chan.new @a
+    let yielder = interpretWith_ yields \(Yield x) -> Chan.write inChan x
+        awaiter = interpretWith_ awaits \Await -> Chan.read outChan
     -- Ensure the awaiter runs first.
     awaitThread <- Conc.fork awaiter
     yieldThread <- Conc.fork yielder

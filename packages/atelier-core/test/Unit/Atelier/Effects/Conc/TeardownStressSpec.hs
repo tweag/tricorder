@@ -25,12 +25,13 @@ import System.Timeout (timeout)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.Chan (Chan, runChan)
+import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock, runClock)
 import Atelier.Effects.Conc (Conc, fork, fork_, runConc, scoped)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
 
+import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Iterator qualified as Iter
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
@@ -133,4 +134,4 @@ runConcTest = runEff . runConcurrent . runConc
 
 -- | Mirrors 'IteratorSpec.runTest' — the full effect stack the real victim runs on.
 runIterTest :: Eff '[Pub Int, Sub Int, Chan, Clock, Conc, Concurrent, IOE] a -> IO a
-runIterTest = runEff . runConcurrent . runConc . runClock . runChan . PubSub.run @Int
+runIterTest = runEff . runConcurrent . runConc . runClock . Chan.run . PubSub.run @Int

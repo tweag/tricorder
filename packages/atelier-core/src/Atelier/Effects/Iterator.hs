@@ -47,9 +47,9 @@ fromEvents
     => (Iterator es event -> Eff es a)
     -> Eff es a
 fromEvents use = Conc.scoped do
-    (inChan, outChan) <- Chan.newChan
-    Sub.forkListener_ (Chan.writeChan inChan)
-    use $ Iterator (Chan.readChan outChan)
+    (inChan, outChan) <- Chan.new
+    Sub.forkListener_ (Chan.write inChan)
+    use $ Iterator (Chan.read outChan)
 
 
 -- | Iterate only over values that pass a predicate.

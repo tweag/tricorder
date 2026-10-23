@@ -7,12 +7,13 @@ import Effectful.Concurrent (Concurrent, runConcurrent)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.Chan (Chan, runChan)
+import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock, runClock, runClockConst)
 import Atelier.Effects.Conc (Conc, runConc)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
 
+import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
@@ -72,7 +73,7 @@ runPubSubTest =
         . runConcurrent
         . runConc
         . runClock
-        . runChan
+        . Chan.run
         . PubSub.run @TestEvent
 
 
@@ -85,5 +86,5 @@ runPubSubTestWithClock t =
         . runConcurrent
         . runConc
         . runClockConst t
-        . runChan
+        . Chan.run
         . PubSub.run @TestEvent

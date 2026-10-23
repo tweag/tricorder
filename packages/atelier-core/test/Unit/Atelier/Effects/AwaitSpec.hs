@@ -10,10 +10,10 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Data.List qualified as List
 import Effectful.Concurrent.STM qualified as STM
 
-import Atelier.Effects.Chan (runChan)
 import Atelier.Effects.Conc (runConc)
 
 import Atelier.Effects.Await qualified as Await
+import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Yield qualified as Yield
 
 
@@ -101,7 +101,7 @@ testAwaitYield =
         ]
     ]
   where
-    runTest = runEff . runConcurrent . runConc . runChan . runWriter
+    runTest = runEff . runConcurrent . runConc . Chan.run . runWriter
     -- Block the current (forked) computation indefinitely; used to keep a yielder
     -- alive so the awaiter wins the awaitYield termination race. The explicit
     -- signature keeps it polymorphic across the differing effect stacks below.

@@ -26,11 +26,12 @@
 module Atelier.Effects.Chan
     ( -- * Effect
       Chan
-    , newChan
-    , readChan
-    , writeChan
-    , dupChan
-    , runChan
+    , new
+    , read
+    , write
+    , dup
+    , run
+    , readBatched
 
       -- * Channel Types
 
@@ -39,7 +40,6 @@ module Atelier.Effects.Chan
       -- to maintain abstraction boundaries.
     , InChan
     , OutChan
-    , readChanBatched
     )
 where
 
@@ -64,33 +64,33 @@ data instance StaticRep Chan = Chan
 
 
 -- | Run the 'Chan' effect, allowing channel operations to perform their IO.
-runChan :: forall a es. (IOE :> es) => Eff (Chan : es) a -> Eff es a
-runChan = evalStaticRep Chan
+run :: forall a es. (IOE :> es) => Eff (Chan : es) a -> Eff es a
+run = evalStaticRep Chan
 
 
 -- | Create a new channel, returning its write ('InChan') and read ('OutChan')
 -- ends.
-newChan :: forall a es. (Chan :> es) => Eff es (InChan a, OutChan a)
-newChan =
+new :: forall a es. (Chan :> es) => Eff es (InChan a, OutChan a)
+new =
     unsafeEff_ Unagi.newChan
 
 
 -- | Read the next item from a channel, blocking until one is available.
-readChan :: forall a es. (Chan :> es) => OutChan a -> Eff es a
-readChan outChan =
+read :: forall a es. (Chan :> es) => OutChan a -> Eff es a
+read outChan =
     unsafeEff_ $ Unagi.readChan outChan
 
 
 -- | Write an item to a channel. Never blocks (the channel is unbounded).
-writeChan :: forall a es. (Chan :> es) => InChan a -> a -> Eff es ()
-writeChan inChan val =
+write :: forall a es. (Chan :> es) => InChan a -> a -> Eff es ()
+write inChan val =
     unsafeEff_ $ Unagi.writeChan inChan val
 
 
 -- | Duplicate a channel, producing a new read end that observes every item
 -- written after the duplication.
-dupChan :: forall a es. (Chan :> es) => InChan a -> Eff es (OutChan a)
-dupChan inChan =
+dup :: forall a es. (Chan :> es) => InChan a -> Eff es (OutChan a)
+dup inChan =
     unsafeEff_ $ Unagi.dupChan inChan
 
 
@@ -99,7 +99,7 @@ dupChan inChan =
 -- Blocks until at least one item is available, then attempts to read
 -- up to @batchSize@ items total within the given timeout. Always returns
 -- at least one item.
-readChanBatched
+readBatched
     :: forall t a es
      . ( Chan :> es
        , TimeUnit t
@@ -113,13 +113,13 @@ readChanBatched
     -- ^ Channel to read from
     -> Eff es (NonEmpty a)
     -- ^ Non-empty batch of items (at least one, up to batch size)
-readChanBatched timeoutDuration batchSize outChan = do
+readBatched timeoutDuration batchSize outChan = do
     evalState @[a] [] $ do
-        h <- readChan outChan -- blocking, get first item
+        h <- read outChan -- blocking, get first item
         _ <- timeout (fromIntegral (toMicroseconds timeoutDuration))
             $ replicateM_ (batchSize - 1)
             $ do
-                x <- readChan outChan
+                x <- read outChan
                 modify (x :)
         rest <- get
         pure $ h :| reverse rest

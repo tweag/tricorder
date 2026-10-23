@@ -19,18 +19,18 @@ run
      . (Chan :> es, Clock :> es)
     => Eff (Pub event : Sub event : es) a -> Eff es a
 run action = do
-    (inChan, _) <- Chan.newChan @(UTCTime, event)
+    (inChan, _) <- Chan.new @(UTCTime, event)
     let handlePub = interpret_ \case
             Publish event -> do
                 timestamp <- Clock.currentTime
-                Chan.writeChan inChan (timestamp, event)
+                Chan.write inChan (timestamp, event)
 
         handleSub = interpret \env -> \case
             ListenWith onSubscribed listener -> localSeqUnlift env \unlift -> do
-                chan <- Chan.dupChan inChan
+                chan <- Chan.dup inChan
                 unlift onSubscribed
                 forever do
-                    (timestamp, event) <- Chan.readChan chan
+                    (timestamp, event) <- Chan.read chan
                     unlift $ listener timestamp event
 
     handleSub . handlePub $ action
