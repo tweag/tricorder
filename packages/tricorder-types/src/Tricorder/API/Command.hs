@@ -4,7 +4,6 @@ module Tricorder.API.Command
     , LogMode (..)
     , SourceOptions (..)
     , StatusOptions (..)
-    , TestOptions (..)
     , Verbosity (..)
     , toArgs
     )
@@ -40,12 +39,6 @@ data StatusOptions = StatusOptions
     }
 
 
-data TestOptions = TestOptions
-    { failedOnly :: Bool
-    , wait :: WaitMode
-    }
-
-
 data EvalCommentsOptions = EvalCommentsOptions
     { wait :: WaitMode
     , format :: OutputFormat
@@ -64,8 +57,6 @@ data SourceOptions = SourceOptions
 
 data Command
     = Status StatusOptions
-    | -- | DEPRECATED: Use 'Test' instead.
-      TestResults TestOptions
     | Test Test.Command
     | UI
     | Log LogMode
@@ -88,8 +79,6 @@ toArgs = \case
                 <> OutputFormat.toArgs format
                 <> verbosityArgs verbosity
                 <> maybe [] (\n -> ["--expand", show n]) expand
-    TestResults (TestOptions {failedOnly, wait}) ->
-        "test-results" : failedArgs failedOnly <> WaitMode.toArgs wait
     Test testCommand -> "test" : Test.toArgs testCommand
     UI -> ["ui"]
     Log ShowLogPath -> ["log", "--print-path"]
@@ -107,8 +96,3 @@ toArgs = \case
 verbosityArgs :: Verbosity -> [String]
 verbosityArgs Verbose = ["--verbose"]
 verbosityArgs Concise = []
-
-
-failedArgs :: Bool -> [String]
-failedArgs True = ["--failed"]
-failedArgs False = []
