@@ -7,10 +7,15 @@ module Tricorder.Session.Stage.Test.Session
     )
 where
 
+import Atelier.Effects.Log (Log)
+import Atelier.Time (Millisecond)
 import Data.Default (Default (..))
 
+import Atelier.Effects.Log qualified as Log
+import Atelier.Time qualified as Time
 import Data.Text qualified as T
 
+import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
@@ -20,6 +25,7 @@ import Tricorder.Session.Target (Target)
 import Tricorder.Session.TestTarget (TestTarget (..))
 import Tricorder.Session.Util (displayList, indent)
 
+import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Daemon.Ghci.Config qualified as Ghci (Config)
 import Tricorder.Daemon.Ghci.Config qualified as Ghci.Config
 import Tricorder.Daemon.Ghci.Config.File qualified as Ghci.Config.File
@@ -49,35 +55,54 @@ instance Default Session where
 
 data ResolvedTestOptions = ResolvedTestOptions
     { outputMode :: OutputMode
+    , timeout :: Millisecond
+    , memoryLimit :: Maybe ByteSize
     }
     deriving stock (Eq)
 
 
 instance Default ResolvedTestOptions where
-    def = ResolvedTestOptions ReplOutput
+    def =
+        ResolvedTestOptions
+            { outputMode = ReplOutput
+            , timeout = 10
+            , memoryLimit = Nothing
+            }
 
 
-resolve :: Repl -> [Target] -> Config -> Session
-resolve repl buildTargets cfg =
-    Session
-        { commandTemplate =
-            CommandTemplate
-                { repl
-                , template
-                , arguments =
-                    maybe
-                        cfg.test.commandConfig.extraAutoArguments
-                        (const [])
-                        cfg.test.commandConfig.commandTemplate
-                , placeholder = targetPlaceholder
-                }
-        , targets = TestTarget.resolve cfg buildTargets
-        , options =
-            ResolvedTestOptions
-                { outputMode = fromMaybe detectedOutputMode cfg.test.options.outputMode
-                }
-        , ghci = maybe def Ghci.Config.File.toConfig cfg.test.commandConfig.ghci
-        }
+resolve :: (Log :> es) => Repl -> [Target] -> Config -> Eff es Session
+resolve repl buildTargets cfg = Log.withNamespace "session.test" do
+    memoryLimit <- case cfg.test.options.memoryLimit of
+        Nothing -> pure Nothing
+        Just limit -> case ByteSize.fromText limit of
+            Nothing -> do
+                Log.warn $ "Unable to parse options.memory_limit: " <> limit
+                Log.info "Continuing with no memory limit."
+                pure Nothing
+            Just parsedLimit ->
+                pure $ Just parsedLimit
+    pure
+        $ Session
+            { commandTemplate =
+                CommandTemplate
+                    { repl
+                    , template
+                    , arguments =
+                        maybe
+                            cfg.test.commandConfig.extraAutoArguments
+                            (const [])
+                            cfg.test.commandConfig.commandTemplate
+                    , placeholder = targetPlaceholder
+                    }
+            , targets = TestTarget.resolve cfg buildTargets
+            , options =
+                ResolvedTestOptions
+                    { outputMode = fromMaybe detectedOutputMode cfg.test.options.outputMode
+                    , timeout = maybe 10 Time.getAsRawUnit cfg.test.options.timeoutMs
+                    , memoryLimit
+                    }
+            , ghci = maybe def Ghci.Config.File.toConfig cfg.test.commandConfig.ghci
+            }
   where
     template = fromMaybe (defaultTestTemplate repl) cfg.test.commandConfig.commandTemplate
     detectedOutputMode
@@ -114,4 +139,6 @@ display cfg =
         T.intercalate
             "\n"
             [ "Output mode: " <> show opts.outputMode
+            , "Timeout: " <> show opts.timeout
+            , "Memory limit: " <> maybe "<unlimited>" show opts.memoryLimit
             ]

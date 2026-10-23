@@ -31,6 +31,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   support the `--start-daemon` flag to automatically start the daemon if it is
   not already running. This will become the default behavior for all
   subcommands in the next `MAJOR.MAJOR` release.
+- Moved config option `session.test_timeout` to `session.test.timeout_ms`.
+- moved config option `session.test_memory_limit` to `session.test.memory_limit`.
 
 ### Deprecated
 

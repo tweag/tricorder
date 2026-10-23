@@ -1,8 +1,11 @@
 module Unit.Tricorder.Session.Stage.Test.CommandSpec (test_Command) where
 
 import Data.Default (def)
+import Effectful (runPureEff)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+
+import Atelier.Effects.Log qualified as Log
 
 import Tricorder.Build.ByteSize (ByteSize (..), Unit (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
@@ -10,16 +13,14 @@ import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetPlaceholder)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..))
-import Tricorder.Session.Stage.Test.Command
-    ( RenderedTestCommand (..)
-    , render
-    )
+import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..), render)
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
-import Tricorder.Session.Stage.Test.Session (Session (..), resolve)
+import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), Session (..))
 import Tricorder.Session.TestTarget (TestTarget (..))
 
 import Tricorder.Session.CommandConfig qualified as CommandConfig
 import Tricorder.Session.Stage qualified as Stage
+import Tricorder.Session.Stage.Test.Session qualified as Session
 import Tricorder.Session.Target qualified as Target
 
 
@@ -61,7 +62,7 @@ testRenderTest =
   where
     test :: CommandTemplate 'Stage.Test -> Maybe ByteSize -> TestTarget -> Text
     test template mMemoryLimit target =
-        (render (Session template [] def def) mMemoryLimit target).command.getRenderedCommand
+        (render (Session template [] (def {memoryLimit = mMemoryLimit}) def) target).command.getRenderedCommand
     testTarget = TestTarget (Target.parse "test:foo")
     oneByte = ByteSize 1 B
 
@@ -104,3 +105,7 @@ testResolveTestSession =
                         }
             (resolve Cabal [] cfg).commandTemplate.arguments @?= []
         ]
+
+
+resolve :: Repl -> [Target.Target] -> Config -> Session
+resolve repl target config = runPureEff . Log.runNoOp $ Session.resolve repl target config

@@ -24,7 +24,6 @@ import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..), Severity (..))
-import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
@@ -40,7 +39,6 @@ import Tricorder.Daemon.TestRunner (TestRunner)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
-import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build qualified as Build
@@ -282,10 +280,7 @@ runTests
     => Session -> BuildResult -> Eff es Test.Suites
 runTests session buildResult
     | hasTargets session.testSession.targets && noErrors buildResult.diagnostics =
-        runTestsForTargets
-            session.testSession
-            session.testMemoryLimit
-            session.testTimeout
+        runTestsForTargets session.testSession
     | otherwise = pure mempty
   where
     hasTargets = not . null
@@ -298,10 +293,8 @@ runTestsForTargets
        , TestRunner :> es
        )
     => Test.Session
-    -> Maybe ByteSize
-    -> TestTimeout
     -> Eff es Test.Suites
-runTestsForTargets testSession memoryLimit testTimeout = do
+runTestsForTargets testSession = do
     Pub.publish $ Test.Suites initial
     Log.info $ "Running " <> show (length testSession.targets) <> " test suite(s)"
     fmap Test.Suites . State.execState initial $ traverse_ go testSession.targets
@@ -309,7 +302,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
     initial = Map.fromList $ (,Test.SuiteRunning Nothing) <$> testSession.targets
     go target = do
         Log.info $ "Running tests: " <> renderedTarget
-        let testCommand = Test.Command.render testSession memoryLimit target
+        let testCommand = Test.Command.render testSession target
             publishProgress suite = do
                 updated <- State.state $ dup . Map.insert target suite
                 Pub.publish $ Test.Suites updated
@@ -318,7 +311,7 @@ runTestsForTargets testSession memoryLimit testTimeout = do
                 <> renderedTarget
                 <> " command:\n"
                 <> show testCommand.command
-        finishedSuite <- TestRunner.runTestSuite testSession publishProgress testTimeout testCommand
+        finishedSuite <- TestRunner.runTestSuite testSession publishProgress testCommand
         case finishedSuite of
             Test.SuiteErrored (Test.SuiteError message) ->
                 Log.warn $ "Test suite " <> renderedTarget <> "failed: " <> message

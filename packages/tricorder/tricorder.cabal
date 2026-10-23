@@ -125,7 +125,6 @@ library tricorder-internal
       Tricorder.Session.State.Result
       Tricorder.Session.Target
       Tricorder.Session.TestTarget
-      Tricorder.Session.TestTimeout
       Tricorder.Session.Util
       Tricorder.Session.WatchDirs
       Tricorder.Session.WatchExclusionPatterns

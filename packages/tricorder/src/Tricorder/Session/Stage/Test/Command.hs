@@ -4,7 +4,6 @@ module Tricorder.Session.Stage.Test.Command
     )
 where
 
-import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Repl (Repl (..))
@@ -22,8 +21,8 @@ data RenderedTestCommand = RenderedTestCommand
     }
 
 
-render :: Session -> Maybe ByteSize -> TestTarget -> RenderedTestCommand
-render testSession mMemoryLimit target =
+render :: Session -> TestTarget -> RenderedTestCommand
+render testSession target =
     RenderedTestCommand
         { command =
             RenderedCommand
@@ -57,4 +56,4 @@ render testSession mMemoryLimit target =
                         Cabal -> cabal
                         Unknown -> cabal
             )
-            mMemoryLimit
+            testSession.options.memoryLimit
