@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.File (runFile)
 import Atelier.Effects.FileSystem (runFileSystemIO)
 import Atelier.Effects.FileWatcher (runFileWatcherIO)
 import Atelier.Effects.Process (runProcessIO)
@@ -17,6 +16,7 @@ import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
+import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
@@ -71,7 +71,7 @@ main =
         . Glob.runIO
         . runProjectRoot
         . Exit.runIO
-        . runFile
+        . File.run
         . runRuntimeDir
         . runSocketPath
         . runLogPath
