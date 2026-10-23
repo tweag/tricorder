@@ -1,6 +1,5 @@
 module Tricorder.Daemon.Main (main) where
 
-import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
@@ -21,6 +20,7 @@ import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
@@ -83,7 +83,7 @@ main =
         . Chan.run
         . StackProject.inputWithCache
         . inputCabalFiles
-        . runProcessIO
+        . Process.run
         . runGhcPkgIO
         . UnixSocket.runIO
         . Ghci.Session.run

@@ -1,7 +1,7 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
 import Atelier.Effects.Log (Message (..), Severity (..))
-import Atelier.Effects.Process (runProcessIO, terminateProcessGroup, withProcessGroup)
+import Atelier.Effects.Process (terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
 import Atelier.Effects.Timeout (runTimeout)
 import Atelier.Time (Millisecond)
@@ -39,6 +39,7 @@ import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as AProc
+import Atelier.Effects.Process qualified as Atelier.Process
 import Data.Text qualified as T
 import System.Process qualified as Process
 import System.Timeout qualified
@@ -385,7 +386,7 @@ testWithProcessGroupCleanup =
                     . Delay.runIO
                     . File.run
                     . Conc.runIO
-                    . runProcessIO
+                    . Atelier.Process.run
                     $ withProcessGroup procConfig \p -> do
                         -- First stdout line is the long-lived child's pid.
                         line <- File.hGetLine (AProc.getStdout p)
@@ -437,7 +438,7 @@ testTerminateProcessGroup =
                     ignoring (stopProcess p)
                     assertFailure ("could not parse child pid from: " <> show childLine)
                 Just childPid -> do
-                    runEff . runProcessIO $ terminateProcessGroup (RunningProcess p)
+                    runEff . Atelier.Process.run $ terminateProcessGroup (RunningProcess p)
                     died <- waitForProcessDeath childPid
                     -- Never leak the child if the assertion fails.
                     ignoring (signalProcess sigKILL (fromIntegral childPid))

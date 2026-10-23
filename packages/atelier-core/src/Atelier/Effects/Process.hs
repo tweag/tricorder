@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- | Effect for spawning and interacting with external processes.
 --
 -- Unifies @typed-process@ (configuration, lifecycle and stream capture) and the
@@ -38,15 +40,14 @@ module Atelier.Effects.Process
     , getExecutablePath
 
       -- * Interpreters
-    , runProcessIO
+    , run
     )
 where
 
 import Control.Exception (IOException, catch)
-import Effectful (Effect, IOE)
-import Effectful.Dispatch.Dynamic (interpret_)
+import Effectful (Dispatch (..), DispatchOf, Effect, IOE)
+import Effectful.Dispatch.Static (SideEffects (..), StaticRep, evalStaticRep, unsafeEff_)
 import Effectful.Exception (bracket, trySync)
-import Effectful.TH (makeEffect)
 import System.Exit (ExitCode (..))
 import System.Posix.Signals (sigTERM, signalProcessGroup)
 import System.Process (Pid, getPid, interruptProcessGroupOf)
@@ -83,34 +84,13 @@ getStderr :: RunningProcess i o e -> e
 getStderr (RunningProcess p) = TP.getStderr p
 
 
-data Process :: Effect where
-    -- | Run a process to completion, returning its exit code and captured stdout.
-    ReadProcessStdout :: ProcessConfig i o e -> Process m (ExitCode, LByteString)
-    -- | Run a process to completion, capturing both stdout and stderr along with
-    -- its exit code.
-    ReadProcess :: ProcessConfig i o e -> Process m (ExitCode, LByteString, LByteString)
-    -- | Run a process to completion, returning only its exit code. Unlike
-    -- 'ReadProcessStdout' this does not capture stdout.
-    RunProcess :: ProcessConfig i o e -> Process m ExitCode
-    -- | The absolute path of the currently running executable, for re-invoking
-    -- this program as a subprocess.
-    GetExecutablePath :: Process m FilePath
-    -- | Spawn a process and return its handle. Internal; callers use 'withProcessGroup'.
-    StartProcess :: ProcessConfig i o e -> Process m (RunningProcess i o e)
-    -- | Terminate the leader and close its streams. Internal; does not reach the
-    -- rest of the group.
-    StopProcess :: RunningProcess i o e -> Process m ()
-    -- | Block until the process exits and return its exit code.
-    WaitExitCode :: RunningProcess i o e -> Process m ExitCode
-    -- | Send SIGINT to the process's group. Requires @'setCreateGroup' True@.
-    InterruptProcessGroup :: RunningProcess i o e -> Process m ()
-    -- | Look up the OS process id, or 'Nothing' if it has already exited. Internal.
-    GetProcessId :: RunningProcess i o e -> Process m (Maybe Pid)
-    -- | Send SIGTERM to the given process group. Internal.
-    SignalProcessGroupTerm :: Pid -> Process m ()
+data Process :: Effect
 
 
-makeEffect ''Process
+type instance DispatchOf Process = Static 'WithSideEffects
+
+
+data instance StaticRep Process = Process
 
 
 -- | Run a process in its own process group, terminating the /whole group/ — the
@@ -159,16 +139,58 @@ readProcessSafe cmd args = do
         _ -> Nothing
 
 
-runProcessIO :: (IOE :> es) => Eff (Process : es) a -> Eff es a
-runProcessIO = interpret_ \case
-    ReadProcessStdout cfg -> liftIO $ TP.readProcessStdout cfg
-    ReadProcess cfg -> liftIO $ TP.readProcess cfg
-    RunProcess cfg -> liftIO $ TP.runProcess cfg
-    GetExecutablePath -> liftIO Env.getExecutablePath
-    StartProcess cfg -> liftIO $ RunningProcess <$> TP.startProcess cfg
-    StopProcess (RunningProcess p) -> liftIO $ TP.stopProcess p
-    WaitExitCode (RunningProcess p) -> liftIO $ TP.waitExitCode p
-    InterruptProcessGroup (RunningProcess p) -> liftIO $ interruptProcessGroupOf (TP.unsafeProcessHandle p)
-    GetProcessId (RunningProcess p) -> liftIO $ getPid (TP.unsafeProcessHandle p)
-    SignalProcessGroupTerm pid ->
-        liftIO $ signalProcessGroup sigTERM pid `catch` \(_ :: IOException) -> pure ()
+-- | Run a process to completion, returning its exit code and captured stdout.
+readProcessStdout :: (Process :> es) => ProcessConfig i o e -> Eff es (ExitCode, LByteString)
+readProcessStdout = unsafeEff_ . TP.readProcessStdout
+
+
+-- | Run a process to completion, capturing both stdout and stderr along with
+-- its exit code.
+readProcess :: (Process :> es) => ProcessConfig i o e -> Eff es (ExitCode, LByteString, LByteString)
+readProcess = unsafeEff_ . TP.readProcess
+
+
+runProcess :: (Process :> es) => ProcessConfig i o e -> Eff es ExitCode
+runProcess = unsafeEff_ . TP.runProcess
+
+
+-- | The absolute path of the currently running executable, for re-invoking
+-- this program as a subprocess.
+getExecutablePath :: (Process :> es) => Eff es FilePath
+getExecutablePath = unsafeEff_ Env.getExecutablePath
+
+
+-- | Spawn a process and return its handle. Internal; callers use 'withProcessGroup'.
+startProcess :: (Process :> es) => ProcessConfig i o e -> Eff es (RunningProcess i o e)
+startProcess = unsafeEff_ . fmap RunningProcess . TP.startProcess
+
+
+-- | Terminate the leader and close its streams. Internal; does not reach the
+-- rest of the group.
+stopProcess :: (Process :> es) => RunningProcess i o e -> Eff es ()
+stopProcess = unsafeEff_ . TP.stopProcess . getRunningProcess
+
+
+-- | Block until the process exits and return its exit code.
+waitExitCode :: (Process :> es) => RunningProcess i o e -> Eff es ExitCode
+waitExitCode = unsafeEff_ . TP.waitExitCode . getRunningProcess
+
+
+-- | Send SIGINT to the process's group. Requires @'setCreateGroup' True@.
+interruptProcessGroup :: (Process :> es) => RunningProcess i o e -> Eff es ()
+interruptProcessGroup = unsafeEff_ . interruptProcessGroupOf . TP.unsafeProcessHandle . getRunningProcess
+
+
+-- | Look up the OS process id, or 'Nothing' if it has already exited. Internal.
+getProcessId :: (Process :> es) => RunningProcess i o e -> Eff es (Maybe Pid)
+getProcessId = unsafeEff_ . getPid . TP.unsafeProcessHandle . getRunningProcess
+
+
+-- | Send SIGTERM to the given process group. Internal.
+signalProcessGroupTerm :: (Process :> es) => Pid -> Eff es ()
+signalProcessGroupTerm pid =
+    unsafeEff_ $ signalProcessGroup sigTERM pid `catch` \(_ :: IOException) -> pure ()
+
+
+run :: (IOE :> es) => Eff (Process : es) a -> Eff es a
+run = evalStaticRep Process
