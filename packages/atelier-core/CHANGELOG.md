@@ -22,6 +22,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   use.
 - `Atelier.Effects.Conc`: renamed members to make more suited for qualified
   use.
+- `Atelier.Effects.Console`: renamed members to make more suited for qualified
+  use.
 
 ## [0.8.1.0] - 2026-10-23
 

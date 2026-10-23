@@ -1,6 +1,6 @@
 module Tricorder.CLI.Main (main) where
 
-import Atelier.Effects.Console (Console, runConsole, runConsoleOut)
+import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (exitFailure, runExit)
@@ -52,8 +52,8 @@ main =
         . Conc.runIO
         . runBrickChan
         . runBrick
-        . runConsole
-        . runProvider_ @Console @Console.Output runConsoleOut
+        . Console.runIO
+        . runProvider_ @Console @Console.Output Console.runOut
         . runExit
         . Clock.runIO
         . runDelay

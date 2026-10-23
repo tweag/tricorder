@@ -126,7 +126,7 @@ testEnsureCallback =
     runCallbackTest =
         runEff
             . runConcurrent
-            . Console.runConsole
+            . Console.runIO
             . Delay.runDelay
             . Conc.runIO
     entry generation =

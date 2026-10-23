@@ -13,10 +13,10 @@ module Atelier.Effects.Console
     , putText
 
       -- * Interpreters
-    , runConsoleHandle
-    , runConsole
-    , runConsoleToList
-    , runConsoleOut
+    , runHandle
+    , runIO
+    , runToList
+    , runOut
     )
 where
 
@@ -58,24 +58,24 @@ putTextLn = putStrLn . encodeUtf8
 
 
 -- | Interpret 'Console' by writing to the given 'Handle'.
-runConsoleHandle :: (IOE :> es) => Handle -> Eff (Console : es) a -> Eff es a
-runConsoleHandle h = interpret_ \case
+runHandle :: (IOE :> es) => Handle -> Eff (Console : es) a -> Eff es a
+runHandle h = interpret_ \case
     PutStr s -> liftIO $ B8.hPut h s
 
 
 -- | Interpret 'Console' by writing to 'stdout'.
-runConsole :: (IOE :> es) => Eff (Console : es) a -> Eff es a
-runConsole = runConsoleHandle stdout
+runIO :: (IOE :> es) => Eff (Console : es) a -> Eff es a
+runIO = runHandle stdout
 
 
 -- | Interpret 'Console' by collecting all writes into a list, in order. Useful
 -- for asserting on output in tests.
-runConsoleToList :: Eff (Console : es) a -> Eff es (a, [ByteString])
-runConsoleToList = reinterpret_ (fmap (second reverse) . runState []) \case
+runToList :: Eff (Console : es) a -> Eff es (a, [ByteString])
+runToList = reinterpret_ (fmap (second reverse) . runState []) \case
     PutStr s -> modify (s :)
 
 
-runConsoleOut :: (IOE :> es) => Output -> Eff (Console : es) a -> Eff es a
-runConsoleOut = \case
-    Stderr -> runConsoleHandle stderr
-    Stdout -> runConsoleHandle stdout
+runOut :: (IOE :> es) => Output -> Eff (Console : es) a -> Eff es a
+runOut = \case
+    Stderr -> runHandle stderr
+    Stdout -> runHandle stdout
