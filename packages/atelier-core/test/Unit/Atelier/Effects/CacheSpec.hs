@@ -3,25 +3,26 @@ module Unit.Atelier.Effects.CacheSpec (test_Cache) where
 import Data.Time (UTCTime (..), addUTCTime, fromGregorian)
 import Data.Time.Clock (NominalDiffTime)
 import Effectful (runEff)
-import Effectful.Concurrent (runConcurrent)
-import Effectful.Reader.Static (runReader)
-import Effectful.State.Static.Shared (evalState, modify)
+import Effectful.State.Static.Shared (modify)
 import Hedgehog (forAll, property, (===))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.Hedgehog (testProperty)
 
+import Effectful.Concurrent qualified as Concurrent
 import Effectful.Concurrent.STM qualified as STM
+import Effectful.Reader.Static qualified as Reader
+import Effectful.State.Static.Shared qualified as State
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.Cache (Config (..))
-import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Log (runLogNoOp)
 
 import Atelier.Effects.Cache qualified as Cache
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Delay qualified as Delay
 
 
 test_Cache :: TestTree
@@ -172,15 +173,15 @@ test_Cache =
             ]
         ]
   where
-    runBase = runEff . runConcurrent
+    runBase = runEff . Concurrent.runConcurrent
     runCacheTest = runBase . runCacheTestWithWait (STM.atomically STM.retry)
     runCacheTestWithWait wait =
         runLogNoOp
             . Conc.runIO
-            . runDelay
-            . evalState epoch
+            . Delay.runIO
+            . State.evalState epoch
             . Clock.runState
-            . runReader (Config {entryTtl = ttl, cleanupInterval = 3600})
+            . Reader.runReader (Config {entryTtl = ttl, cleanupInterval = 3600})
             . Cache.runTTLWithWait @Int @Int wait
     epoch = UTCTime (fromGregorian 1970 1 1) 0
     ttl = 3600 :: NominalDiffTime

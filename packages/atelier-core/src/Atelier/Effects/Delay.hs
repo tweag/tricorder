@@ -1,23 +1,9 @@
--- | An effect for delaying execution.
---
--- 'wait' suspends the current thread for a 'TimeUnit' duration; 'every' repeats
--- an action forever with a fixed gap between runs. 'runDelay' performs real
--- delays, while 'runDelayNoOp' skips them so time-based code runs instantly
--- under test.
---
--- @
--- -- pause within a workflow:
--- wait (250 :: Millisecond)
---
--- -- run a health check every 30 seconds, forever (the caller forks it):
--- fork_ $ every (30 :: Second) checkHealth
--- @
 module Atelier.Effects.Delay
     ( Delay
     , wait
     , every
-    , runDelay
-    , runDelayNoOp
+    , runIO
+    , runNoOp
     )
 where
 
@@ -38,8 +24,7 @@ makeEffect ''Delay
 
 
 -- | Runs an action repeatedly, waiting the given duration in between each
--- execution, starting immediately. Returns Void since it runs forever.
--- Caller is responsible for forking.
+-- execution, starting immediately.
 every :: (Delay :> es, TimeUnit t) => t -> Eff es () -> Eff es Void
 every delay action = forever do
     action
@@ -47,11 +32,11 @@ every delay action = forever do
 
 
 -- | Interpret 'Delay' using real thread delays.
-runDelay :: (Concurrent :> es) => Eff (Delay : es) a -> Eff es a
-runDelay = interpret_ \(Wait delay) ->
+runIO :: (Concurrent :> es) => Eff (Delay : es) a -> Eff es a
+runIO = interpret_ \(Wait delay) ->
     threadDelay $ fromIntegral (toMicroseconds delay)
 
 
--- | Delay interpreter that makes every 'wait' a no-op — useful in unit tests.
-runDelayNoOp :: Eff (Delay : es) a -> Eff es a
-runDelayNoOp = interpret_ \(Wait _) -> pure ()
+-- | Delay interpreter that makes every 'wait' return immediately.
+runNoOp :: Eff (Delay : es) a -> Eff es a
+runNoOp = interpret_ \(Wait _) -> pure ()

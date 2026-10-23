@@ -26,6 +26,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   use.
 - `Atelier.Effects.Debounce`: renamed members to make more suited for qualified
   use.
+- `Atelier.Effects.Delay`: renamed members to make more suited for qualified
+  use.
 
 ## [0.8.1.0] - 2026-10-23
 

@@ -1,6 +1,5 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
-import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.File (runFile)
 import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
 import Atelier.Effects.Process (runProcessIO, terminateProcessGroup, withProcessGroup)
@@ -235,7 +234,7 @@ testExecGhciStaleMarker =
             runEff
                 . runConcurrent
                 . runTimeout
-                . runDelay
+                . Delay.runIO
                 . runFile
                 . runLogNoOp
                 . Conc.runIO
@@ -294,7 +293,7 @@ testSyncMarkerScopeIndependent =
             runEff
                 . runConcurrent
                 . runTimeout
-                . runDelay
+                . Delay.runIO
                 . runFile
                 . runLogNoOp
                 . Conc.runIO
@@ -339,7 +338,7 @@ testWaitForBannerOrFail =
             runEff
                 . runConcurrent
                 . runTimeout
-                . runDelay
+                . Delay.runIO
                 . runFile
                 . Conc.runIO
                 $ do
@@ -383,7 +382,7 @@ testWithProcessGroupCleanup =
                 runEff
                     . runConcurrent
                     . runTimeout
-                    . runDelay
+                    . Delay.runIO
                     . runFile
                     . Conc.runIO
                     . runProcessIO
@@ -532,7 +531,7 @@ testExecGhciScope =
             runEff
                 . runConcurrent
                 . runTimeout
-                . runDelay
+                . Delay.runIO
                 . runFile
                 . runLogNoOp
                 . Conc.runIO

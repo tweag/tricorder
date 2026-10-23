@@ -14,7 +14,7 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.Conc (Conc, await, awaitAll, fork, forkTry, fork_, runIO, scoped)
-import Atelier.Effects.Delay (Delay, runDelay)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Time (Millisecond)
 
 import Atelier.Effects.Delay qualified as Delay
@@ -130,7 +130,7 @@ test_Conc =
 --------------------------------------------------------------------------------
 
 runTest :: Eff '[Delay, Conc, Concurrent, IOE] a -> IO a
-runTest = runEff . runConcurrent . runIO . runDelay
+runTest = runEff . runConcurrent . runIO . Delay.runIO
 
 
 runTestSimple :: Eff '[Conc, Concurrent, IOE] a -> IO a

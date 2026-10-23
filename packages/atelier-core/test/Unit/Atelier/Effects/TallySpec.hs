@@ -15,12 +15,13 @@ import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.Delay (Delay, runDelay)
+import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Log (Log, runLogNoOp)
 import Atelier.Effects.Tally (Config (..), Tally, runTally, withTallyCheck)
 
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Delay qualified as Delay
 
 
 test_Tally :: TestTree
@@ -95,7 +96,7 @@ runTallyTest action =
         . runConcurrent
         . runLogNoOp
         . Conc.runIO
-        . runDelay
+        . Delay.runIO
         . Clock.runIO
         . runReader (Config {entryTtl = 3600, cleanupInterval = 3600})
         . runTally @Int

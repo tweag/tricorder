@@ -1,7 +1,6 @@
 module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Delay (runDelay)
 import Atelier.Effects.Env (runEnv)
 import Atelier.Effects.Exit (exitFailure, runExit)
 import Atelier.Effects.File (runFile)
@@ -20,6 +19,7 @@ import Atelier.Effects.Arguments qualified as Arguments
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Console qualified as Console
+import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 
@@ -56,7 +56,7 @@ main =
         . runProvider_ @Console @Console.Output Console.runOut
         . runExit
         . Clock.runIO
-        . runDelay
+        . Delay.runIO
         . runFile
         . runFileSystemIO
         . Glob.runIO

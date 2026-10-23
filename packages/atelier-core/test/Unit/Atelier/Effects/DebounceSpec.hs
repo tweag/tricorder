@@ -11,7 +11,6 @@ import Effectful.Concurrent.STM qualified as STM
 import StmContainers.Map qualified as Map
 
 import Atelier.Effects.Debounce (Entry (..), ensureCallback, ensureEntry)
-import Atelier.Effects.Delay (runDelay)
 import Atelier.Time (Millisecond)
 
 import Atelier.Effects.Conc qualified as Conc
@@ -121,7 +120,7 @@ testEnsureCallback =
         runEff
             . runConcurrent
             . Console.runIO
-            . Delay.runDelay
+            . Delay.runIO
             . Conc.runIO
     entry generation =
         Entry
@@ -247,7 +246,7 @@ testRun =
         runEff
             . runConcurrent
             . Conc.runIO
-            . runDelay
+            . Delay.runIO
             . Debounce.run
 
     -- A fire counter paired with a TMVar signalling that a fire happened.
