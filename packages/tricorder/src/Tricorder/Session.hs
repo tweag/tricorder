@@ -17,7 +17,6 @@ import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Build.ByteSize (ByteSize)
 import Tricorder.Runtime (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.CommandConfig (CommandConfig (..))
@@ -31,7 +30,6 @@ import Tricorder.Session.ReplBuildDir (ReplBuildDir (..))
 import Tricorder.Session.Stage.Test.Config (TestConfig (..))
 import Tricorder.Session.Target (definesCustomPrelude)
 import Tricorder.Session.TestTarget (getTestTarget)
-import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.Session.Util (displayList, indent)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 import Tricorder.Session.WatchExclusionPatterns
@@ -39,7 +37,6 @@ import Tricorder.Session.WatchExclusionPatterns
     , resolveWatchExclusionPatterns
     )
 
-import Tricorder.Build.ByteSize qualified as ByteSize
 import Tricorder.Config qualified as Tricorder
 import Tricorder.Session.Hooks qualified as Hooks
 import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
@@ -55,11 +52,9 @@ data Session = Session
     { buildSession :: Build.Session
     , testSession :: Test.Session
     , evalSession :: Eval.Session
-    , testMemoryLimit :: Maybe ByteSize
     , watchDirs :: WatchDirs
     , watchExclusionPatterns :: WatchExclusionPatterns
     , replBuildDir :: ReplBuildDir
-    , testTimeout :: TestTimeout
     , generateWithHpack :: GenerateWithHpack
     , hooks :: Hooks
     , idleTimeout :: IdleTimeout
@@ -73,11 +68,9 @@ instance Default Session where
             { buildSession = def
             , testSession = def
             , evalSession = def
-            , testMemoryLimit = Nothing
             , watchDirs = def
             , watchExclusionPatterns = def
             , replBuildDir = def
-            , testTimeout = def
             , generateWithHpack = def
             , hooks = def
             , idleTimeout = def
@@ -111,15 +104,6 @@ mkSession cfgFile = do
     warnDeprecatedConfig cfgFile
     Log.debug "Warned about deprecated config stuff"
 
-    testMemoryLimit <- case cfgFile.testMemoryLimit of
-        Nothing -> pure Nothing
-        Just limit -> case ByteSize.fromText limit of
-            Nothing -> do
-                Log.err $ "Unable to parse test_memory_limit: " <> limit
-                pure Nothing
-            Just parsedLimit ->
-                pure $ Just parsedLimit
-
     watchExclusionPatterns <-
         case resolveWatchExclusionPatterns cfgFile.watchExclusionPatterns of
             Left err -> do
@@ -135,8 +119,8 @@ mkSession cfgFile = do
 
     repl <- resolveRepl projectRoot
     buildSession <- Build.Session.resolve cfgFile repl projectFiles
-    let testSession = Test.Session.resolve repl buildSession.targets cfgFile
-        evalSession = Eval.Session.resolve repl cfgFile
+    testSession <- Test.Session.resolve repl buildSession.targets cfgFile
+    let evalSession = Eval.Session.resolve repl cfgFile
         effectiveTargets = buildSession.targets <> (getTestTarget <$> testSession.targets)
         watchDirs = WatchDirs.resolve projectRoot projectFiles cfgFile effectiveTargets
 
@@ -168,9 +152,7 @@ mkSession cfgFile = do
             , evalSession
             , watchDirs
             , watchExclusionPatterns
-            , testMemoryLimit
             , replBuildDir = ReplBuildDir cfgFile.replBuildDir
-            , testTimeout = TestTimeout cfgFile.testTimeout
             , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
             , hooks = fromMaybe def cfgFile.hooks
             , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
@@ -245,9 +227,6 @@ display session =
                 (toText . showPattern . fst)
                 session.watchExclusionPatterns.getWatchExclusionPatterns
         , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
-        , -- TODO: Remove " seconds" when TestTimeout is converted to a proper time unit.
-          "Test timeout: " <> show session.testTimeout.getTestTimeout <> " seconds"
-        , "Test memory limit: " <> show session.testMemoryLimit
         , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack
         , "Hooks:"
         , indent $ Hooks.display session.hooks

@@ -24,14 +24,14 @@ session:
     targets: [test:foo]
     extra_auto_arguments: []
     output_mode: ReplMode
+    timeout_ms: 10000
+    memory_limit: 10mb
   eval:
     command_template: "cabal repl {target}"
     extra_auto_arguments: []
   watch_dirs: [foo/src]
   repl_build_dir: /tmp
-  test_timeout: 10
   generate_with_hpack: true
-  test_memory_limit: 10mb
   idle_timeout_seconds: 300
   logging:
     minimum_severity: DEBUG
@@ -123,6 +123,16 @@ session:
   `command_template` as either a GHCi instance with `ReplMode` or as a regular
   command emitting the test results to `stdout` with `StdoutMode`. Defaults to
   `ReplMode`. For `StdoutMode`, the `test.ghci` option set is ignored.
+- `test.timeout_ms`: Number of seconds each test target is granted before it is
+  considered "timed out". Defaults to `10` seconds. Set to `0` to disable the
+  timeout.
+- `test.memory_limit`: Maximum heap memory a test suite is allowed to consume.
+  This is enforced through GHC's `-M` RTS option. If a test suite exceeds this
+  memory threshold, the GHC RTS will stop the test suite. This can be specified
+  with a unit. All units are treated case-insensitively. Accepts the following
+  units: `kb`, `mb`, `gb`, `tb` and `pb`, as well their binary variants `kib`,
+  `mib`, `gib`, `tib` and `pib`. The unit `B` is equivalent to no unit, and
+  signifies a raw byte count.
 
 - `watch_dirs`: Directories to watch. When a file is changed in a watched
   directory, Tricorder will attempt to rebuild all targets. If not specified,
@@ -134,19 +144,9 @@ session:
   (except those in `dist-newstyle`) will be watched.
 - `repl_build_dir`: Directory to keep compiled files from the repl. Defaults to
   `dist-newstyle/tricorder` in the repository.
-- `test_timeout`: Number of seconds each test target is granted before it is
-  considered "timed out". Defaults to `10` seconds. Set to `0` to disable the
-  timeout.
 - `generate_with_hpack`: Control whether Tricorder should run `hpack` in the
   directory of any `package.yaml` files it detects changes for. Enabled by
   default. This is automatically disabled if `hpack` is not in `PATH`.
-- `test_memory_limit`: Maximum heap memory a test suite is allowed to consume.
-  This is enforced through GHC's `-M` RTS option. If a test suite exceeds this
-  memory threshold, the GHC RTS will stop the test suite. This can be specified
-  with a unit. All units are treated case-insensitively. Accepts the following
-  units: `kb`, `mb`, `gb`, `tb` and `pb`, as well their binary variants `kib`,
-  `mib`, `gib`, `tib` and `pib`. The unit `B` is equivalent to no unit, and
-  signifies a raw byte count.
 - `idle_timeout_seconds`: Number of seconds the daemon will stay running with
   no client activity before it shuts itself down. Defaults to `300` seconds.
   Set to `0` to disable, and let the daemon run indefinitely. Every request

@@ -5,6 +5,7 @@ module Tricorder.Session.Stage.Test.Config
     )
 where
 
+import Atelier.Time (AsRawUnit, Millisecond)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON (..), ToJSON, Value (..))
 import Data.Aeson.Types (ToJSON (..))
@@ -41,8 +42,10 @@ instance FromJSON TestConfig where
     parseJSON v = TestConfig <$> parseJSON v <*> parseJSON v
 
 
-newtype Options = Options
+data Options = Options
     { outputMode :: Maybe OutputMode
+    , timeoutMs :: Maybe (AsRawUnit Millisecond)
+    , memoryLimit :: Maybe Text
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via QuietSnake Options
@@ -52,6 +55,8 @@ instance Default Options where
     def =
         Options
             { outputMode = Nothing
+            , timeoutMs = Nothing
+            , memoryLimit = Nothing
             }
 
 

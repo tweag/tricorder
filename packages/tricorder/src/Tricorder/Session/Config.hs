@@ -1,6 +1,7 @@
 module Tricorder.Session.Config (Config (..)) where
 
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Atelier.Types.JSON.Renamed (Renamed)
 import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
 import Data.Aeson (FromJSON (..), ToJSON)
 import Data.Default (Default (..))
@@ -19,9 +20,9 @@ data Config = Config
     , watchDirs :: [FilePath]
     , watchExclusionPatterns :: [Text]
     , replBuildDir :: FilePath
-    , testTimeout :: Int
+    , testTimeout :: Maybe (Renamed "test_timeout" "test.timeout_ms")
+    , testMemoryLimit :: Maybe (Renamed "test_memory_limit" "test.memory_limit")
     , generateWithHpack :: Bool
-    , testMemoryLimit :: Maybe Text
     , hooks :: Maybe Hooks
     , idleTimeoutSeconds :: Int
     , command :: Maybe Text
@@ -48,9 +49,9 @@ instance Default Config where
             , watchDirs = []
             , watchExclusionPatterns = []
             , replBuildDir = "dist-newstyle/tricorder"
-            , testTimeout = 10
-            , generateWithHpack = True
+            , testTimeout = Nothing
             , testMemoryLimit = Nothing
+            , generateWithHpack = True
             , hooks = Nothing
             , idleTimeoutSeconds = 300
             , command = Nothing

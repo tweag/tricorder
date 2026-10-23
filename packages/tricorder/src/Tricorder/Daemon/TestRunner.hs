@@ -50,6 +50,7 @@ import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
+import Atelier.Time qualified as Time
 import Data.List qualified as List
 import Data.Text qualified as T
 
@@ -60,7 +61,6 @@ import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Session.Stage.Test.Config (OutputMode (..))
 import Tricorder.Session.Stage.Test.Session (ResolvedTestOptions (..), Session (..))
-import Tricorder.Session.TestTimeout (TestTimeout (..))
 import Tricorder.TestOutput (parseHspecDuration, parseHspecOutput)
 
 import Tricorder.Build.Test qualified as Test
@@ -76,7 +76,6 @@ data TestRunner :: Effect where
         :: Session
         -> (Test.Suite -> m ())
         -- ^ Handler for test run progress
-        -> TestTimeout
         -> RenderedTestCommand
         -> TestRunner m Test.Suite
 
@@ -99,12 +98,12 @@ run
     => Eff (TestRunner : es) a -> Eff es a
 run act = do
     interpretWith act \env -> \case
-        RunTestSuite session progressHandler testTimeout cmd ->
+        RunTestSuite session progressHandler cmd ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let onProgress = unlift . progressHandler . loadingToProgress
                 case cmd.options.outputMode of
-                    ReplOutput -> runTestSuiteWithGHCi session onProgress testTimeout cmd.command
-                    StdoutOutput -> runTestSuiteWithStdout onProgress testTimeout cmd.command
+                    ReplOutput -> runTestSuiteWithGHCi session onProgress cmd.command
+                    StdoutOutput -> runTestSuiteWithStdout session onProgress cmd.command
 
 
 runTestSuiteWithStdout
@@ -115,11 +114,11 @@ runTestSuiteWithStdout
        , Reader ProjectRoot :> es
        , Timeout :> es
        )
-    => (Ghci.Loading -> Eff es ())
-    -> TestTimeout
+    => Session
+    -> (Ghci.Loading -> Eff es ())
     -> RenderedCommand 'Test
     -> Eff es Test.Suite
-runTestSuiteWithStdout onProgress testTimeout cmd = do
+runTestSuiteWithStdout session onProgress cmd = do
     ProjectRoot projectRoot <- ask
     -- Lines from both streams, in the order they arrived.
     outputVar <- newTVarIO (mempty :: Seq Text)
@@ -150,11 +149,9 @@ runTestSuiteWithStdout onProgress testTimeout cmd = do
 
     result <- trySync
         $ Process.withProcessGroup processConfig \p ->
-            case testTimeout of
-                TestTimeout secs | secs <= 0 -> Right <$> runToCompletion p
-                TestTimeout secs ->
-                    let duration = fromIntegral secs :: Second
-                    in  maybeToRight secs <$> Timeout.with duration (runToCompletion p)
+            case Time.convertUnit @_ @Second session.options.timeout of
+                secs | secs <= 0 -> Right <$> runToCompletion p
+                secs -> maybeToRight secs <$> Timeout.with secs (runToCompletion p)
     output <- T.unlines . toList <$> readTVarIO outputVar
     let completed passed =
             Test.SuiteCompleted
@@ -192,19 +189,17 @@ runTestSuiteWithGHCi
        )
     => Session
     -> (Ghci.Loading -> Eff es ())
-    -> TestTimeout
     -> RenderedCommand 'Test
     -> Eff es Test.Suite
-runTestSuiteWithGHCi session onProgress testTimeout cmd = do
+runTestSuiteWithGHCi session onProgress cmd = do
     ProjectRoot projectRoot <- ask
     result <- trySync
         $ Ghci.Process.with session.ghci cmd projectRoot onProgress noReady \ghci _ ->
-            case testTimeout of
-                TestTimeout secs | secs <= 0 -> Right <$> Ghci.Process.exec ghci ":main" noProgress
-                TestTimeout secs ->
-                    let duration = fromIntegral secs :: Second
-                    in  maybeToRight secs
-                            <$> Timeout.with duration (Ghci.Process.exec ghci ":main" noProgress)
+            case Time.convertUnit @_ @Second session.options.timeout of
+                secs | secs <= 0 -> Right <$> Ghci.Process.exec ghci ":main" noProgress
+                secs ->
+                    maybeToRight secs
+                        <$> Timeout.with secs (Ghci.Process.exec ghci ":main" noProgress)
     case result of
         Left ex -> case fromException ex of
             Just (e :: Ghci.Process.Error) -> case e of
@@ -262,7 +257,7 @@ runScripted
 runScripted results =
     reinterpret_
         (evalState results)
-        (\(RunTestSuite _ _ _ _) -> popResult)
+        (\(RunTestSuite _ _ _) -> popResult)
   where
     popResult :: Eff (State [Either SomeException Test.Suite] : es) Test.Suite
     popResult =
