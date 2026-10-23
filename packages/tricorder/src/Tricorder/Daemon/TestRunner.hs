@@ -31,7 +31,7 @@ import Atelier.Effects.Process
     , setWorkingDir
     , shell
     )
-import Atelier.Effects.Timeout (Timeout, timeout)
+import Atelier.Effects.Timeout (Timeout)
 import Control.Concurrent.STM (modifyTVar')
 import Control.Exception (throwIO)
 import Data.Sequence ((|>))
@@ -49,6 +49,7 @@ import System.Exit (ExitCode (..))
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Process qualified as Process
+import Atelier.Effects.Timeout qualified as Timeout
 import Data.List qualified as List
 import Data.Text qualified as T
 
@@ -153,7 +154,7 @@ runTestSuiteWithStdout onProgress testTimeout cmd = do
                 TestTimeout secs | secs <= 0 -> Right <$> runToCompletion p
                 TestTimeout secs ->
                     let duration = fromIntegral secs :: Second
-                    in  maybeToRight secs <$> timeout duration (runToCompletion p)
+                    in  maybeToRight secs <$> Timeout.with duration (runToCompletion p)
     output <- T.unlines . toList <$> readTVarIO outputVar
     let completed passed =
             Test.SuiteCompleted
@@ -203,7 +204,7 @@ runTestSuiteWithGHCi session onProgress testTimeout cmd = do
                 TestTimeout secs ->
                     let duration = fromIntegral secs :: Second
                     in  maybeToRight secs
-                            <$> timeout duration (Ghci.Process.exec ghci ":main" noProgress)
+                            <$> Timeout.with duration (Ghci.Process.exec ghci ":main" noProgress)
     case result of
         Left ex -> case fromException ex of
             Just (e :: Ghci.Process.Error) -> case e of

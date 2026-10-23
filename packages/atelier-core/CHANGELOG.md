@@ -50,6 +50,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `Atelier.Effects.Tally.withTallyCheck`) now no longer takes a classifier. The
   classifier function was always just ran and passed straight through to the
   continuation, so now the continuation just receives the count as-is.
+- `Atelier.Effects.Timeout`: converted to static effect, and renamed members to
+  make more suited for qualified use.
 
 ### Removed
 
