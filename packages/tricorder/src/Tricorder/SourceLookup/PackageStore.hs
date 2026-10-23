@@ -6,7 +6,7 @@ module Tricorder.SourceLookup.PackageStore
     )
 where
 
-import Atelier.Effects.Env (Env, getEnvironment)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem)
 import Effectful (Effect)
 import Effectful.Dispatch.Dynamic (interpretWith_)
@@ -15,6 +15,7 @@ import Effectful.TH (makeEffect)
 import System.FilePath (takeDirectory, (</>))
 import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 
+import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Map.Strict qualified as Map
 
@@ -66,7 +67,7 @@ hackageRepo = "hackage.haskell.org"
 
 findStoreBaseDir :: (Env :> es, FileSystem :> es) => Eff es FilePath
 findStoreBaseDir = do
-    env <- Map.fromList <$> getEnvironment
+    env <- Map.fromList <$> Env.all
     fmap (fromMaybe tempFallback . rightToMaybe)
         $ runNonDet OnEmptyKeep
         $ findCabalDirCandidate env

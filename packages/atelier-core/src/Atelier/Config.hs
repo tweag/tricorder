@@ -59,7 +59,9 @@ import Data.Aeson.KeyMap qualified as KM
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 
-import Atelier.Effects.Env (Env, getEnvironment)
+import Atelier.Effects.Env (Env)
+
+import Atelier.Effects.Env qualified as Env
 
 
 -- | Build a nested JSON Object from environment variables with the given prefix.
@@ -67,7 +69,7 @@ import Atelier.Effects.Env (Env, getEnvironment)
 -- Double underscore is the path separator; single underscore is preserved within segments.
 envOverrides :: (Env :> es) => Text -> Eff es Value
 envOverrides prefix = do
-    allEnv <- getEnvironment
+    allEnv <- Env.all
     let prefixStr = toString prefix <> "__"
         matching = [(k, v) | (k, v) <- allEnv, prefixStr `isPrefixOf` k]
         pairs = [(splitPath (drop (length prefixStr) k), parseScalar (toText v)) | (k, v) <- matching]

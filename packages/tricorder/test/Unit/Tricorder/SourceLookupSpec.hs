@@ -1,6 +1,6 @@
 module Unit.Tricorder.SourceLookupSpec (test_SourceLookup) where
 
-import Atelier.Effects.Env (Env, runEnvConst)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log, runLogNoOp)
@@ -16,6 +16,7 @@ import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
 import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 
+import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Input qualified as Input
 import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
@@ -422,7 +423,7 @@ runTest pkgScript initialFs onFetch action =
         . Input.withConst Cabal
         . evalState initialFs
         . runFileSystemFake
-        . runEnvConst [("HOME", "/h")]
+        . Env.runConst [("HOME", "/h")]
         . PackageStore.run
         . runHackageWith onFetch
         . runGhcPkgScripted pkgScript

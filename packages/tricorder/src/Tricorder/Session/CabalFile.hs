@@ -128,7 +128,7 @@ discoverCabalPackages
     => Eff es (Either Text [FilePath])
 discoverCabalPackages = do
     ProjectRoot projectRoot <- Reader.ask
-    homeCabalFiles <- maybe [] (one . (</> ".cabal/config")) <$> Env.lookupEnv "HOME"
+    homeCabalFiles <- maybe [] (one . (</> ".cabal/config")) <$> Env.lookup "HOME"
     let projectFilePaths = projectCabalFiles projectRoot <> homeCabalFiles
     projectFiles <- filterM doesFileExist projectFilePaths
     if null projectFiles

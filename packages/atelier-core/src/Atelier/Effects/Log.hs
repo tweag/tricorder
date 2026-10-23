@@ -49,9 +49,9 @@ where
 
 import Data.Aeson (FromJSON (..), ToJSON)
 import Data.Default (Default (..))
-import Data.List (lookup)
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
+import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
@@ -59,10 +59,12 @@ import System.IO (Handle, hFlush, stdout)
 
 import Data.ByteString.Char8 qualified as B8
 
-import Atelier.Effects.Env (Env, getEnvironment)
+import Atelier.Effects.Env (Env)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Atelier.Types.JSON.ReadShow (ReadShow (..))
 import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
+
+import Atelier.Effects.Env qualified as Env
 
 
 -- | Effect for structured logging with hierarchical namespaces.
@@ -244,11 +246,22 @@ formatMessage msg =
 
 minimumSeverityFromEnv :: (Env :> es) => Eff es (Maybe Severity)
 minimumSeverityFromEnv = do
-    env <- getEnvironment
-    let overrideLog = (>>= readMaybe) $ lookup "LOG" env
-        overrideLogging = (>>= readMaybe) $ lookup "LOGGING" env
-        overrideDebug = (>>= \x -> if x == "0" then Nothing else Just DEBUG) $ lookup "DEBUG" env
-    pure $ overrideDebug <|> overrideLogging <|> overrideLog
+    fmap rightToMaybe
+        $ runNonDet OnEmptyKeep
+        $ asum
+            [ Env.lookup "LOG" >>= readAlt
+            , Env.lookup "LOGGING" >>= readAlt
+            , Env.lookup "DEBUG" >>= \case
+                Nothing -> emptyEff
+                Just x
+                    | x == "0" -> emptyEff
+                    | otherwise -> pure DEBUG
+            ]
+  where
+    readAlt Nothing = emptyEff
+    readAlt (Just x) = case readMaybe x of
+        Nothing -> emptyEff
+        Just x' -> pure x'
 
 
 square :: Text -> Text

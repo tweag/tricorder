@@ -1,6 +1,5 @@
 module Unit.Tricorder.Session.CabalFileSpec (test_CabalFile) where
 
-import Atelier.Effects.Env (runEnvConst)
 import Atelier.Effects.FileSystem (runFileSystemState)
 import Atelier.Effects.Log (runLogNoOp)
 import Effectful (runPureEff)
@@ -9,6 +8,7 @@ import Effectful.State.Static.Shared (evalState)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Data.Map.Strict qualified as Map
@@ -156,7 +156,7 @@ testDiscoverCabalPackages =
     runDiscovery fs env = runDiscoveryGlob fs env []
     runDiscoveryGlob fs env script =
         runPureEff
-            . runEnvConst env
+            . Env.runConst env
             . evalState fs
             . runFileSystemState
             . Glob.runScripted script
