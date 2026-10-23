@@ -56,6 +56,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   members to make more suited for qualified use.
 - `Atelier.Effects.Cache.Singleflight`: renamed members to make more suited for
   qualified use.
+- `Atelier.Effects.Posix.Daemons`: converted to static effect, and renamed members to
+  make more suited for qualified use.
+- `Atelier.Effects.PubSub.Pub`: `runNoOp` renamed to `noOp`.
 
 ### Removed
 

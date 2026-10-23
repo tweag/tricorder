@@ -4,7 +4,7 @@ module Atelier.Effects.PubSub.Pub
     , publish
 
       -- * Interpeters
-    , runNoOp
+    , noOp
     , toWriter
     , map
     , mapM
@@ -28,8 +28,8 @@ data Pub (event :: Type) :: Effect where
 makeEffect ''Pub
 
 
-runNoOp :: forall event es a. Eff (Pub event : es) a -> Eff es a
-runNoOp = interpret_ \(Publish _) -> pure ()
+noOp :: forall event es a. Eff (Pub event : es) a -> Eff es a
+noOp = interpret_ \(Publish _) -> pure ()
 
 
 -- | Handler that uses a provided Writer effect instead of actually publishing.

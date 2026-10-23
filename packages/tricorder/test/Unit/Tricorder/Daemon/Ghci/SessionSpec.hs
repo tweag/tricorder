@@ -149,4 +149,4 @@ runScripted
     :: [Either SomeException LoadResult]
     -> Eff '[Session, Pub BuildProgress, IOE] a
     -> IO a
-runScripted results = runEff . Pub.runNoOp . Session.runScripted results
+runScripted results = runEff . Pub.noOp . Session.runScripted results

@@ -1,7 +1,6 @@
 module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Posix.Daemons (runDaemons)
 import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
@@ -20,6 +19,7 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
 
@@ -69,7 +69,7 @@ main =
         . LoadedConfig.asNestedInput @"keybindings" @Keys.Config
         . Input.map (either @_ @Keys.Config (const def) id)
         . Input.toReader @Keys.Config
-        . runDaemons
+        . Daemons.run
         . Process.run
         . Arguments.runIO
         . CLI.Arguments.reader

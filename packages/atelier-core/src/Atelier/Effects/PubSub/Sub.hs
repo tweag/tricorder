@@ -152,4 +152,6 @@ listenOnce_ = snd <$> listenOnce
 data OnceEx ev = OnceEx ev
 
 
-instance Show (OnceEx ev) where show _ = "OnceEx"
+instance Show (OnceEx ev) where
+    show :: OnceEx ev -> String
+    show _ = "OnceEx"
