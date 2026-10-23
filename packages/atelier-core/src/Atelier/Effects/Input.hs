@@ -1,8 +1,4 @@
 -- | An effect for requesting a value from the environment on each call.
---
--- Unlike 'Effectful.Reader.Static.Reader', 'Input' makes no assumption that the
--- value is stable across the computation — each 'input' may observe a different
--- value. See the 'Input' type below for the full comparison.
 module Atelier.Effects.Input
     ( Input
     , input
@@ -10,8 +6,6 @@ module Atelier.Effects.Input
     , withConst
     , toReader
     , fromState
-    , runInputEff
-    , runInputConst
     , map
     )
 where
@@ -28,12 +22,11 @@ import Effectful.State.Static.Shared qualified as State
 
 -- | Request a value from the effect system.
 --
--- This effect does not carry any
--- semantics as to how the value is created, whether it is cached, or whether
--- you get a different value for each call. It is similar to
--- 'Effectful.Reader.Static.Reader' in that it is about requesting a value, but
--- 'Reader' carries the implicit assumption that its value remains static for
--- the duration of the encapsulated computation, while 'Input' carries no such
+-- This effect does not carry any semantics as to how the value is created,
+-- whether it is cached, or whether you get a different value for each call. It
+-- is similar to 'Reader' in that it is about requesting a value, but 'Reader'
+-- carries the implicit assumption that its value remains static for the
+-- duration of the encapsulated computation, while 'Input' carries no such
 -- assumption.
 --
 -- If the value you wish to request from the effect system will remain
@@ -47,12 +40,6 @@ makeEffect ''Input
 
 
 -- | Runs the passed effectful action every time 'input' is invoked.
-runInputEff :: Eff es i -> Eff (Input i : es) a -> Eff es a
-runInputEff = withEff
-{-# DEPRECATED runInputEff "Use 'Atelier.Effects.Input.withEff' instead." #-}
-
-
--- | Runs the passed effectful action every time 'input' is invoked.
 withEff :: Eff es i -> Eff (Input i : es) a -> Eff es a
 withEff mk = interpret_ \Input -> mk
 
@@ -60,16 +47,8 @@ withEff mk = interpret_ \Input -> mk
 -- | Provides the same value for every invocation of the 'input' operation.
 -- This is equivalent to using 'Effectful.Reader.Static' or
 -- 'Effectful.Reader.Local', but is available here for testing.
-runInputConst :: i -> Eff (Input i : es) a -> Eff es a
-runInputConst = withConst
-{-# DEPRECATED runInputConst "Use 'Atelier.Effects.Input.withConst' instead." #-}
-
-
--- | Provides the same value for every invocation of the 'input' operation.
--- This is equivalent to using 'Effectful.Reader.Static' or
--- 'Effectful.Reader.Local', but is available here for testing.
 withConst :: i -> Eff (Input i : es) a -> Eff es a
-withConst = runInputEff . pure
+withConst = withEff . pure
 
 
 -- | Retrieves the value once, and exposes it as a 'Reader' effect.
