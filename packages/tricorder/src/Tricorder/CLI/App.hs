@@ -35,7 +35,6 @@ import Tricorder.CLI.UI.BrickChan (BrickChan)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
 import Tricorder.Runtime (LogPath (..), PidFile (..), SocketPath (..))
 import Tricorder.Session.CabalFile (CabalFile)
-import Tricorder.Session.Repl (Repl)
 import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup.GhcPkg (GhcPkg)
@@ -45,6 +44,7 @@ import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.CLI.App.Daemon qualified as Daemon
 import Tricorder.CLI.App.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
+import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
 
 
 run
@@ -62,8 +62,8 @@ run
        , GhcPkg :> es
        , Hackage :> es
        , IOE :> es
+       , Input Build.Session :> es
        , Input DaemonInfo :> es
-       , Input Repl :> es
        , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es

@@ -4,6 +4,7 @@ import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
+import Data.Default (def)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
@@ -28,7 +29,6 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Session.CabalFile (CabalFile (..))
-import Tricorder.Session.Repl (Repl (..))
 import Tricorder.SourceLookup
     ( ProjectSourceDirs (..)
     , lookupModuleSource
@@ -38,6 +38,7 @@ import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScript
 import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 
+import Tricorder.Session.Stage.Build.Session qualified as Build
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 
@@ -401,7 +402,7 @@ type FetchEffects =
      , Env
      , FileSystem
      , State (Map FilePath LByteString)
-     , Input Repl
+     , Input Build.Session
      , Log
      , Concurrent
      , IOE
@@ -421,7 +422,7 @@ runTest pkgScript initialFs onFetch action =
     runEff
         . runConcurrent
         . Log.runNoOp
-        . Input.withConst Cabal
+        . Input.withConst (def :: Build.Session)
         . evalState initialFs
         . runFileSystemFake
         . Env.runConst [("HOME", "/h")]

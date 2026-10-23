@@ -28,8 +28,6 @@ import Tricorder.CLI.UI.BrickChan (runBrickChan)
 import Tricorder.Config (asInput)
 import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
-import Tricorder.Session.CommandTemplate (CommandTemplate (..))
-import Tricorder.Session.Stage.Build.Session (Session (..))
 
 import Tricorder.CLI.App qualified as App
 import Tricorder.CLI.Arguments qualified as CLI.Arguments
@@ -88,10 +86,7 @@ main =
                     Exit.failure
                 Right session ->
                     Input.withConst session
-                        -- TODO: Make whatever uses this 'Repl' value use it
-                        -- more sensibly. Arbitrarily using the build stage's
-                        -- 'Repl' doesn't seem right.
-                        . Input.withConst session.buildSession.commandTemplate.repl
+                        . Input.withEff (Session.buildSession <$> Input.input)
                         . GhcPkg.runGhcPkgIO
                         . PackageStore.run
                         . Hackage.run
