@@ -2,7 +2,6 @@ module Tricorder.CLI.Operations
     ( showLog
     , showSource
     , showStatus
-    , showTests
     , showEvalComments
     , showDaemonInfo
     )
@@ -24,7 +23,6 @@ import Tricorder.API.Command
     ( EvalCommentsOptions (..)
     , SourceOptions (..)
     , StatusOptions (..)
-    , TestOptions (..)
     , Verbosity (..)
     )
 import Tricorder.API.OutputFormat (OutputFormat (..))
@@ -199,72 +197,6 @@ showLog path = do
     if not exists
         then Console.putTextLn $ "Log file does not exist yet: " <> toText path
         else readFileLbs path >>= Console.putStr . BSL.toStrict
-
-
-showTests
-    :: ( Console :> es
-       , Exit :> es
-       , File :> es
-       , Reader SocketPath :> es
-       , UnixSocket :> es
-       )
-    => TestOptions -> Eff es ()
-showTests opts = do
-    result <- awaitBuildStatus opts.wait
-    case result of
-        Left err -> Console.putTextLn $ "Error: " <> err
-        Right state ->
-            case state.phase of
-                Build.Starting -> Console.putStrLn "Daemon starting, no test results yet."
-                Build.Building _ _ -> Console.putStrLn "Build in progress, no test results yet."
-                Build.PostBuilding _ postBuild -> renderTestRuns postBuild.testSuites.getSuites
-                Build.Finished _ postBuild -> renderTestRuns postBuild.testSuites.getSuites
-                Build.Failed msg -> reportBuildFailed msg
-  where
-    renderTestRuns suites
-        | Map.null suites = Console.putStrLn "No test results."
-        | Map.null filteredSuites = do
-            Console.putStrLn "All passed."
-            mapM_ (Console.putTextLn . ("  " <>) . TestTarget.render) $ Map.keys suites
-        | otherwise = do
-            mapM_ (uncurry printTestOutput) $ Map.toList filteredSuites
-            when (any Test.isFailedRun filteredSuites) Exit.failure
-      where
-        filteredSuites =
-            if opts.failedOnly
-                then
-                    Map.filter Test.isFailedRun suites
-                else
-                    suites
-
-    printTestOutput tgt tr = case tr of
-        Test.SuiteRunning Nothing ->
-            Console.putTextLn $ t <> "running..."
-        Test.SuiteRunning (Just p) ->
-            Console.putTextLn $ t <> "running... (" <> show p.compiled <> "/" <> show p.total <> ")"
-        Test.SuiteErrored e ->
-            Console.putTextLn $ t <> "error: " <> e.message
-        Test.SuiteCompleted c -> do
-            Console.putTextLn $ t <> completionSummary c
-            if opts.failedOnly
-                then
-                    if null c.testCases
-                        then do
-                            Console.putTextLn "  (unrecognised test runner format — showing full output)"
-                            mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
-                        else
-                            mapM_ printFailedCase (filter Test.caseFailed c.testCases)
-                else
-                    mapM_ (Console.putTextLn . ("  " <>)) (stripGhciNoise (lines c.output))
-      where
-        t = TestTarget.render tgt <> "  "
-
-    printFailedCase tc = do
-        Console.putTextLn $ "  " <> tc.description
-        case tc.outcome of
-            Test.Failed details ->
-                mapM_ (Console.putTextLn . ("    " <>)) (T.lines details)
-            Test.Passed -> pure ()
 
 
 showSource

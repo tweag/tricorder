@@ -28,7 +28,7 @@ import Atelier.Effects.Console qualified as Console
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 
 import Tricorder.CLI.Daemon (startDaemon, waitForDaemon)
-import Tricorder.CLI.Operations (showEvalComments, showLog, showSource, showStatus, showTests)
+import Tricorder.CLI.Operations (showEvalComments, showLog, showSource, showStatus)
 import Tricorder.CLI.UI (viewUi)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
@@ -89,11 +89,6 @@ run =
                     showStatus opts
                 | not running -> Console.putStrLn "Stopped."
                 | otherwise -> showStatus opts
-        TestResults opts -> do
-            running <- isDaemonRunning
-            if not running
-                then Console.putStrLn "Stopped."
-                else showTests opts
         Log logMode -> do
             logFile <- asks @LogPath (.getLogPath)
             case logMode of

@@ -45,6 +45,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Removed deprecated config option `session.command`.
 - Removed deprecated config option `session.targets`.
 - Removed deprecated config option `session.test_targets`.
+- Removed deprecated subcommand `test-results`.
 
 ## [0.6.0.0] - 2026-10-20
 
