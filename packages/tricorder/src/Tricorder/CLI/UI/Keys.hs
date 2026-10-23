@@ -9,7 +9,7 @@ module Tricorder.CLI.UI.Keys
 where
 
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Exit (Exit, exitFailure)
+import Atelier.Effects.Exit (Exit)
 import Brick
     ( EventM
     , Widget
@@ -49,6 +49,7 @@ import Graphics.Vty (Key (..))
 import Text.Casing (quietSnake)
 
 import Atelier.Effects.Console qualified as Console
+import Atelier.Effects.Exit qualified as Exit
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -154,7 +155,7 @@ parseCustomBindings = do
     unless (null errors) do
         Console.putTextLn "Error(s) encountered when attempting to parse key bindings:"
         traverse_ (Console.putTextLn . toText) errors
-        exitFailure
+        Exit.failure
     pure customBindings
 
 
@@ -228,7 +229,7 @@ mkDispatcher requestRestart cfg =
                 $ T.intercalate "\n\n"
                 $ "Your key bindings have collisions:"
                     : (uncurry showCollision <$> collisions)
-            exitFailure
+            Exit.failure
         Right dispatcher -> pure dispatcher
   where
     showCollision binding' handlers =

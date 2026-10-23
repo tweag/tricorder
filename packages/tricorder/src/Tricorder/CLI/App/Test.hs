@@ -2,7 +2,7 @@ module Tricorder.CLI.App.Test (run) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
-import Atelier.Effects.Exit (Exit, exitFailure)
+import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
 import Effectful (IOE)
@@ -13,6 +13,7 @@ import Tricorder.API.Test (Command (..), SuitesOptions (..))
 import Tricorder.API.WaitMode (WaitMode (..))
 
 import Atelier.Effects.Console qualified as Console
+import Atelier.Effects.Exit qualified as Exit
 import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
@@ -51,7 +52,7 @@ printResult :: (Console :> es, Exit :> es) => Either Text Text -> Eff es ()
 printResult = \case
     Left err -> do
         Console.putTextLn err
-        exitFailure
+        Exit.failure
     Right res ->
         Console.putTextLn res
 

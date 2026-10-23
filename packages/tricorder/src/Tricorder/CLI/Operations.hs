@@ -10,7 +10,7 @@ where
 
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Exit (Exit, exitFailure)
+import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input, input)
@@ -32,6 +32,7 @@ import Tricorder.API.WaitMode (WaitMode (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
 
 import Atelier.Effects.Console qualified as Console
+import Atelier.Effects.Exit qualified as Exit
 import Data.ByteString.Lazy qualified as BSL
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
@@ -69,7 +70,7 @@ reportBuildFailed :: (Console :> es, Exit :> es) => Text -> Eff es a
 reportBuildFailed msg = do
     Console.putTextLn "Build command failed:"
     Console.putTextLn msg
-    exitFailure
+    Exit.failure
 
 
 showStatus
@@ -139,7 +140,7 @@ showStatus opts = do
                     mapM_ printDiag (zip [1 ..] result.diagnostics)
                     Console.putTextLn $ buildSummary tz result
                     mapM_ (uncurry (printTestRun verbosity)) $ Map.toList postBuild.testSuites.getSuites
-                    when (buildHasErrors result || Test.hasFailedTests postBuild.testSuites) exitFailure
+                    when (buildHasErrors result || Test.hasFailedTests postBuild.testSuites) Exit.failure
 
     printTestRun verbosity tgt tr = do
         Console.putTextLn $ case tr of
@@ -227,7 +228,7 @@ showTests opts = do
             mapM_ (Console.putTextLn . ("  " <>) . TestTarget.render) $ Map.keys suites
         | otherwise = do
             mapM_ (uncurry printTestOutput) $ Map.toList filteredSuites
-            when (any Test.isFailedRun filteredSuites) exitFailure
+            when (any Test.isFailedRun filteredSuites) Exit.failure
       where
         filteredSuites =
             if opts.failedOnly
@@ -332,7 +333,7 @@ displayTextOutput
 displayTextOutput = \case
     Left err -> do
         Console.putTextLn $ "Error: " <> err
-        exitFailure
+        Exit.failure
     Right (BuildState phase _) -> case phase of
         Build.Starting -> Console.putStrLn "Starting..."
         Build.Building _ _ -> Console.putStrLn "Building..."
@@ -340,7 +341,7 @@ displayTextOutput = \case
         Build.Finished _ postBuild -> txtEvalComments postBuild
         Build.Failed err -> do
             Console.putTextLn $ "Error: " <> err
-            exitFailure
+            Exit.failure
   where
     txtEvalComments postBuild =
         let evalutatingComments = Eval.phasePending postBuild.evalComments
@@ -387,13 +388,13 @@ displayJsonOutput :: (Console :> es, Exit :> es) => Either Text BuildState -> Ef
 displayJsonOutput = \case
     Left err -> do
         putJson $ Eval.Failed err
-        exitFailure
+        Exit.failure
     Right (BuildState phase _) -> case phase of
         Build.Starting -> putJson Eval.Starting
         Build.Building _ _ -> putJson Eval.Building
         Build.Failed msg -> do
             putJson $ Eval.Failed msg
-            exitFailure
+            Exit.failure
         Build.PostBuilding _ postBuild -> jsonEvalComments postBuild
         Build.Finished _ postBuild -> jsonEvalComments postBuild
   where
