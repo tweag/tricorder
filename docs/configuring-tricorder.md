@@ -105,20 +105,6 @@ session:
   in, so every invocation would otherwise run the exact same command,
   which is usually undesired.
 
-  **Deprecated:** `command`, `targets`, and `test_targets` (see below)
-  configure the same things as `build.command_template`, `build.targets`,
-  and `test.targets` and continue to work, but are superseded by the
-  sections above. They will be removed no earlier than 3 major (`0.8.0.0`)
-  version bumps after the release that introduces this deprecation notice.
-  - `command`: Equivalent to `build.command_template`. Ignored if
-    `build.command_template` is set. Never affected `test`/`eval` commands
-    even before deprecation.
-  - `targets`: Equivalent to `build.targets`. Ignored if `build.targets` is
-    set. Also still the fallback source for deriving `test.targets` when
-    neither `test.targets` nor `test_targets` is set.
-  - `test_targets`: Equivalent to `test.targets`. Ignored if `test.targets`
-    is set.
-
 - `test.output_mode`: Force Tricorder to treat the command in
   `command_template` as either a GHCi instance with `ReplMode` or as a regular
   command emitting the test results to `stdout` with `StdoutMode`. Defaults to

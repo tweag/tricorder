@@ -40,6 +40,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `tricorder stop`: use `tricorder daemon stop` instead.
 - `tricorder restart`: use `tricorder daemon restart` instead.
 
+### Removed
+
+- Removed deprecated config option `session.command`.
+- Removed deprecated config option `session.targets`.
+- Removed deprecated config option `session.test_targets`.
+
 ## [0.6.0.0] - 2026-10-20
 
 ### Added

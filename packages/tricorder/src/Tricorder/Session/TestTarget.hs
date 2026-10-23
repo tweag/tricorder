@@ -50,6 +50,6 @@ project = \case
 -- ever names test suites [ref:test_targets_invariant]. With neither source
 -- set, falls back to deriving test targets from the build 'targets'.
 resolve :: Config -> [Target] -> [TestTarget]
-resolve cfg targets = case cfg.test.commandConfig.targets <|> cfg.testTargets of
+resolve cfg targets = case cfg.test.commandConfig.targets of
     Just explicit -> mapMaybe parse explicit
     Nothing -> mapMaybe project targets

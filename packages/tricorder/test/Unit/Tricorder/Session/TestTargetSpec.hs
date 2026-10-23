@@ -6,6 +6,9 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Tricorder.Session.Config (Config (..))
 
+import Tricorder.Session.CommandConfig qualified as CommandConfig
+import Tricorder.Session.Config qualified as Config
+import Tricorder.Session.Stage.Test.Config qualified as Test.Config
 import Tricorder.Session.Target qualified as Target
 import Tricorder.Session.TestTarget qualified as TestTarget
 
@@ -28,12 +31,30 @@ testResolveTestTargets =
         let cfg = def :: Config
         TestTarget.resolve cfg (mkTargets ["lib:mylib", "exe:myapp"])
             @?= mapMaybe TestTarget.parse []
-    , testCase "uses explicit testTargets list when set" do
-        let cfg = def {testTargets = Just ["test:b-test"]} :: Config
+    , testCase "uses explicit test.commandConfig.targets list when set" do
+        let cfg =
+                def
+                    { Config.test =
+                        def
+                            { Test.Config.commandConfig =
+                                def
+                                    { CommandConfig.targets = Just ["test:b-test"]
+                                    }
+                            }
+                    }
         TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test", "test:b-test"])
             @?= mapMaybe TestTarget.parse ["test:b-test"]
     , testCase "returns empty list when testTargets is explicitly empty" do
-        let cfg = def {testTargets = Just []} :: Config
+        let cfg =
+                def
+                    { Config.test =
+                        def
+                            { Test.Config.commandConfig =
+                                def
+                                    { CommandConfig.targets = Just []
+                                    }
+                            }
+                    }
         TestTarget.resolve cfg (mkTargets ["lib:a", "test:a-test"])
             @?= []
     , testCase "infers multiple test: components" do
