@@ -1,7 +1,6 @@
 module Tricorder.CLI.Main (main) where
 
 import Atelier.Effects.Console (Console)
-import Atelier.Effects.Log (runLogNoOp)
 import Atelier.Effects.Posix.Daemons (runDaemons)
 import Atelier.Effects.Process (runProcessIO)
 import Atelier.Effects.Timeout (runTimeout)
@@ -22,6 +21,7 @@ import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
+import Atelier.Effects.Log qualified as Log
 
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
@@ -75,7 +75,7 @@ main =
         . CLI.Arguments.reader
         . UnixSocket.runIO
         . Env.runIO
-        . runLogNoOp
+        . Log.runNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
         . Tricorder.Config.asInput

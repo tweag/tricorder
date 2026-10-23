@@ -17,12 +17,12 @@ import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 
 import Atelier.Effects.Cache (Config (..))
-import Atelier.Effects.Log (runLogNoOp)
 
 import Atelier.Effects.Cache qualified as Cache
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
+import Atelier.Effects.Log qualified as Log
 
 
 test_Cache :: TestTree
@@ -176,7 +176,7 @@ test_Cache =
     runBase = runEff . Concurrent.runConcurrent
     runCacheTest = runBase . runCacheTestWithWait (STM.atomically STM.retry)
     runCacheTestWithWait wait =
-        runLogNoOp
+        Log.runNoOp
             . Conc.runIO
             . Delay.runIO
             . State.evalState epoch

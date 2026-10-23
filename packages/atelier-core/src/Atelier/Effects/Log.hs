@@ -37,10 +37,10 @@ module Atelier.Effects.Log
     , withNamespace
 
       -- * Interpreters
-    , runLog
-    , runLogNoOp
-    , runLogToHandle
-    , runLogWriter
+    , runIO
+    , runNoOp
+    , runToHandle
+    , runWriter
 
       -- * Utils
     , minimumSeverityFromEnv
@@ -173,8 +173,8 @@ err = withFrozenCallStack $ log ERROR
 
 
 -- | Consumes `Log` effects, and discards the logged messages
-runLogNoOp :: Eff (Log : es) a -> Eff es a
-runLogNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
+runNoOp :: Eff (Log : es) a -> Eff es a
+runNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
     LogMsg _ -> pure ()
     WithNamespace ns act -> localSeqUnlift env $ \unlift ->
         local (<> ns) $ unlift act
@@ -186,8 +186,8 @@ runLogNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
 -- The minimum severity defaults to 'Config'\'s @minimumSeverity@, but can be
 -- overridden at runtime by the @DEBUG@, @LOGGING@ or @LOG@ environment
 -- variables (checked in that order).
-runLog :: (Env :> es, IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
-runLog action = do
+runIO :: (Env :> es, IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
+runIO action = do
     config <- ask
     severity <- fromMaybe config.minimumSeverity <$> minimumSeverityFromEnv
 
@@ -210,8 +210,8 @@ runLog action = do
 
 -- | Like 'runLog' but writes to the given 'Handle' instead of stdout.
 -- Useful for daemons that want to write logs to a file.
-runLogToHandle :: (IOE :> es) => Handle -> Severity -> Eff (Log : es) a -> Eff es a
-runLogToHandle handle minSeverity action =
+runToHandle :: (IOE :> es) => Handle -> Severity -> Eff (Log : es) a -> Eff es a
+runToHandle handle minSeverity action =
     reinterpretWith (runReader (Namespace "")) action \env -> \case
         LogMsg msg ->
             liftIO $ when (msg.severity >= minSeverity) do
@@ -223,8 +223,8 @@ runLogToHandle handle minSeverity action =
 
 
 -- | Interpret 'Log' by collecting messages into a 'Writer', for tests.
-runLogWriter :: (Writer [Message] :> es) => Eff (Log : es) a -> Eff es a
-runLogWriter = reinterpret (runReader (Namespace "")) $ \env -> \case
+runWriter :: (Writer [Message] :> es) => Eff (Log : es) a -> Eff es a
+runWriter = reinterpret (runReader (Namespace "")) $ \env -> \case
     LogMsg msg -> tell [msg]
     WithNamespace ns act -> localSeqUnlift env $ \unlift ->
         local (<> ns) $ unlift act

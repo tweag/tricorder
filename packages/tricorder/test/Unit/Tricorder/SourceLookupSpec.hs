@@ -3,7 +3,7 @@ module Unit.Tricorder.SourceLookupSpec (test_SourceLookup) where
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input)
-import Atelier.Effects.Log (Log, runLogNoOp)
+import Atelier.Effects.Log (Log)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful (IOE, runEff)
 import Effectful.Concurrent (Concurrent, runConcurrent)
@@ -18,6 +18,7 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Input qualified as Input
+import Atelier.Effects.Log qualified as Log
 import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
 import Codec.Compression.GZip qualified as GZip
@@ -419,7 +420,7 @@ runTest
 runTest pkgScript initialFs onFetch action =
     runEff
         . runConcurrent
-        . runLogNoOp
+        . Log.runNoOp
         . Input.withConst Cabal
         . evalState initialFs
         . runFileSystemFake

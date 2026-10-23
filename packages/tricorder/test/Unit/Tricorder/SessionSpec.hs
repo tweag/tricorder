@@ -1,6 +1,6 @@
 module Unit.Tricorder.SessionSpec (test_Session) where
 
-import Atelier.Effects.Log (Message (..), Severity (..), runLogNoOp, runLogWriter)
+import Atelier.Effects.Log (Message (..), Severity (..))
 import Data.Aeson (object, (.=))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful (runPureEff)
@@ -12,6 +12,7 @@ import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
+import Atelier.Effects.Log qualified as Log
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 
@@ -78,7 +79,7 @@ testLoadSession =
         filter (\m -> m.severity /= DEBUG)
             . runPureEff
             . execWriter @[Message]
-            . runLogWriter
+            . Log.runWriter
             . evalState @(Map FilePath ByteString) mempty
             . FileSystem.runState
             . Input.withConst cabalFiles
@@ -122,7 +123,7 @@ testMissingTargetPlaceholder =
     captureLogsFor cfg =
         runPureEff
             . execWriter @[Message]
-            . runLogWriter
+            . Log.runWriter
             . evalState @(Map FilePath ByteString) mempty
             . FileSystem.runState
             . Input.withConst ([] :: [CabalFile])
@@ -145,7 +146,7 @@ testIdleTimeout =
   where
     loadSessionWith cfg =
         runPureEff
-            . runLogNoOp
+            . Log.runNoOp
             . evalState @(Map FilePath ByteString) mempty
             . FileSystem.runState
             . Input.withConst ([] :: [CabalFile])
