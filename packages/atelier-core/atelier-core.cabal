@@ -72,8 +72,8 @@ library
       Atelier.Exception
       Atelier.Signal
       Atelier.Time
-      Atelier.Types.Base64
       Atelier.Types.HttpApiDataReadShow
+      Atelier.Types.JSON.Base64
       Atelier.Types.JSON.QuietSnake
       Atelier.Types.JSON.ReadShow
       Atelier.Types.JSON.StringLiteral

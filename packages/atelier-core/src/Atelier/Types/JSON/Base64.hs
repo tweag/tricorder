@@ -8,7 +8,7 @@
 -- newtype Token = Token ByteString
 --     deriving (ToJSON, FromJSON) via Base64
 -- @
-module Atelier.Types.Base64
+module Atelier.Types.JSON.Base64
     ( Base64 (..)
     )
 where

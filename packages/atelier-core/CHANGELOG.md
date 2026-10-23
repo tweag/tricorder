@@ -12,6 +12,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Atelier.Effects.Arguments`: converted to a static effect.
 - `Atelier.Effects.Arguments.runArgumentsIO` renamed to
   `Atelier.Effects.Arguments.runIO`.
+- `Atelier.Types.Base64` moved to `Atelier.Types.JSON.Base64`.
 
 ## [0.8.1.0] - 2026-10-23
 
