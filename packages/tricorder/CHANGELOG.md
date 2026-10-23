@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [0.7.0.0] - 2026-10-23
+
 ### Added
 
 - Option to configure how long Tricorder will wait for GHCi to start up and
