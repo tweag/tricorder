@@ -23,7 +23,6 @@ import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Input qualified as Input
 
-import Tricorder.CLI.Arguments (runArguments)
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
 import Tricorder.Config (asInput)
@@ -33,6 +32,7 @@ import Tricorder.Session.CommandTemplate (CommandTemplate (..))
 import Tricorder.Session.Stage.Build.Session (Session (..))
 
 import Tricorder.CLI.App qualified as App
+import Tricorder.CLI.Arguments qualified as CLI.Arguments
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
@@ -72,7 +72,7 @@ main =
         . runDaemons
         . runProcessIO
         . Arguments.runIO
-        . runArguments
+        . CLI.Arguments.reader
         . UnixSocket.runIO
         . runEnv
         . runLogNoOp

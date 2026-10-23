@@ -1,4 +1,4 @@
-module Tricorder.CLI.Arguments (runArguments, parseArguments) where
+module Tricorder.CLI.Arguments (reader) where
 
 import Atelier.Effects.Arguments (Arguments)
 import Effectful.Reader.Static (Reader)
@@ -13,14 +13,10 @@ import Tricorder.API.Command.Args qualified as Command.Args
 import Tricorder.Version qualified as Version
 
 
-runArguments :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
-runArguments eff = do
-    args <- parseArguments
+reader :: (Arguments :> es) => Eff (Reader Command : es) a -> Eff es a
+reader eff = do
+    args <- Args.execParser opts
     Reader.runReader args eff
-
-
-parseArguments :: (Arguments :> es) => Eff es Command
-parseArguments = Args.execParser opts
 
 
 opts :: ParserInfo Command
