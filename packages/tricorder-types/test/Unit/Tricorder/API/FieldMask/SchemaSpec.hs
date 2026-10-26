@@ -1,12 +1,22 @@
 module Unit.Tricorder.API.FieldMask.SchemaSpec (test_Schema) where
 
+import Autodocodec
+    ( JSONCodec
+    , listCodec
+    , object
+    , optionalFieldWith
+    , requiredField
+    , requiredFieldWith
+    , textCodec
+    , (.=)
+    )
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertFailure, testCase, (@?=))
 
 import Data.Text qualified as T
 
 import Tricorder.API.FieldMask.Args (parse)
-import Tricorder.API.FieldMask.Schema (Schema (..), leaf, nested, select)
+import Tricorder.API.FieldMask.Schema (Schema (..), fromCodec, leaf, nested, select)
 
 
 test_Schema :: TestTree
@@ -14,6 +24,7 @@ test_Schema =
     testGroup
         "Tricorder.API.FieldMask.Schema"
         [ testGroup "select" testSelect
+        , testGroup "fromCodec" testFromCodec
         ]
 
 
@@ -34,6 +45,32 @@ testSelect =
     ]
   where
     select' input = select schema =<< parse input
+
+
+testFromCodec :: [TestTree]
+testFromCodec =
+    [ testCase "lists the fields of an object in codec order, nesting through lists of objects" do
+        fromCodec suiteCodec
+            @?= Schema [leaf "name", leaf "tags", nested "cases" [leaf "description", leaf "outcome"]]
+    , testCase "a codec of something other than an object has no fields" do
+        fromCodec textCodec @?= Schema []
+    ]
+  where
+    suiteCodec :: JSONCodec (Text, [Text], Maybe [(Text, Text)])
+    suiteCodec =
+        object "Suite"
+            $ (,,)
+                <$> requiredField "name" "the name" .= (\(name, _, _) -> name)
+                <*> requiredField "tags" "the tags" .= (\(_, tags, _) -> tags)
+                <*> optionalFieldWith "cases" (listCodec caseCodec) "the cases" .= (\(_, _, cases) -> cases)
+
+
+caseCodec :: JSONCodec (Text, Text)
+caseCodec =
+    object "Case"
+        $ (,)
+            <$> requiredFieldWith "description" textCodec "the description" .= fst
+            <*> requiredFieldWith "outcome" textCodec "the outcome" .= snd
 
 
 schema :: Schema

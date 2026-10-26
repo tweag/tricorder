@@ -17,6 +17,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Flag `--prevent-daemon` to prevent Tricorder from starting the daemon if it
   is not already running. This is the inverse of the previous `--start-daemon`
   flag.
+- Flag `--help-json` for `tricorder test suites`, which prints the JSON Schema
+  (draft 2020-12) of the output of `tricorder test suites --json`.
 
 ### Changed
 

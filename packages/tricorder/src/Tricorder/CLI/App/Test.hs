@@ -84,7 +84,7 @@ showSuites opts =
                             $ Text.showSuites targets opts.testFilter selection
                     JsonOutput ->
                         pure
-                            $ Json.wrapResponse
+                            $ Json.wrapSuites selection
                             $ Json.showBasePhase result
                             $ Json.showSuites targets opts.testFilter selection
   where

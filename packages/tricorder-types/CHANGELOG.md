@@ -7,6 +7,29 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `--help-json` flag for `tricorder test suites`, showing the JSON Schema of
+  the output of `tricorder test suites --json`.
+- `autodocodec` codecs (`HasCodec` instances) for `SuiteView`, `CaseView`,
+  `Status` and `Outcome` in `Tricorder.API.Test.SuiteView`. Their `ToJSON`
+  instances are derived from these.
+- `Tricorder.API.FieldMask.Schema.fromCodec`, deriving the fields of a field
+  mask `Schema` from a codec. `Tricorder.API.Test.SuiteView.Schema.schema` is
+  derived from the codec of `SuiteView`.
+- `Tricorder.API.FieldMask.Projection.codec`, encoding projections with their
+  fields in selection order, and `Tricorder.API.FieldMask.Projection.optionalKeys`,
+  for the JSON Schema of projections.
+- `Tricorder.API.Response`, the JSON envelope (`Response`, `MessageWithLoc`)
+  of command output and its codec, moved from `tricorder`.
+- `Tricorder.API.Test.SuitesResponse`, the payload of
+  `tricorder test suites --json` and its codec, moved from `tricorder`.
+
+### Removed
+
+- `ToJSON` instance of `Tricorder.API.FieldMask.Projection.Projection`, in
+  favour of `Tricorder.API.FieldMask.Projection.codec`.
+
 ## [1.0.0.0] - 2026-10-29
 
 ### Changed

@@ -2,11 +2,14 @@ module Tricorder.API.FieldMask.Schema
     ( Schema (..)
     , leaf
     , nested
+    , fromCodec
     , select
     , render
     )
 where
 
+import Autodocodec (ValueCodec)
+import Autodocodec.Schema (JSONSchema (..), ObjectSchema (..), jsonSchemaVia)
 import Options.Applicative.Help (Doc)
 
 import Data.List qualified as List
@@ -30,6 +33,25 @@ leaf name = (name, Nothing)
 
 nested :: Text -> [(Text, Maybe Schema)] -> (Text, Maybe Schema)
 nested name fields = (name, Just $ Schema fields)
+
+
+-- | The fields of the objects a codec encodes, in the order the codec encodes
+-- them. Fields holding objects, or lists of objects, get a nested 'Schema'.
+--
+-- Codecs that do not encode objects have no fields.
+fromCodec :: ValueCodec input output -> Schema
+fromCodec = fromMaybe (Schema []) . fromJsonSchema . jsonSchemaVia
+  where
+    fromJsonSchema = \case
+        CommentSchema _ schema -> fromJsonSchema schema
+        ArraySchema schema -> fromJsonSchema schema
+        ObjectSchema schema -> Just $ Schema $ objectFields schema
+        _ -> Nothing
+
+    objectFields = \case
+        ObjectKeySchema name _ schema _ -> [(name, fromJsonSchema schema)]
+        ObjectAllOfSchema schemas -> concatMap objectFields schemas
+        _ -> []
 
 
 -- | Narrow a 'Schema' down to the fields of a 'FieldMask', keeping the order

@@ -44,7 +44,6 @@ library tricorder-internal
       Tricorder.CLI.App.Output
       Tricorder.CLI.App.Test
       Tricorder.CLI.App.Test.Json
-      Tricorder.CLI.App.Test.Json.Responses
       Tricorder.CLI.App.Test.SuiteView
       Tricorder.CLI.App.Test.Text
       Tricorder.CLI.Arguments
@@ -173,6 +172,7 @@ library tricorder-internal
     , aeson >=2.2 && <2.4
     , atelier-core ==1.0.*
     , atelier-prelude ==0.4.*
+    , autodocodec >=0.6 && <0.8
     , base >=4.18 && <4.23
     , brick ==3.0.*
     , bytestring >=0.11 && <0.13

@@ -49,10 +49,13 @@ library
       Tricorder.API.IfDaemonIsStopped.Args
       Tricorder.API.IfThereArePendingQueries
       Tricorder.API.IfThereArePendingQueries.Args
+      Tricorder.API.JsonSchema
       Tricorder.API.OutputFormat
       Tricorder.API.OutputFormat.Args
+      Tricorder.API.Response
       Tricorder.API.Test
       Tricorder.API.Test.Args
+      Tricorder.API.Test.SuitesResponse
       Tricorder.API.Test.SuiteView
       Tricorder.API.Test.SuiteView.Schema
       Tricorder.API.TestFilter
@@ -89,6 +92,8 @@ library
       aeson >=2.2 && <2.4
     , atelier-core ==1.0.*
     , atelier-prelude ==0.4.*
+    , autodocodec >=0.6 && <0.8
+    , autodocodec-schema ==0.2.*
     , base >=4.18 && <4.23
     , effectful ==2.7.*
     , megaparsec >=9.7 && <9.9
@@ -108,6 +113,8 @@ test-suite tricorder-types-test
       Unit.Tricorder.API.FieldMask.ArgsSpec
       Unit.Tricorder.API.FieldMask.ProjectionSpec
       Unit.Tricorder.API.FieldMask.SchemaSpec
+      Unit.Tricorder.API.ResponseSpec
+      Unit.Tricorder.API.SuitesResponseSpec
       Unit.Tricorder.API.SuiteView.SchemaSpec
       Paths_tricorder_types
   autogen-modules:
@@ -138,6 +145,8 @@ test-suite tricorder-types-test
       aeson >=2.2 && <2.4
     , atelier-core ==1.0.*
     , atelier-prelude ==0.4.*
+    , autodocodec >=0.6 && <0.8
+    , autodocodec-schema ==0.2.*
     , base >=4.18 && <4.23
     , tasty ==1.5.*
     , tasty-discover ==5.2.*

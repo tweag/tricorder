@@ -50,6 +50,7 @@ in
         "aeson"
         "atelier-core"
         "atelier-prelude"
+        "autodocodec"
         "brick"
         "bytestring"
         "casing"

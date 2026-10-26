@@ -34,6 +34,8 @@ let
     Cabal-syntax = ">=3.12 && <3.17";
     Glob = ">=0.10 && <0.11";
     aeson = ">=2.2 && <2.4";
+    autodocodec = ">=0.6 && <0.8";
+    autodocodec-schema = ">=0.2 && <0.3";
     base = ">=4.18 && < 4.23";
     base64-bytestring = ">=1.2 && <1.3";
     brick = ">=3.0 && <3.1";

@@ -1,5 +1,6 @@
 module Tricorder.API.Test.Args (parser) where
 
+import Autodocodec (HasCodec (..))
 import Options.Applicative
     ( Parser
     , ParserInfo
@@ -9,6 +10,8 @@ import Options.Applicative
     , helpDoc
     , hsubparser
     , info
+    , infoOption
+    , long
     , metavar
     , progDesc
     , strArgument
@@ -18,16 +21,21 @@ import Data.Text qualified as T
 import Options.Applicative.Help.Pretty qualified as Doc
 
 import Tricorder.API.Test (Command)
+import Tricorder.API.Test.SuiteView (SuiteView)
 
 import Tricorder.API.FieldMask qualified as FieldMask
 import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
+import Tricorder.API.FieldMask.Projection qualified as FieldMask.Projection
 import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema (..))
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
 import Tricorder.API.IfBuildIsPending.Args qualified as IfBuildIsPending.Args
 import Tricorder.API.IfDaemonIsStopped.Args qualified as IfDaemonIsStopped.Args
+import Tricorder.API.JsonSchema qualified as JsonSchema
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
+import Tricorder.API.Response qualified as Response
 import Tricorder.API.Test qualified as Test
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
+import Tricorder.API.Test.SuitesResponse qualified as SuitesResponse
 import Tricorder.API.TestFilter.Args qualified as TestFilter.Args
 
 
@@ -42,7 +50,7 @@ commandParser =
         $ command
             "suites"
             ( info
-                suitesParser
+                (suitesParser <**> helpJson)
                 ( progDesc "Show test suites, their test cases and output."
                     <> footer suitesFooter
                 )
@@ -54,7 +62,7 @@ suitesParser =
     fmap Test.Suites
         $ Test.SuitesOptions
             <$> many (strArgument (metavar "TEST-TARGET..." <> help "Test suites to show (default: all)"))
-            <*> TestFilter.Args.parser (help "Show only failed test suites, and only their failed test cases")
+            <*> TestFilter.Args.parser (help "Show only failed test suites, and only their failed test cases.")
             <*> FieldMask.Args.parser
                 ( helpDoc
                     $ Just
@@ -79,6 +87,19 @@ suitesParser =
             <*> OutputFormat.Args.parser
             <*> IfBuildIsPending.Args.parser
             <*> IfDaemonIsStopped.Args.parser
+
+
+helpJson :: Parser (a -> a)
+helpJson =
+    infoOption
+        ( toString
+            $ JsonSchema.document "tricorder test suites --json"
+            $ Response.codec
+            $ SuitesResponse.codec
+            $ FieldMask.Projection.optionalKeys
+            $ codec @SuiteView
+        )
+        (long "help-json" <> help "Show the JSON Schema of the output of --json and exit.")
 
 
 suitesFooter :: String
