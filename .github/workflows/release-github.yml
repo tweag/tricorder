@@ -1,9 +1,5 @@
-name: Create draft Tricorder GitHub release
+name: Create draft GitHub release
 on:
-  push:
-    tags:
-      - "tricorder-*"
-      - "!tricorder-types-*"
   workflow_dispatch:
     inputs:
       ref:
@@ -11,6 +7,12 @@ on:
         required: false
         type: string
         default: ""
+  workflow_call:
+    inputs:
+      ref:
+        description: Tag or ref to release
+        required: true
+        type: string
 jobs:
   meta:
     name: Metadata

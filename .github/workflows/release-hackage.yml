@@ -51,6 +51,16 @@ jobs:
     with:
       package-name: tricorder
 
+  release-github-tricorder:
+    uses: ./.github/workflows/release-github.yml
+    needs:
+      - checks
+      - release-hackage-tricorder
+    if: ${{ needs.release-hackage-tricorder.outputs.published == 'true' }}
+    secrets: inherit
+    with:
+      ref: ${{ needs.release-hackage-tricorder.outputs.tag }}
+
   release-hackage-tricorder-mcp:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
@@ -62,3 +72,13 @@ jobs:
     secrets: inherit
     with:
       package-name: tricorder-mcp
+
+  release-github-tricorder-mcp:
+    uses: ./.github/workflows/release-github.yml
+    needs:
+      - checks
+      - release-hackage-tricorder-mcp
+    if: ${{ needs.release-hackage-tricorder-mcp.outputs.published == 'true' }}
+    secrets: inherit
+    with:
+      ref: ${{ needs.release-hackage-tricorder-mcp.outputs.tag }}
