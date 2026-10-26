@@ -7,6 +7,21 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Moved config option `session.test_timeout` to `session.test.timeout_ms`.
+- moved config option `session.test_memory_limit` to `session.test.memory_limit`.
+
+### Removed
+
+- Removed deprecated config option `session.command`.
+- Removed deprecated config option `session.targets`.
+- Removed deprecated config option `session.test_targets`.
+- Removed deprecated subcommand `test-results`.
+- Removed deprecated subcommand `start`.
+- Removed deprecated subcommand `stop`.
+- Removed deprecated subcommand `restart`.
+
 ## [0.7.0.0] - 2026-10-23
 
 ### Added
@@ -31,24 +46,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   support the `--start-daemon` flag to automatically start the daemon if it is
   not already running. This will become the default behavior for all
   subcommands in the next `MAJOR.MAJOR` release.
-- Moved config option `session.test_timeout` to `session.test.timeout_ms`.
-- moved config option `session.test_memory_limit` to `session.test.memory_limit`.
 
 ### Deprecated
 
 - `tricorder start`: use `tricorder daemon start` instead.
 - `tricorder stop`: use `tricorder daemon stop` instead.
 - `tricorder restart`: use `tricorder daemon restart` instead.
-
-### Removed
-
-- Removed deprecated config option `session.command`.
-- Removed deprecated config option `session.targets`.
-- Removed deprecated config option `session.test_targets`.
-- Removed deprecated subcommand `test-results`.
-- Removed deprecated subcommand `start`.
-- Removed deprecated subcommand `stop`.
-- Removed deprecated subcommand `restart`.
 
 ## [0.6.0.0] - 2026-10-20
 
