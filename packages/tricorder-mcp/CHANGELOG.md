@@ -7,6 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Uses the new flags for Tricorder's `status`, `daemon stop` and
+  `daemon restart` commands.
+
 ## [0.2.0.0] - 2026-10-23
 
 ### Changed
