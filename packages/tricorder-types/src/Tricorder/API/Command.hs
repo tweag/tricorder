@@ -9,16 +9,16 @@ module Tricorder.API.Command
     )
 where
 
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending)
 import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
 import Tricorder.API.OutputFormat (OutputFormat (..))
-import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (SourceQuery, renderSourceQuery)
 
 import Tricorder.API.Daemon.Command qualified as Daemon (Command)
 import Tricorder.API.Daemon.Command qualified as Daemon.Command
+import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.OutputFormat qualified as OutputFormat
 import Tricorder.API.Test qualified as Test
-import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Verbosity
@@ -31,7 +31,7 @@ data LogMode = ShowLog | ShowLogPath
 
 
 data StatusOptions = StatusOptions
-    { wait :: WaitMode
+    { wait :: IfBuildIsPending
     , format :: OutputFormat
     , verbosity :: Verbosity
     , expand :: Maybe Int
@@ -40,7 +40,7 @@ data StatusOptions = StatusOptions
 
 
 data EvalCommentsOptions = EvalCommentsOptions
-    { wait :: WaitMode
+    { wait :: IfBuildIsPending
     , format :: OutputFormat
     , ifDaemonIsStopped :: IfDaemonIsStopped
     }
@@ -75,7 +75,7 @@ toArgs :: Command -> [String]
 toArgs = \case
     Status (StatusOptions {wait, format, verbosity, expand}) ->
         "status"
-            : WaitMode.toArgs wait
+            : IfBuildIsPending.toArgs wait
                 <> OutputFormat.toArgs format
                 <> verbosityArgs verbosity
                 <> maybe [] (\n -> ["--expand", show n]) expand
@@ -89,7 +89,7 @@ toArgs = \case
                 <> maybe [] (\n -> ["--max-modules", show n]) maxModules
                 <> map renderSourceQuery queries
     EvalComments (EvalCommentsOptions {wait, format}) ->
-        "eval-comments" : WaitMode.toArgs wait <> OutputFormat.toArgs format
+        "eval-comments" : IfBuildIsPending.toArgs wait <> OutputFormat.toArgs format
     Daemon daemonCommand -> "daemon" : Daemon.Command.toArgs daemonCommand
 
 

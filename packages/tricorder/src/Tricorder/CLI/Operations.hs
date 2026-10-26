@@ -25,8 +25,8 @@ import Tricorder.API.Command
     , StatusOptions (..)
     , Verbosity (..)
     )
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending (..))
 import Tricorder.API.OutputFormat (OutputFormat (..))
-import Tricorder.API.WaitMode (WaitMode (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
 
 import Atelier.Effects.Console qualified as Console
@@ -38,11 +38,7 @@ import Data.Text qualified as T
 import Tricorder.Build (BuildState (..), Severity (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
-import Tricorder.CLI.Render
-    ( diagnosticLineIndexed
-    , formatDuration
-    , renderSourceResults
-    )
+import Tricorder.CLI.Render (diagnosticLineIndexed, formatDuration, renderSourceResults)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
 import Tricorder.Runtime (SocketPath (..))
 import Tricorder.Session.CabalFile (CabalFile)
@@ -377,7 +373,7 @@ awaitBuildStatus
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
-    => WaitMode -> Eff es (Either Text BuildState)
+    => IfBuildIsPending -> Eff es (Either Text BuildState)
 awaitBuildStatus wait = do
     SocketPath sockPath <- ask
     case wait of

@@ -1,18 +1,18 @@
-module Tricorder.API.WaitMode
-    ( WaitMode (..)
+module Tricorder.API.IfBuildIsPending
+    ( IfBuildIsPending (..)
     , toArgs
     , waitForBuildFlagName
     )
 where
 
 
-data WaitMode
+data IfBuildIsPending
     = ShowCurrent
     | WaitForBuild
     deriving stock (Eq)
 
 
-toArgs :: WaitMode -> [String]
+toArgs :: IfBuildIsPending -> [String]
 toArgs WaitForBuild = ["--" <> waitForBuildFlagName]
 toArgs ShowCurrent = []
 

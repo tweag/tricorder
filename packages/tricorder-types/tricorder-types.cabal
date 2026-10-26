@@ -45,6 +45,8 @@ library
       Tricorder.API.FieldMask.Schema
       Tricorder.API.Force
       Tricorder.API.Force.Args
+      Tricorder.API.IfBuildIsPending
+      Tricorder.API.IfBuildIsPending.Args
       Tricorder.API.IfDaemonIsStopped
       Tricorder.API.IfDaemonIsStopped.Args
       Tricorder.API.OutputFormat
@@ -55,8 +57,6 @@ library
       Tricorder.API.Test.SuiteView.Schema
       Tricorder.API.TestFilter
       Tricorder.API.TestFilter.Args
-      Tricorder.API.WaitMode
-      Tricorder.API.WaitMode.Args
       Tricorder.SourceLookup.ModuleSourceResult
       Tricorder.SourceLookup.PackageId
       Tricorder.SourceLookup.ReexportLimits

@@ -1,11 +1,11 @@
-module Tricorder.API.WaitMode.Args (parser) where
+module Tricorder.API.IfBuildIsPending.Args (parser) where
 
 import Options.Applicative (Parser, flag, help, long, short)
 
-import Tricorder.API.WaitMode (WaitMode (..), waitForBuildFlagName)
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending (..), waitForBuildFlagName)
 
 
-parser :: Parser WaitMode
+parser :: Parser IfBuildIsPending
 parser =
     flag ShowCurrent WaitForBuild
         $ long waitForBuildFlagName

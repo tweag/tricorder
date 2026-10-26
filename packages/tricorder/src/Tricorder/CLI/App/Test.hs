@@ -7,10 +7,10 @@ import Atelier.Effects.File (File)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
 import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending (..))
 import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
 import Tricorder.API.OutputFormat (OutputFormat (..))
 import Tricorder.API.Test (Command (..), SuitesOptions (..))
-import Tricorder.API.WaitMode (WaitMode (..))
 
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Exit qualified as Exit
@@ -74,7 +74,7 @@ showSuites opts =
             JsonOutput -> Json.argumentError err
         Right (targets, selection) ->
             ensureDaemonRunning opts.ifDaemonIsStopped do
-                result <- awaitBuildStatus opts.wait
+                result <- awaitBuildStatus opts.ifBuildIsPending
                 case opts.format of
                     TextOutput ->
                         pure
@@ -107,7 +107,7 @@ awaitBuildStatus
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
-    => WaitMode -> Eff es (Either Text BuildState)
+    => IfBuildIsPending -> Eff es (Either Text BuildState)
 awaitBuildStatus wait = do
     SocketPath sockPath <- Reader.ask
     case wait of

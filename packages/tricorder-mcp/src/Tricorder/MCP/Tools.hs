@@ -25,9 +25,9 @@ import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
 import Tricorder.API.Force (Force)
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending)
 import Tricorder.API.OutputFormat (OutputFormat (..))
 import Tricorder.API.TestFilter (TestFilter)
-import Tricorder.API.WaitMode (WaitMode)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
 import Prelude hiding (force)
 
@@ -40,12 +40,12 @@ import Tricorder.API.FieldMask qualified as FieldMask
 import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
 import Tricorder.API.Force qualified as Force
+import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.OutputFormat qualified as OutputFormat
 import Tricorder.API.Test qualified as Test
 import Tricorder.API.Test.SuiteView.Schema qualified as Test.SuiteView.Schema
 import Tricorder.API.TestFilter qualified as TestFilter
-import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Tool
@@ -278,7 +278,7 @@ toolCommand = \case
             $ Command.toArgs
             $ Command.Status
                 Command.StatusOptions
-                    { wait = toWaitMode wait
+                    { wait = toIfBuildIsPending wait
                     , format = JsonOutput
                     , verbosity = toVerbosity verbose
                     , expand
@@ -295,7 +295,7 @@ toolCommand = \case
                 $ Test.Suites
                 $ Test.SuitesOptions
                     { testFilter = fromMaybe TestFilter.All opts.testFilter
-                    , wait = toWaitMode opts.wait
+                    , ifBuildIsPending = toIfBuildIsPending opts.wait
                     , suiteNames = fromMaybe [] opts.suiteNames
                     , format = OutputFormat.JsonOutput
                     , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
@@ -319,7 +319,7 @@ toolCommand = \case
             $ Command.toArgs
             $ Command.EvalComments
                 Command.EvalCommentsOptions
-                    { wait = toWaitMode wait
+                    { wait = toIfBuildIsPending wait
                     , format = JsonOutput
                     , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
                     }
@@ -342,11 +342,11 @@ toForce :: Maybe Bool -> Force
 toForce = maybe Force.NoForce (\enabled -> if enabled then Force.Force else Force.NoForce)
 
 
-toWaitMode :: Maybe Bool -> WaitMode
-toWaitMode =
+toIfBuildIsPending :: Maybe Bool -> IfBuildIsPending
+toIfBuildIsPending =
     maybe
-        WaitMode.ShowCurrent
-        (\enabled -> if enabled then WaitMode.WaitForBuild else WaitMode.ShowCurrent)
+        IfBuildIsPending.ShowCurrent
+        (\enabled -> if enabled then IfBuildIsPending.WaitForBuild else IfBuildIsPending.ShowCurrent)
 
 
 toVerbosity :: Maybe Bool -> Command.Verbosity

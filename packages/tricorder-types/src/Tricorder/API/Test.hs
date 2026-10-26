@@ -9,16 +9,16 @@ where
 import Prelude hiding (All, filter)
 
 import Tricorder.API.FieldMask (FieldMask)
+import Tricorder.API.IfBuildIsPending (IfBuildIsPending)
 import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
 import Tricorder.API.OutputFormat (OutputFormat)
 import Tricorder.API.TestFilter (TestFilter)
-import Tricorder.API.WaitMode (WaitMode)
 
 import Tricorder.API.FieldMask qualified as FieldMask
+import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.OutputFormat qualified as OutputFormat
 import Tricorder.API.TestFilter qualified as TestFilter
-import Tricorder.API.WaitMode qualified as WaitMode
 
 
 data Command
@@ -32,7 +32,7 @@ data SuitesOptions = SuitesOptions
     , fields :: Maybe FieldMask
     -- ^ Fields to show for each test suite. 'Nothing' uses the default fields.
     , format :: OutputFormat
-    , wait :: WaitMode
+    , ifBuildIsPending :: IfBuildIsPending
     , ifDaemonIsStopped :: IfDaemonIsStopped
     }
 
@@ -42,11 +42,11 @@ type SuiteName = Text
 
 toArgs :: Command -> [String]
 toArgs = \case
-    Suites (SuitesOptions {suiteNames, testFilter, fields, format, wait, ifDaemonIsStopped}) ->
+    Suites (SuitesOptions {suiteNames, testFilter, fields, format, ifBuildIsPending, ifDaemonIsStopped}) ->
         "suites"
             : fmap toString suiteNames
                 <> TestFilter.toArgs testFilter
                 <> FieldMask.toArgs fields
                 <> OutputFormat.toArgs format
-                <> WaitMode.toArgs wait
+                <> IfBuildIsPending.toArgs ifBuildIsPending
                 <> IfDaemonIsStopped.toArgs ifDaemonIsStopped

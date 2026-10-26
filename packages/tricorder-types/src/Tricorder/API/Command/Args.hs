@@ -35,10 +35,10 @@ import Tricorder.SourceLookup.SourceQuery (SourceQuery, parseSourceQuery)
 
 import Tricorder.API.Args.Deprecated qualified as Args.Deprecated
 import Tricorder.API.Daemon.Args qualified as Daemon.Args
+import Tricorder.API.IfBuildIsPending.Args qualified as IfBuildIsPending.Args
 import Tricorder.API.IfDaemonIsStopped.Args qualified as IfDaemonIsStopped.Args
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 import Tricorder.API.Test.Args qualified as Test.Args
-import Tricorder.API.WaitMode.Args qualified as WaitMode.Args
 
 
 parser :: Parser Command
@@ -84,7 +84,7 @@ statusParser :: Parser Command
 statusParser =
     Status
         <$> ( StatusOptions
-                <$> WaitMode.Args.parser
+                <$> IfBuildIsPending.Args.parser
                 <*> OutputFormat.Args.parser
                 <*> flag
                     Concise
@@ -148,7 +148,7 @@ evalCommentsParser :: Parser Command
 evalCommentsParser =
     EvalComments
         <$> ( EvalCommentsOptions
-                <$> WaitMode.Args.parser
+                <$> IfBuildIsPending.Args.parser
                 <*> OutputFormat.Args.parser
                 <*> IfDaemonIsStopped.Args.parser
             )

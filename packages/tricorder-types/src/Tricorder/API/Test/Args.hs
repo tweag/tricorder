@@ -23,12 +23,12 @@ import Tricorder.API.FieldMask qualified as FieldMask
 import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
 import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema (..))
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.IfBuildIsPending.Args qualified as IfBuildIsPending.Args
 import Tricorder.API.IfDaemonIsStopped.Args qualified as IfDaemonIsStopped.Args
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 import Tricorder.API.Test qualified as Test
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 import Tricorder.API.TestFilter.Args qualified as TestFilter.Args
-import Tricorder.API.WaitMode.Args qualified as WaitMode.Args
 
 
 parser :: ParserInfo Command
@@ -77,7 +77,7 @@ suitesParser =
                         ]
                 )
             <*> OutputFormat.Args.parser
-            <*> WaitMode.Args.parser
+            <*> IfBuildIsPending.Args.parser
             <*> IfDaemonIsStopped.Args.parser
 
 
