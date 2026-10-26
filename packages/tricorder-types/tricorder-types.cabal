@@ -43,12 +43,12 @@ library
       Tricorder.API.FieldMask.Args
       Tricorder.API.FieldMask.Projection
       Tricorder.API.FieldMask.Schema
-      Tricorder.API.Force
-      Tricorder.API.Force.Args
       Tricorder.API.IfBuildIsPending
       Tricorder.API.IfBuildIsPending.Args
       Tricorder.API.IfDaemonIsStopped
       Tricorder.API.IfDaemonIsStopped.Args
+      Tricorder.API.IfThereArePendingQueries
+      Tricorder.API.IfThereArePendingQueries.Args
       Tricorder.API.OutputFormat
       Tricorder.API.OutputFormat.Args
       Tricorder.API.Test

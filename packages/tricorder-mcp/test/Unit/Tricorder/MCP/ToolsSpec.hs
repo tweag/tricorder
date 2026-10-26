@@ -28,22 +28,36 @@ test_Tools =
             [ testCase "starts with just the directory"
                 $ toolCommand (StartDaemon StartOptions {projectRoot = Nothing})
                     @?= (Nothing, Right ["start"])
-            , testCase "omits --force when unset"
-                $ toolCommand (StopDaemon (StopOptions {force = Nothing, projectRoot = Nothing}))
-                    @?= (Nothing, Right ["stop"])
-            , testCase "omits --force when explicitly false"
-                $ toolCommand (RestartDaemon (RestartOptions {force = Just False, projectRoot = Nothing}))
-                    @?= (Nothing, Right ["restart"])
-            , testCase "includes --force when true"
+            , testCase "omits --ignore-pending-queries when unset"
                 $ toolCommand
                     ( StopDaemon
                         ( StopOptions
-                            { force = Just True
+                            { ignorePendingQueries = Nothing
                             , projectRoot = Nothing
                             }
                         )
                     )
-                    @?= (Nothing, Right ["stop", "--force"])
+                    @?= (Nothing, Right ["stop"])
+            , testCase "omits --ignore-pending-queries when explicitly false"
+                $ toolCommand
+                    ( RestartDaemon
+                        ( RestartOptions
+                            { ignorePendingQueries = Just False
+                            , projectRoot = Nothing
+                            }
+                        )
+                    )
+                    @?= (Nothing, Right ["restart"])
+            , testCase "includes --ignore-pending-queries when true"
+                $ toolCommand
+                    ( StopDaemon
+                        ( StopOptions
+                            { ignorePendingQueries = Just True
+                            , projectRoot = Nothing
+                            }
+                        )
+                    )
+                    @?= (Nothing, Right ["stop", "--ignore-pending-queries"])
             , testCase "combines status flags in order, with --expand carrying its argument"
                 $ toolCommand
                     ( Status

@@ -24,8 +24,8 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import System.Posix (getWorkingDirectory)
 import System.Process.Typed (proc, readProcess, setWorkingDir)
-import Tricorder.API.Force (Force)
 import Tricorder.API.IfBuildIsPending (IfBuildIsPending)
+import Tricorder.API.IfThereArePendingQueries (IfThereArePendingQueries)
 import Tricorder.API.OutputFormat (OutputFormat (..))
 import Tricorder.API.TestFilter (TestFilter)
 import Tricorder.SourceLookup.SourceQuery (parseSourceQuery)
@@ -39,9 +39,9 @@ import Tricorder.API.Daemon.Command qualified as Daemon.Command
 import Tricorder.API.FieldMask qualified as FieldMask
 import Tricorder.API.FieldMask.Args qualified as FieldMask.Args
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
-import Tricorder.API.Force qualified as Force
 import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
+import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 import Tricorder.API.OutputFormat qualified as OutputFormat
 import Tricorder.API.Test qualified as Test
 import Tricorder.API.Test.SuiteView.Schema qualified as Test.SuiteView.Schema
@@ -64,13 +64,13 @@ newtype StartOptions = StartOptions {projectRoot :: Maybe Text}
 
 
 data StopOptions = StopOptions
-    { force :: Maybe Bool
+    { ignorePendingQueries :: Maybe Bool
     , projectRoot :: Maybe Text
     }
 
 
 data RestartOptions = RestartOptions
-    { force :: Maybe Bool
+    { ignorePendingQueries :: Maybe Bool
     , projectRoot :: Maybe Text
     }
 
@@ -130,7 +130,7 @@ toolDescriptions =
             { optDescription = Just "Stop the tricorder daemon."
             , optTitle = Just "Stop daemon"
             , optFieldDescriptions =
-                [ forceDesc
+                [ ignorePendingQueriesDesc
                 , projectRootDesc
                 ]
             }
@@ -141,7 +141,7 @@ toolDescriptions =
             { optDescription = Just "Restart the tricorder daemon."
             , optTitle = Just "Restart daemon"
             , optFieldDescriptions =
-                [ forceDesc
+                [ ignorePendingQueriesDesc
                 , projectRootDesc
                 ]
             }
@@ -245,7 +245,7 @@ toolDescriptions =
         ( "wait"
         , "Block and wait until the current build cycle finishes to provide the most up-to-date result."
         )
-    forceDesc = ("force", "Ignore pending queries instead of waiting for them to finish.")
+    ignorePendingQueriesDesc = ("ignorePendingQueries", "Do not wait for pending queries to finish.")
 
 
 -- | The @tricorder@ invocation for a tool call: the project directory to run
@@ -258,19 +258,19 @@ toolCommand = \case
         ( projectRoot
         , Right $ Daemon.Command.toArgs Daemon.Command.Start
         )
-    StopDaemon (StopOptions {force, projectRoot}) ->
+    StopDaemon (StopOptions {ignorePendingQueries, projectRoot}) ->
         ( projectRoot
         , Right
             $ Daemon.Command.toArgs
             $ Daemon.Command.Stop
-            $ toForce force
+            $ toIfThereArePendingQueries ignorePendingQueries
         )
-    RestartDaemon (RestartOptions {force, projectRoot}) ->
+    RestartDaemon (RestartOptions {ignorePendingQueries, projectRoot}) ->
         ( projectRoot
         , Right
             $ Daemon.Command.toArgs
             $ Daemon.Command.Restart
-            $ toForce force
+            $ toIfThereArePendingQueries ignorePendingQueries
         )
     Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
         ( projectRoot
@@ -338,8 +338,10 @@ toolCommand = \case
         )
 
 
-toForce :: Maybe Bool -> Force
-toForce = maybe Force.NoForce (\enabled -> if enabled then Force.Force else Force.NoForce)
+toIfThereArePendingQueries :: Maybe Bool -> IfThereArePendingQueries
+toIfThereArePendingQueries ignorePendingQueries
+    | ignorePendingQueries == Just True = IfThereArePendingQueries.DontWait
+    | otherwise = IfThereArePendingQueries.Wait
 
 
 toIfBuildIsPending :: Maybe Bool -> IfBuildIsPending

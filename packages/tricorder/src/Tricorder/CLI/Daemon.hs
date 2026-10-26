@@ -15,13 +15,13 @@ import Effectful (IOE)
 import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.Writer.Static.Local (runWriter, tell)
-import Tricorder.API.Force (Force)
+import Tricorder.API.IfThereArePendingQueries (IfThereArePendingQueries)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Timeout qualified as Timeout
-import Tricorder.API.Force qualified as Force
+import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
 import Tricorder.Runtime (PidFile, SocketPath (..))
 import Tricorder.Socket.Client (isDaemonReady, isDaemonRunning, requestShutdown)
@@ -53,7 +53,7 @@ stopDaemon
        , Timeout :> es
        , UnixSocket :> es
        )
-    => Force -> Eff es (Either [Text] Text)
+    => IfThereArePendingQueries -> Eff es (Either [Text] Text)
 stopDaemon force = do
     SocketPath sockPath <- ask
     pidFile <- ask
@@ -68,8 +68,8 @@ stopDaemon force = do
         (Nothing, es) -> pure $ Left es
   where
     timeoutDelay :: Second = case force of
-        Force.Force -> 3
-        Force.NoForce -> 6
+        IfThereArePendingQueries.DontWait -> 3
+        IfThereArePendingQueries.Wait -> 6
     requestStop sockPath pidFile = do
         timeout1second (requestShutdown force sockPath) >>= \_ -> do
             didStop <- fmap isJust $ Timeout.with timeoutDelay $ waitForStop pidFile
@@ -114,7 +114,7 @@ restartDaemon
        , Timeout :> es
        , UnixSocket :> es
        )
-    => Force
+    => IfThereArePendingQueries
     -> Eff es (Maybe (Either [Text] Text))
 restartDaemon force = do
     running <- isDaemonRunning

@@ -11,7 +11,7 @@ import Options.Applicative (Parser, ParserInfo, command, hsubparser, info, progD
 
 import Tricorder.API.Daemon.Command (Command (..))
 
-import Tricorder.API.Force.Args qualified as Force.Args
+import Tricorder.API.IfThereArePendingQueries.Args qualified as IfThereArePendingQueries.Args
 import Tricorder.API.OutputFormat.Args qualified as OutputFormat.Args
 
 
@@ -47,10 +47,8 @@ startParser = pure Start
 
 
 stopParser :: Parser Command
-stopParser =
-    Stop <$> Force.Args.parser "Ignore waiting queries when stopping the daemon."
+stopParser = Stop <$> IfThereArePendingQueries.Args.parser
 
 
 restartParser :: Parser Command
-restartParser =
-    Restart <$> Force.Args.parser "Ignore watiting queries when restarting the daemon."
+restartParser = Restart <$> IfThereArePendingQueries.Args.parser

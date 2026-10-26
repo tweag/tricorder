@@ -20,14 +20,14 @@ import Effectful.Exception (catchJust, trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (evalState, get, modify, put)
 import System.IO.Error (isEOFError)
-import Tricorder.API.Force (Force)
+import Tricorder.API.IfThereArePendingQueries (IfThereArePendingQueries)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
-import Tricorder.API.Force qualified as Force
+import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
 import Tricorder.Build (BuildState, Diagnostic)
 import Tricorder.Runtime (PidFile)
@@ -126,7 +126,7 @@ queryDiagnostic sockPath idx = withConnection sockPath \h -> do
 
 requestShutdown
     :: (File :> es, UnixSocket :> es)
-    => Force -> FilePath -> Eff es (Either Text ())
+    => IfThereArePendingQueries -> FilePath -> Eff es (Either Text ())
 requestShutdown force sockPath = withConnection sockPath \h -> do
     sendQuery h $ Quit waiters
     line <- File.hGetLine h
@@ -137,8 +137,8 @@ requestShutdown force sockPath = withConnection sockPath \h -> do
             pure $ Left "Failed to request shutdown"
   where
     waiters = case force of
-        Force.Force -> IgnoreWaiters
-        Force.NoForce -> WaitForWaiters
+        IfThereArePendingQueries.DontWait -> IgnoreWaiters
+        IfThereArePendingQueries.Wait -> WaitForWaiters
 
 
 isDaemonRunning :: (Daemons :> es, Reader PidFile :> es) => Eff es Bool
