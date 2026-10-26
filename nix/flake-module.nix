@@ -15,6 +15,7 @@ in
     ./ghc-versions.nix
     ./cabal-project.nix
     ./sdists.nix
+    ./materialization.nix
   ];
   perSystem =
     {
@@ -76,6 +77,7 @@ in
           };
       staticProject = import ./package/mk-project.nix {
         inherit self;
+        useMaterialized = false;
         pkgs = staticPkgs;
         compiler-nix-name = config.ghc.names.default;
         doHaddock = false;

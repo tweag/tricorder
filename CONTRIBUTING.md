@@ -1,5 +1,10 @@
 # Project Conventions
 
+## Nix dependency plans
+
+See [materialization](docs/materialization.md) for regenerating and checking the
+dependency plans used by the development shell.
+
 ## Commits
 
 This project uses [scoped commits](https://scopedcommits.com/) to better

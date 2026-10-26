@@ -67,6 +67,8 @@
         nixfmt = {
           enable = true;
           package = pkgs.nixfmt;
+          # These must match haskell.nix's generated output byte for byte.
+          excludes = [ "^nix/materialized/" ];
         };
         nix-hpack = {
           enable = true;

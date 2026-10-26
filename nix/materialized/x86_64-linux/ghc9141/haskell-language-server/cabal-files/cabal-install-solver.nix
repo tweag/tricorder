@@ -1,0 +1,66 @@
+{ system
+  , compiler
+  , flags
+  , pkgs
+  , hsPkgs
+  , pkgconfPkgs
+  , errorHandler
+  , config
+  , ... }:
+  ({
+    flags = { debug-expensive-assertions = false; debug-tracetree = false; };
+    package = {
+      specVersion = "3.6";
+      identifier = { name = "cabal-install-solver"; version = "3.16.0.0"; };
+      license = "BSD-3-Clause";
+      copyright = "2003-2025, Cabal Development Team";
+      maintainer = "Cabal Development Team <cabal-devel@haskell.org>";
+      author = "Cabal Development Team (see AUTHORS file)";
+      homepage = "http://www.haskell.org/cabal/";
+      url = "";
+      synopsis = "The solver component of cabal-install";
+      description = "The solver component used in the cabal-install command-line program.";
+      buildType = "Simple";
+    };
+    components = {
+      "library" = {
+        depends = [
+          (hsPkgs."array" or (errorHandler.buildDepError "array"))
+          (hsPkgs."base" or (errorHandler.buildDepError "base"))
+          (hsPkgs."bytestring" or (errorHandler.buildDepError "bytestring"))
+          (hsPkgs."Cabal" or (errorHandler.buildDepError "Cabal"))
+          (hsPkgs."Cabal-syntax" or (errorHandler.buildDepError "Cabal-syntax"))
+          (hsPkgs."containers" or (errorHandler.buildDepError "containers"))
+          (hsPkgs."edit-distance" or (errorHandler.buildDepError "edit-distance"))
+          (hsPkgs."directory" or (errorHandler.buildDepError "directory"))
+          (hsPkgs."filepath" or (errorHandler.buildDepError "filepath"))
+          (hsPkgs."mtl" or (errorHandler.buildDepError "mtl"))
+          (hsPkgs."network-uri" or (errorHandler.buildDepError "network-uri"))
+          (hsPkgs."pretty" or (errorHandler.buildDepError "pretty"))
+          (hsPkgs."transformers" or (errorHandler.buildDepError "transformers"))
+          (hsPkgs."text" or (errorHandler.buildDepError "text"))
+        ] ++ pkgs.lib.optional (flags.debug-tracetree) (hsPkgs."tracetree" or (errorHandler.buildDepError "tracetree"));
+        buildable = true;
+      };
+      tests = {
+        "unit-tests" = {
+          depends = [
+            (hsPkgs."base" or (errorHandler.buildDepError "base"))
+            (hsPkgs."Cabal-syntax" or (errorHandler.buildDepError "Cabal-syntax"))
+            (hsPkgs."cabal-install-solver" or (errorHandler.buildDepError "cabal-install-solver"))
+            (hsPkgs."tasty" or (errorHandler.buildDepError "tasty"))
+            (hsPkgs."tasty-quickcheck" or (errorHandler.buildDepError "tasty-quickcheck"))
+            (hsPkgs."tasty-hunit" or (errorHandler.buildDepError "tasty-hunit"))
+          ];
+          buildable = true;
+        };
+      };
+    };
+  } // {
+    src = pkgs.lib.mkDefault (pkgs.fetchurl {
+      url = "http://hackage.haskell.org/package/cabal-install-solver-3.16.0.0.tar.gz";
+      sha256 = "81ab3d6fa208a7fc1e8632a8c2106b4ac91c768c9df0db378705c8c36e8ce44a";
+    });
+  }) // {
+    package-description-override = "cabal-version: 3.6\r\nname:          cabal-install-solver\r\nversion:       3.16.0.0\r\nx-revision: 1\r\nsynopsis:      The solver component of cabal-install\r\ndescription:\r\n  The solver component used in the cabal-install command-line program.\r\n\r\nhomepage:      http://www.haskell.org/cabal/\r\nbug-reports:   https://github.com/haskell/cabal/issues\r\nlicense:       BSD-3-Clause\r\nlicense-file:  LICENSE\r\nauthor:        Cabal Development Team (see AUTHORS file)\r\nmaintainer:    Cabal Development Team <cabal-devel@haskell.org>\r\ncopyright:     2003-2025, Cabal Development Team\r\ncategory:      Distribution\r\nbuild-type:    Simple\r\nextra-doc-files:\r\n  ChangeLog.md\r\n\r\nsource-repository head\r\n  type:     git\r\n  location: https://github.com/haskell/cabal/\r\n  subdir:   cabal-install-solver\r\n\r\nflag debug-expensive-assertions\r\n  description: Enable expensive assertions for testing or debugging\r\n  default:     False\r\n  manual:      True\r\n\r\nflag debug-tracetree\r\n  description: Compile in support for tracetree (used to debug the solver)\r\n  default:     False\r\n  manual:      True\r\n\r\nlibrary\r\n  default-language: Haskell2010\r\n  hs-source-dirs:   src\r\n  hs-source-dirs:   src-assertion\r\n  ghc-options:\r\n    -Wall -Wcompat -Wnoncanonical-monad-instances\r\n    -Wtabs -Wincomplete-uni-patterns\r\n\r\n  if impl(ghc < 8.8)\r\n    ghc-options: -Wnoncanonical-monadfail-instances\r\n\r\n  exposed-modules:\r\n    Distribution.Client.Utils.Assertion\r\n\r\n    Distribution.Solver.Compat.Prelude\r\n    Distribution.Solver.Modular\r\n    Distribution.Solver.Modular.Assignment\r\n    Distribution.Solver.Modular.Builder\r\n    Distribution.Solver.Modular.Configured\r\n    Distribution.Solver.Modular.ConfiguredConversion\r\n    Distribution.Solver.Modular.ConflictSet\r\n    Distribution.Solver.Modular.Cycles\r\n    Distribution.Solver.Modular.Dependency\r\n    Distribution.Solver.Modular.Explore\r\n    Distribution.Solver.Modular.Flag\r\n    Distribution.Solver.Modular.Index\r\n    Distribution.Solver.Modular.IndexConversion\r\n    Distribution.Solver.Modular.LabeledGraph\r\n    Distribution.Solver.Modular.Linking\r\n    Distribution.Solver.Modular.Log\r\n    Distribution.Solver.Modular.Message\r\n    Distribution.Solver.Modular.MessageUtils\r\n    Distribution.Solver.Modular.Package\r\n    Distribution.Solver.Modular.Preference\r\n    Distribution.Solver.Modular.PSQ\r\n    Distribution.Solver.Modular.RetryLog\r\n    Distribution.Solver.Modular.Solver\r\n    Distribution.Solver.Modular.Tree\r\n    Distribution.Solver.Modular.Validate\r\n    Distribution.Solver.Modular.Var\r\n    Distribution.Solver.Modular.Version\r\n    Distribution.Solver.Modular.WeightedPSQ\r\n    Distribution.Solver.Types.ComponentDeps\r\n    Distribution.Solver.Types.ConstraintSource\r\n    Distribution.Solver.Types.DependencyResolver\r\n    Distribution.Solver.Types.Flag\r\n    Distribution.Solver.Types.InstalledPreference\r\n    Distribution.Solver.Types.InstSolverPackage\r\n    Distribution.Solver.Types.LabeledPackageConstraint\r\n    Distribution.Solver.Types.OptionalStanza\r\n    Distribution.Solver.Types.PackageConstraint\r\n    Distribution.Solver.Types.PackageFixedDeps\r\n    Distribution.Solver.Types.PackageIndex\r\n    Distribution.Solver.Types.PackagePath\r\n    Distribution.Solver.Types.PackagePreferences\r\n    Distribution.Solver.Types.PkgConfigDb\r\n    Distribution.Solver.Types.Progress\r\n    Distribution.Solver.Types.ProjectConfigPath\r\n    Distribution.Solver.Types.ResolverPackage\r\n    Distribution.Solver.Types.Settings\r\n    Distribution.Solver.Types.SolverId\r\n    Distribution.Solver.Types.SolverPackage\r\n    Distribution.Solver.Types.SourcePackage\r\n    Distribution.Solver.Types.Variable\r\n\r\n  build-depends:\r\n    , array         >=0.4      && <0.6\r\n    , base          >=4.13     && <4.23\r\n    , bytestring    >=0.10.6.0 && <0.13\r\n    , Cabal         ^>=3.16\r\n    , Cabal-syntax  ^>=3.16\r\n    , containers    >=0.5.6.2  && <0.9\r\n    , edit-distance ^>= 0.2.2\r\n    , directory     >= 1.3.7.0  && < 1.4\r\n    , filepath      ^>=1.4.0.0 || ^>=1.5.0.0\r\n    , mtl           >=2.0      && <2.4\r\n    , network-uri   >= 2.6.0.2 && < 2.7\r\n    , pretty        ^>=1.1\r\n    , transformers  >=0.4.2.0  && <0.7\r\n    , text          (>= 1.2.3.0  && < 1.3) || (>= 2.0 && < 2.2)\r\n\r\n  if flag(debug-expensive-assertions)\r\n    cpp-options: -DDEBUG_EXPENSIVE_ASSERTIONS\r\n\r\n  if flag(debug-tracetree)\r\n    cpp-options:   -DDEBUG_TRACETREE\r\n    build-depends:\r\n      , tracetree ^>=0.1\r\n\r\nTest-Suite unit-tests\r\n   default-language: Haskell2010\r\n   ghc-options: -rtsopts -threaded\r\n\r\n   type: exitcode-stdio-1.0\r\n   main-is: UnitTests.hs\r\n   hs-source-dirs: tests\r\n   other-modules:\r\n     UnitTests.Distribution.Solver.Modular.MessageUtils\r\n\r\n   build-depends:\r\n     , base        >= 4.13  && <4.23\r\n     , Cabal-syntax\r\n     , cabal-install-solver\r\n     , tasty       >= 1.2.3 && <1.6\r\n     , tasty-quickcheck <0.12\r\n     , tasty-hunit >= 0.10\r\n";
+  }

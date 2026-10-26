@@ -32,6 +32,7 @@ in
   maintainer = "victor.bakke@tweag.io";
   license = "MIT";
   license-file = "LICENSE";
+  index-state = "2026-10-21T00:31:48Z";
   language = "GHC2021";
 
   inherit

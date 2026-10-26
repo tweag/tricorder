@@ -9,8 +9,10 @@
   doHaddock ? true,
   # Extra haskell.nix modules appended after the base configuration.
   extraModules ? [ ],
+  useMaterialized ? true,
 }:
 let
+  materialized = ../materialized + "/${pkgs.stdenv.hostPlatform.system}/${compiler-nix-name}/project";
   component = {
     ghcOptions = [ "-Werror" ];
     setupHaddockFlags = [ "--for-hackage" ];
@@ -18,6 +20,8 @@ let
 in
 pkgs.haskell-nix.cabalProject' {
   inherit compiler-nix-name;
+  inherit (import ./common.nix) index-state;
+  materialized = if useMaterialized && builtins.pathExists materialized then materialized else null;
   src = ../../.;
 
   modules = [
