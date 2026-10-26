@@ -1,7 +1,7 @@
 module Tricorder.API.IfDaemonIsStopped
     ( IfDaemonIsStopped (..)
     , toArgs
-    , startDaemonFlagName
+    , doNothingFlagName
     )
 where
 
@@ -14,9 +14,9 @@ data IfDaemonIsStopped
 
 toArgs :: IfDaemonIsStopped -> [String]
 toArgs = \case
-    StartDaemon -> ["--" <> startDaemonFlagName]
-    DoNothing -> []
+    StartDaemon -> []
+    DoNothing -> ["--" <> doNothingFlagName]
 
 
-startDaemonFlagName :: String
-startDaemonFlagName = "start-daemon"
+doNothingFlagName :: String
+doNothingFlagName = "prevent-daemon"
