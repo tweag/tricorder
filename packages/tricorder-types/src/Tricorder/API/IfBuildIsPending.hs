@@ -1,21 +1,26 @@
 module Tricorder.API.IfBuildIsPending
     ( IfBuildIsPending (..)
     , toArgs
-    , waitForBuildFlagName
+    , useCurrentFlagName
+    , useCurrentShortFlagName
     )
 where
 
 
 data IfBuildIsPending
-    = ShowCurrent
+    = UseCurrent
     | WaitForBuild
     deriving stock (Eq)
 
 
 toArgs :: IfBuildIsPending -> [String]
-toArgs WaitForBuild = ["--" <> waitForBuildFlagName]
-toArgs ShowCurrent = []
+toArgs WaitForBuild = []
+toArgs UseCurrent = ["--" <> useCurrentFlagName]
 
 
-waitForBuildFlagName :: String
-waitForBuildFlagName = "wait"
+useCurrentFlagName :: String
+useCurrentFlagName = "use-current"
+
+
+useCurrentShortFlagName :: Char
+useCurrentShortFlagName = 'c'

@@ -34,6 +34,7 @@ import Atelier.Effects.Exit qualified as Exit
 import Data.ByteString.Lazy qualified as BSL
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
+import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 
 import Tricorder.Build (BuildState (..), Severity (..))
 import Tricorder.Build.Duration (Duration (..))
@@ -377,5 +378,5 @@ awaitBuildStatus
 awaitBuildStatus wait = do
     SocketPath sockPath <- ask
     case wait of
-        WaitForBuild -> queryStatusWait sockPath
-        ShowCurrent -> queryStatus sockPath
+        IfBuildIsPending.WaitForBuild -> queryStatusWait sockPath
+        IfBuildIsPending.UseCurrent -> queryStatus sockPath

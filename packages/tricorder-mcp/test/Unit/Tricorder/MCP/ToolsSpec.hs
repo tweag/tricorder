@@ -54,7 +54,7 @@ test_Tools =
                             , projectRoot = Nothing
                             }
                     )
-                    @?= (Nothing, Right ["status", "--wait", "--json", "--expand", "3"])
+                    @?= (Nothing, Right ["status", "--json", "--expand", "3"])
             , testCase "turns modules into positional arguments"
                 $ toolCommand
                     ( Source

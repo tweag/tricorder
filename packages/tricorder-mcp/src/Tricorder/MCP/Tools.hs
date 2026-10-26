@@ -344,9 +344,8 @@ toForce = maybe Force.NoForce (\enabled -> if enabled then Force.Force else Forc
 
 toIfBuildIsPending :: Maybe Bool -> IfBuildIsPending
 toIfBuildIsPending =
-    maybe
-        IfBuildIsPending.ShowCurrent
-        (\enabled -> if enabled then IfBuildIsPending.WaitForBuild else IfBuildIsPending.ShowCurrent)
+    maybe IfBuildIsPending.UseCurrent
+        $ bool IfBuildIsPending.UseCurrent IfBuildIsPending.WaitForBuild
 
 
 toVerbosity :: Maybe Bool -> Command.Verbosity

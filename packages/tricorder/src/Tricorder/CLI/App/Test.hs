@@ -16,6 +16,7 @@ import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Exit qualified as Exit
 import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.FieldMask.Schema qualified as FieldMask.Schema
+import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 
@@ -111,8 +112,8 @@ awaitBuildStatus
 awaitBuildStatus wait = do
     SocketPath sockPath <- Reader.ask
     case wait of
-        WaitForBuild -> queryStatusWait sockPath
-        ShowCurrent -> queryStatus sockPath
+        IfBuildIsPending.WaitForBuild -> queryStatusWait sockPath
+        IfBuildIsPending.UseCurrent -> queryStatus sockPath
 
 
 ensureDaemonRunning
