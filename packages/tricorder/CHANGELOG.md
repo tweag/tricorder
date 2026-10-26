@@ -7,10 +7,20 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Flag `--use-current` to force Tricorder to _not_ wait for the current build,
+  and use the incomplete build when reporting the status. This is the inverse
+  of the previous `--wait` flag.
+- Flag `--prevent-daemon` to prevent Tricorder from starting the daemon if it
+  is not already running. This is the inverse of the previous `--start-daemon`
+  flag.
+
 ### Changed
 
 - Moved config option `session.test_timeout` to `session.test.timeout_ms`.
-- moved config option `session.test_memory_limit` to `session.test.memory_limit`.
+- Moved config option `session.test_memory_limit` to `session.test.memory_limit`.
+- Renamed flag `--force` to `--ignore-pending-queries`.
 
 ### Removed
 
@@ -21,6 +31,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Removed deprecated subcommand `start`.
 - Removed deprecated subcommand `stop`.
 - Removed deprecated subcommand `restart`.
+- Removed flag `--wait`. Tricorder now waits for the current build to finish by
+  default. Use `--use-current` to keep the old default behavior.
+- Removed flag `--start-daemon`. Tricorder now starts the daemon by default.
+  Use `--prevent-daemon` to keep the old default behavior.
 
 ## [0.7.0.0] - 2026-10-23
 
