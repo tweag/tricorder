@@ -14,6 +14,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   Attempting to JSON parse a property that is `Renamed "from" "to"` will
   produce an error message denoting that the property `"from"` has been renamed
   to `"to"`.
+- `Atelier.Effects.Arguments.Switch`: similar to `Options.Applicative.switch`
+  from `optparse-applicative`, but includes an inverse flag in the form of
+  `--no-<long-name>` for the flag.
 
 ### Changed
 

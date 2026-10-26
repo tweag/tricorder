@@ -34,6 +34,7 @@ library
   exposed-modules:
       Atelier.Config
       Atelier.Effects.Arguments
+      Atelier.Effects.Arguments.Switch
       Atelier.Effects.Await
       Atelier.Effects.Cache
       Atelier.Effects.Cache.Config
@@ -155,6 +156,7 @@ test-suite atelier-test
   main-is: Driver.hs
   other-modules:
       Unit.Atelier.ConfigSpec
+      Unit.Atelier.Effects.Arguments.SwitchSpec
       Unit.Atelier.Effects.AwaitSpec
       Unit.Atelier.Effects.Cache.SingleflightSpec
       Unit.Atelier.Effects.CacheSpec
@@ -211,6 +213,7 @@ test-suite atelier-test
     , effectful-core ==2.7.*
     , effectful-plugin ==2.2.*
     , hedgehog ==1.7.*
+    , optparse-applicative ==0.19.*
     , stm ==2.5.*
     , stm-containers ==1.2.*
     , tasty ==1.5.*

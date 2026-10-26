@@ -106,6 +106,7 @@ in
         "data-default"
         "effectful"
         "hedgehog"
+        "optparse-applicative"
         "stm"
         "stm-containers"
         "tasty"
