@@ -4,7 +4,7 @@ let
 in
 {
   name = "tricorder-types";
-  version = "0.6.0.0";
+  version = "1.0.0.0";
   synopsis = "Shared domain types for various Tricorder components";
   description = ''
     Shared domain types for various Tricorder components like

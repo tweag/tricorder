@@ -7,6 +7,22 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.0.0.0] - 2026-10-29
+
+### Changed
+
+- `Tricorder.API.WaitMode`: renamed to `Tricorder.API.IfBuildIsPending`.
+- `Tricorder.API.IfBuildIsPending`: wait for build to finish by default.
+- `Tricorder.API.IfDaemonIsStopped`: start daemon by default.
+- `Tricorder.API.Force`: renamed to `Tricorder.API.IfTherearePendingQueries`.
+
+### Removed
+
+- `test-results` subcommand.
+- `start` subcommand.
+- `stop` subcommand.
+- `restart` subcommand.
+
 ## [0.6.0.0] - 2026-10-23
 
 ### Added

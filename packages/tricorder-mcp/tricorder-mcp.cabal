@@ -72,7 +72,7 @@ library tricorder-mcp-internal
     , optparse-applicative ==0.19.*
     , process ==1.6.*
     , template-haskell >=2.20 && <2.25
-    , tricorder-types ==0.6.*
+    , tricorder-types ==1.0.*
     , typed-process ==0.2.*
     , unix ==2.8.*
   mixins:
