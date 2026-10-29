@@ -7,10 +7,14 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.0.0.0] - 2026-10-29
+
 ### Changed
 
 - Uses the new flags for Tricorder's `status`, `daemon stop` and
   `daemon restart` commands.
+- Support new `IfBuildIsPending` option.
+- Rename `start` and `restart` tools' `force` option to `ignorePendingQueries`.
 
 ## [0.2.0.0] - 2026-10-23
 
