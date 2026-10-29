@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.0.0.0] - 2026-10-29
+
 ### Added
 
 - `Atelier.Effects.FSNotify`: `System.FSNotify` lifted to `Eff`.
