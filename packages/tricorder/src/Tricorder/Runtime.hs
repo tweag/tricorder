@@ -19,11 +19,12 @@ import Atelier.Effects.FileSystem
     , createDirectoryIfMissing
     , getCurrentDirectory
     , getXdgRuntimeDir
+    , listDirectory
     )
 import Atelier.Effects.Posix.Daemons (PidFile (..))
 import Effectful.Reader.Static (Reader, ask, runReader)
 import Numeric (showHex)
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, takeExtension, (</>))
 
 
 newtype SocketPath = SocketPath {getSocketPath :: FilePath}
@@ -74,8 +75,27 @@ runProjectRoot
     :: (FileSystem :> es, HasCallStack)
     => Eff (Reader ProjectRoot : es) a -> Eff es a
 runProjectRoot act = do
-    projectRoot <- getCurrentDirectory
+    cwd <- getCurrentDirectory
+    projectRoot <- fromMaybe cwd <$> findProjectRoot cwd
     runReader (ProjectRoot projectRoot) act
+
+
+findProjectRoot :: (FileSystem :> es) => FilePath -> Eff es (Maybe FilePath)
+findProjectRoot dir = do
+    files <- listDirectory dir
+    let parent = takeDirectory dir
+    if any isRootMarker files
+        then pure (Just dir)
+        else
+            if parent == dir
+                then pure Nothing
+                else findProjectRoot parent
+
+
+isRootMarker :: FilePath -> Bool
+isRootMarker f =
+    takeExtension f == ".cabal"
+        || f `elem` ["cabal.project", "cabal.project.freeze", "cabal.project.local", "stack.yaml"]
 
 
 runPidFile :: (Reader RuntimeDir :> es) => Eff (Reader PidFile : es) a -> Eff es a
