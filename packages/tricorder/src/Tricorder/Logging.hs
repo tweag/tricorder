@@ -1,4 +1,4 @@
-module Tricorder.Logging (runLogging) where
+module Tricorder.Logging (run) where
 
 import Atelier.Effects.Env (Env)
 import Atelier.Effects.File (BufferMode (..), File)
@@ -17,7 +17,7 @@ import Tricorder.Runtime (LogPath (..))
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 
 
-runLogging
+run
     :: ( Env :> es
        , File :> es
        , IOE :> es
@@ -25,7 +25,7 @@ runLogging
        , Reader LogPath :> es
        )
     => Eff (Log : es) a -> Eff es a
-runLogging act = do
+run act = do
     path <- asks @LogPath (.getLogPath)
     File.with path AppendMode \h -> do
         File.hSetBuffering h LineBuffering
