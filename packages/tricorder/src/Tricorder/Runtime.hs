@@ -10,9 +10,11 @@ module Tricorder.Runtime
     , runSocketPath
     , LogPath (..)
     , runLogPath
+    , logPathEnv
     )
 where
 
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.FileSystem
     ( FileSystem
     , canonicalizePath
@@ -25,6 +27,9 @@ import Atelier.Effects.Posix.Daemons (PidFile (..))
 import Effectful.Reader.Static (Reader, ask, runReader)
 import Numeric (showHex)
 import System.FilePath (takeDirectory, takeExtension, (</>))
+
+import Atelier.Effects.Env qualified as Env
+import Effectful.Reader.Static qualified as Reader
 
 
 newtype SocketPath = SocketPath {getSocketPath :: FilePath}
@@ -105,8 +110,16 @@ runPidFile = runRuntimeDirItem "daemon.pid" PidFile
 newtype LogPath = LogPath {getLogPath :: FilePath}
 
 
-runLogPath :: (Reader RuntimeDir :> es) => Eff (Reader LogPath : es) a -> Eff es a
-runLogPath = runRuntimeDirItem "daemon.log" LogPath
+logPathEnv :: String
+logPathEnv = "TRICORDER_LOG_PATH"
+
+
+runLogPath :: (Env :> es, Reader RuntimeDir :> es) => Eff (Reader LogPath : es) a -> Eff es a
+runLogPath act = do
+    mLogPath <- Env.lookup logPathEnv
+    case mLogPath of
+        Just logPath -> Reader.runReader (LogPath logPath) act
+        Nothing -> runRuntimeDirItem "daemon.log" LogPath act
 
 
 -- | Polynomial hash of a file path, returned as a hex string.

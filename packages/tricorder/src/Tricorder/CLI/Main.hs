@@ -58,6 +58,7 @@ main =
         . File.run
         . FileSystem.runIO
         . Glob.runIO
+        . Env.runIO
         . runProjectRoot
         . runRuntimeDir
         . runPidFile
@@ -72,7 +73,6 @@ main =
         . Arguments.runIO
         . CLI.Arguments.reader
         . UnixSocket.runIO
-        . Env.runIO
         . Log.runNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
