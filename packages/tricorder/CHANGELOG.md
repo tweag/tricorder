@@ -7,6 +7,16 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Tricorder will now look upwards in the directory tree for recognized Cabal or
+  Stack files to find the root of the project to build. So if you run
+  `tricorder ui` from a subdirectory in your repo, Tricorder will walk upwards
+  to the root of your repo (or to the root of the package you're in, if you are
+  in one package of a multi-package repo), and use that as the root of the
+  project. Defaults to the current working directory (the old behavior) if no
+  Cabal or Stack files are found.
+
 ## [1.0.0.0] - 2026-10-29
 
 ### Added
