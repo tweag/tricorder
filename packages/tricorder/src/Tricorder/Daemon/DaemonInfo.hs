@@ -13,7 +13,9 @@ import System.FilePath (makeRelative)
 
 import Atelier.Effects.Input qualified as Input
 
-import Tricorder.Runtime (LogPath (..), ProjectRoot (..), SocketPath (..))
+import Tricorder.Runtime.LogPath (LogPath (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
+import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.Target (Target)
 import Tricorder.Session.WatchDirs (WatchDirs (..))

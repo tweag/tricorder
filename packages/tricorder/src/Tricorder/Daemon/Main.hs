@@ -31,7 +31,6 @@ import Tricorder.Build (BuildId (..), BuildPhase)
 import Tricorder.Build.Changes (CabalChangeDetected, SourceChangeDetected)
 import Tricorder.Config (asInput)
 import Tricorder.Daemon.Watch (WatchedFile)
-import Tricorder.Runtime (runLogPath, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
@@ -47,6 +46,10 @@ import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
 import Tricorder.Logging qualified as Logging
+import Tricorder.Runtime.Directory qualified as Runtime.Directory
+import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
+import Tricorder.Runtime.ProjectRoot qualified as Runtime.ProjectRoot
+import Tricorder.Runtime.SocketPath qualified as Runtime.SocketPath
 import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Session.State qualified as Session.State
@@ -71,13 +74,13 @@ main =
         . FSNotify.run
         . FileWatcher.runIO
         . Glob.runIO
-        . runProjectRoot
+        . Env.runIO
+        . Runtime.ProjectRoot.asReader
+        . Runtime.Directory.asReader
+        . Runtime.SocketPath.asReader
+        . Runtime.LogPath.asReader
         . Exit.runIO
         . File.run
-        . runRuntimeDir
-        . runSocketPath
-        . Env.runIO
-        . runLogPath
         . LoadedConfig.asInput
         . Logging.run
         . Chan.run

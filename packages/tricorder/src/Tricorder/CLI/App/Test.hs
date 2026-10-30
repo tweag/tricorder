@@ -21,7 +21,7 @@ import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 
 import Tricorder.Build (BuildState (..))
-import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 

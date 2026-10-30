@@ -9,7 +9,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Map.Strict qualified as Map
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Repl (Repl (..), resolveRepl)
 
 

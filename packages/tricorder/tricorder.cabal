@@ -96,7 +96,11 @@ library tricorder-internal
       Tricorder.Daemon.TestRunner
       Tricorder.Daemon.Watch
       Tricorder.Logging
-      Tricorder.Runtime
+      Tricorder.Runtime.Directory
+      Tricorder.Runtime.LogPath
+      Tricorder.Runtime.PidFile
+      Tricorder.Runtime.ProjectRoot
+      Tricorder.Runtime.SocketPath
       Tricorder.Session
       Tricorder.Session.CabalFile
       Tricorder.Session.Command.RenderedCommand

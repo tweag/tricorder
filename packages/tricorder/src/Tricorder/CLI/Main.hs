@@ -26,7 +26,6 @@ import Atelier.Effects.Timeout qualified as Timeout
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
 import Tricorder.Config (asInput)
-import Tricorder.Runtime (runLogPath, runPidFile, runProjectRoot, runRuntimeDir, runSocketPath)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 
 import Tricorder.CLI.App qualified as App
@@ -34,6 +33,11 @@ import Tricorder.CLI.Arguments qualified as CLI.Arguments
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
+import Tricorder.Runtime.Directory qualified as Runtime.Directory
+import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
+import Tricorder.Runtime.PidFile qualified as Runtime.PidFile
+import Tricorder.Runtime.ProjectRoot qualified as Runtime.ProjectRoot
+import Tricorder.Runtime.SocketPath qualified as Runtime.SocketPath
 import Tricorder.Session qualified as Session
 import Tricorder.Session.StackProject qualified as StackProject
 import Tricorder.Socket.UnixSocket qualified as UnixSocket
@@ -59,11 +63,11 @@ main =
         . FileSystem.runIO
         . Glob.runIO
         . Env.runIO
-        . runProjectRoot
-        . runRuntimeDir
-        . runPidFile
-        . runSocketPath
-        . runLogPath
+        . Runtime.ProjectRoot.asReader
+        . Runtime.Directory.asReader
+        . Runtime.PidFile.asReader
+        . Runtime.SocketPath.asReader
+        . Runtime.LogPath.asReader
         . LoadedConfig.asInput
         . LoadedConfig.asNestedInput @"keybindings" @Keys.Config
         . Input.map (either @_ @Keys.Config (const def) id)

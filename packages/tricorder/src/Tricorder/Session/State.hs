@@ -38,7 +38,7 @@ import Data.Text qualified as T
 import Effectful.Concurrent.STM qualified as STM
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.State.Invalid (Invalid (..))
 import Tricorder.Session.State.Result (Result)

@@ -30,7 +30,7 @@ import Tricorder.CLI.UI.Event (Event (..), handleEvent)
 import Tricorder.CLI.UI.Keys (KeyEvent, mkDispatcher)
 import Tricorder.CLI.UI.State (State (..), Viewports (..))
 import Tricorder.CLI.UI.View (mkAttrMap, view)
-import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (queryWatch)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 

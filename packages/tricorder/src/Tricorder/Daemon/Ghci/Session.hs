@@ -38,7 +38,7 @@ import Tricorder.Build (BuildProgress (..))
 import Tricorder.Daemon.Ghci.Controls (Controls (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult)
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.Stage (Stage (..))
 

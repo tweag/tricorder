@@ -32,7 +32,7 @@ import Data.List qualified as List
 import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.StackProject (StackProject (..))
 
 

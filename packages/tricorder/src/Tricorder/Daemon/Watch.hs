@@ -25,7 +25,7 @@ import Tricorder.Build.Changes
     , ChangeKind (..)
     , SourceChangeDetected (..)
     )
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 import Tricorder.Session.WatchExclusionPatterns (Pattern, WatchExclusionPatterns (..))

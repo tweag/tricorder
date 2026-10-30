@@ -23,7 +23,8 @@ import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Timeout qualified as Timeout
 import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
-import Tricorder.Runtime (PidFile, SocketPath (..))
+import Tricorder.Runtime.PidFile (PidFile)
+import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (isDaemonReady, isDaemonRunning, requestShutdown)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 

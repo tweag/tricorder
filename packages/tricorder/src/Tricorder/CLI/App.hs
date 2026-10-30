@@ -15,7 +15,7 @@ import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Provider (Provider_)
-import Effectful.Reader.Static (Reader, ask, asks)
+import Effectful.Reader.Static (Reader)
 import Tricorder.API.Command
     ( Command (..)
     , EvalCommentsOptions (..)
@@ -25,6 +25,7 @@ import Tricorder.API.Command
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
+import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 
 import Tricorder.CLI.Daemon (startDaemon, waitForDaemon)
@@ -33,7 +34,6 @@ import Tricorder.CLI.UI (viewUi)
 import Tricorder.CLI.UI.Brick (Brick)
 import Tricorder.CLI.UI.BrickChan (BrickChan)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Runtime (LogPath (..), PidFile (..), SocketPath (..))
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
@@ -44,6 +44,9 @@ import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.CLI.App.Daemon qualified as Daemon
 import Tricorder.CLI.App.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
+import Tricorder.Runtime.LogPath qualified as Runtime (LogPath (..))
+import Tricorder.Runtime.PidFile qualified as Runtime (PidFile)
+import Tricorder.Runtime.SocketPath qualified as Runtime (SocketPath)
 import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
 
 
@@ -71,15 +74,15 @@ run
        , Provider_ Console Console.Output :> es
        , Reader Command :> es
        , Reader Keys.Config :> es
-       , Reader LogPath :> es
-       , Reader PidFile :> es
-       , Reader SocketPath :> es
+       , Reader Runtime.LogPath :> es
+       , Reader Runtime.PidFile :> es
+       , Reader Runtime.SocketPath :> es
        , Timeout :> es
        , UnixSocket :> es
        )
     => Eff es ()
 run =
-    ask >>= \case
+    Reader.ask >>= \case
         Status opts -> do
             running <- isDaemonRunning
             if
@@ -90,7 +93,7 @@ run =
                 | not running -> Console.putStrLn "Stopped."
                 | otherwise -> showStatus opts
         Log logMode -> do
-            logFile <- asks @LogPath (.getLogPath)
+            Runtime.LogPath logFile <- Reader.ask
             case logMode of
                 ShowLog -> showLog logFile
                 ShowLogPath -> Console.putTextLn (toText logFile)

@@ -24,7 +24,7 @@ import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
 import Tricorder.Daemon.IdleTimer (IdleTimer)
-import Tricorder.Runtime (SocketPath (..))
+import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)

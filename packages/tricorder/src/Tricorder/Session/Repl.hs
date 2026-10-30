@@ -14,7 +14,7 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 
 data Repl = StackMulti | Stack | Cabal | Unknown

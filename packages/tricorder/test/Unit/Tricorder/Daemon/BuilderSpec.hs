@@ -11,7 +11,7 @@ import Tricorder.Build (BuildResult (..), Diagnostic (..), Severity (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 

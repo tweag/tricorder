@@ -10,7 +10,7 @@ import Atelier.Effects.PubSub.Sub qualified as Sub
 import System.FilePath qualified as Path
 
 import Tricorder.Daemon.Watch (WatchedFile (..))
-import Tricorder.Runtime (ProjectRoot)
+import Tricorder.Runtime.ProjectRoot (ProjectRoot)
 import Tricorder.Session (Session (..))
 import Tricorder.Session.HaskellHooks (HaskellHooks (..))
 import Tricorder.Session.Hooks (Hooks (..))

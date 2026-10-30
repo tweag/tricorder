@@ -44,7 +44,7 @@ import Tricorder.Daemon.Dispatch
     , mergeDiagnostics
     , preserveFailureVisibility
     )
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.WatchDirs (WatchDirs)
 

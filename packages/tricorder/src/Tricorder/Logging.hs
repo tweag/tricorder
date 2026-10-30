@@ -5,14 +5,15 @@ import Atelier.Effects.File (BufferMode (..), File)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log, Severity (..))
 import Effectful (IOE)
-import Effectful.Reader.Static (Reader, asks)
+import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.File qualified as File
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Config.LoadedConfig (LoadedConfig)
-import Tricorder.Runtime (LogPath (..))
+import Tricorder.Runtime.LogPath (LogPath (..))
 
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 
@@ -26,7 +27,7 @@ run
        )
     => Eff (Log : es) a -> Eff es a
 run act = do
-    path <- asks @LogPath (.getLogPath)
+    LogPath path <- Reader.ask
     File.with path AppendMode \h -> do
         File.hSetBuffering h LineBuffering
         (maybeErr, sev) <- getMinimumSeverity
