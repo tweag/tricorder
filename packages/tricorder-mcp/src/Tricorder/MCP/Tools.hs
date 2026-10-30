@@ -253,89 +253,85 @@ toolDescriptions =
 -- and renders it via 'CLI.commandToArgs' so the flags stay in sync with
 -- "Tricorder.CLI.Arguments" instead of being duplicated here.
 toolCommand :: Tool -> (Maybe Text, Either Text [String])
-toolCommand = \case
-    StartDaemon (StartOptions {projectRoot}) ->
-        ( projectRoot
-        , Right $ Daemon.Command.toArgs Daemon.Command.Start
-        )
-    StopDaemon (StopOptions {ignorePendingQueries, projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Daemon.Command.toArgs
-            $ Daemon.Command.Stop
-            $ toIfThereArePendingQueries ignorePendingQueries
-        )
-    RestartDaemon (RestartOptions {ignorePendingQueries, projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Daemon.Command.toArgs
-            $ Daemon.Command.Restart
-            $ toIfThereArePendingQueries ignorePendingQueries
-        )
-    Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Command.toArgs
-            $ Command.Status
-                Command.StatusOptions
-                    { wait = toIfBuildIsPending wait
-                    , format = JsonOutput
-                    , verbosity = toVerbosity verbose
-                    , expand
-                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
-                    }
-        )
-    TestSuites opts ->
-        ( opts.projectRoot
-        , do
-            fields <- traverse FieldMask.Args.parse opts.fields
-            Right
-                $ Command.toArgs
-                $ Command.Test
-                $ Test.Suites
-                $ Test.SuitesOptions
-                    { testFilter = fromMaybe TestFilter.All opts.testFilter
-                    , ifBuildIsPending = toIfBuildIsPending opts.wait
-                    , suiteNames = fromMaybe [] opts.suiteNames
-                    , format = OutputFormat.JsonOutput
-                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
-                    , fields
-                    }
-        )
-    Source (SourceOptions {modules, projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Command.toArgs
-            $ Command.Source
-                Command.SourceOptions
-                    { queries = parseSourceQuery <$> modules
-                    , maxDepth = Nothing
-                    , maxModules = Nothing
-                    }
-        )
-    EvalComments (EvalCommentsOptions {wait, projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Command.toArgs
-            $ Command.EvalComments
-                Command.EvalCommentsOptions
-                    { wait = toIfBuildIsPending wait
-                    , format = JsonOutput
-                    , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
-                    }
-        )
-    LogPath (LogPathOptions {projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Command.toArgs
-            $ Command.Log Command.ShowLogPath
-        )
-    LogContents (LogContentsOptions {projectRoot}) ->
-        ( projectRoot
-        , Right
-            $ Command.toArgs
-            $ Command.Log Command.ShowLog
-        )
+toolCommand =
+    second (fmap Command.toArgs) . \case
+        StartDaemon (StartOptions {projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Daemon Daemon.Command.Start
+            )
+        StopDaemon (StopOptions {ignorePendingQueries, projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Daemon
+                $ Daemon.Command.Stop
+                $ toIfThereArePendingQueries ignorePendingQueries
+            )
+        RestartDaemon (RestartOptions {ignorePendingQueries, projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Daemon
+                $ Daemon.Command.Restart
+                $ toIfThereArePendingQueries ignorePendingQueries
+            )
+        Status (StatusOptions {wait, verbose, expand, projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Status
+                    Command.StatusOptions
+                        { wait = toIfBuildIsPending wait
+                        , format = JsonOutput
+                        , verbosity = toVerbosity verbose
+                        , expand
+                        , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
+                        }
+            )
+        TestSuites opts ->
+            ( opts.projectRoot
+            , do
+                fields <- traverse FieldMask.Args.parse opts.fields
+                Right
+                    $ Command.Test
+                    $ Test.Suites
+                    $ Test.SuitesOptions
+                        { testFilter = fromMaybe TestFilter.All opts.testFilter
+                        , ifBuildIsPending = toIfBuildIsPending opts.wait
+                        , suiteNames = fromMaybe [] opts.suiteNames
+                        , format = OutputFormat.JsonOutput
+                        , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
+                        , fields
+                        }
+            )
+        Source (SourceOptions {modules, projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Source
+                    Command.SourceOptions
+                        { queries = parseSourceQuery <$> modules
+                        , maxDepth = Nothing
+                        , maxModules = Nothing
+                        }
+            )
+        EvalComments (EvalCommentsOptions {wait, projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.EvalComments
+                    Command.EvalCommentsOptions
+                        { wait = toIfBuildIsPending wait
+                        , format = JsonOutput
+                        , ifDaemonIsStopped = IfDaemonIsStopped.StartDaemon
+                        }
+            )
+        LogPath (LogPathOptions {projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Log Command.ShowLogPath
+            )
+        LogContents (LogContentsOptions {projectRoot}) ->
+            ( projectRoot
+            , Right
+                $ Command.Log Command.ShowLog
+            )
 
 
 toIfThereArePendingQueries :: Maybe Bool -> IfThereArePendingQueries

@@ -27,7 +27,7 @@ test_Tools =
             "toolCommand"
             [ testCase "starts with just the directory"
                 $ toolCommand (StartDaemon StartOptions {projectRoot = Nothing})
-                    @?= (Nothing, Right ["start"])
+                    @?= (Nothing, Right ["daemon", "start"])
             , testCase "omits --ignore-pending-queries when unset"
                 $ toolCommand
                     ( StopDaemon
@@ -37,7 +37,7 @@ test_Tools =
                             }
                         )
                     )
-                    @?= (Nothing, Right ["stop"])
+                    @?= (Nothing, Right ["daemon", "stop"])
             , testCase "omits --ignore-pending-queries when explicitly false"
                 $ toolCommand
                     ( RestartDaemon
@@ -47,7 +47,7 @@ test_Tools =
                             }
                         )
                     )
-                    @?= (Nothing, Right ["restart"])
+                    @?= (Nothing, Right ["daemon", "restart"])
             , testCase "includes --ignore-pending-queries when true"
                 $ toolCommand
                     ( StopDaemon
@@ -57,7 +57,7 @@ test_Tools =
                             }
                         )
                     )
-                    @?= (Nothing, Right ["stop", "--ignore-pending-queries"])
+                    @?= (Nothing, Right ["daemon", "stop", "--ignore-pending-queries"])
             , testCase "combines status flags in order, with --expand carrying its argument"
                 $ toolCommand
                     ( Status
