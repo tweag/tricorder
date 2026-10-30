@@ -12,7 +12,7 @@ import Effectful.Reader.Static (Reader)
 import Atelier.Effects.Process qualified as Process
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 
 newtype Hook = Hook {getHook :: Text}

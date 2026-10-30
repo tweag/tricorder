@@ -29,7 +29,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Stage.Eval.Session (Session (..))
 
 import Tricorder.Build.EvalComment qualified as Eval

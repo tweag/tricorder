@@ -27,7 +27,7 @@ import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
 import Data.Yaml qualified as Yaml
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 
 newtype StackProject = StackProject

@@ -31,7 +31,9 @@ import System.FilePath (takeDirectory, (</>))
 import Data.Text qualified as T
 import Distribution.Types.BuildInfo.Lens qualified as Lens
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot
+    ( ProjectRoot (..)
+    )
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..))

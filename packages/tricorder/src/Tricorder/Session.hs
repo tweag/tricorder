@@ -17,7 +17,7 @@ import Atelier.Effects.Log qualified as Log
 import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (hasPlaceholder, targetPlaceholder)

@@ -36,7 +36,7 @@ import Tricorder.Daemon.Dispatch (BuilderState (..), DispatchAction, emptyBuilde
 import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.TestRunner (TestRunner)
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot)
 import Tricorder.Session (Session (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Waiters (Waiters)

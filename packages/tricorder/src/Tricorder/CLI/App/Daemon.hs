@@ -17,7 +17,8 @@ import Data.Text qualified as T
 import Tricorder.CLI.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
 import Tricorder.CLI.Operations (showDaemonInfo)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
-import Tricorder.Runtime (PidFile (..), SocketPath (..))
+import Tricorder.Runtime.PidFile (PidFile)
+import Tricorder.Runtime.SocketPath (SocketPath)
 import Tricorder.Socket.Client (isDaemonRunning)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 

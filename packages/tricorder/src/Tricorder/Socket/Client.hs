@@ -30,7 +30,7 @@ import Data.ByteString.Lazy qualified as BSL
 import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
 import Tricorder.Build (BuildState, Diagnostic)
-import Tricorder.Runtime (PidFile)
+import Tricorder.Runtime.PidFile (PidFile)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
     , DiagnosticQuery (..)

@@ -12,11 +12,9 @@ import Effectful.Reader.Static (Reader)
 import Data.Text qualified as T
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot)
 import Tricorder.Session.CabalFile (CabalFile)
-import Tricorder.Session.CommandConfig
-    ( CommandConfig (..)
-    )
+import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl)

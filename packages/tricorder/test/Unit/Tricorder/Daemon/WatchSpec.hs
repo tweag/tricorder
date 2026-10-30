@@ -12,7 +12,7 @@ import Atelier.Effects.PubSub.Pub qualified as Pub
 
 import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..))
 

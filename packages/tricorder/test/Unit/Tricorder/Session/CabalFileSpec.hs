@@ -13,7 +13,7 @@ import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Data.Map.Strict qualified as Map
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.CabalFile
     ( CabalFile (..)
     , discoverCabalPackages

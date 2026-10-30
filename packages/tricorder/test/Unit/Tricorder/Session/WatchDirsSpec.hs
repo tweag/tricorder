@@ -4,7 +4,7 @@ import Data.Default (def)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..), sourceDirsForTarget)

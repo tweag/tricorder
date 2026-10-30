@@ -20,7 +20,7 @@ import Data.List qualified as List
 import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Daemon.Hpack.Effect (Hpack)
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.GenerateWithHpack (GenerateWithHpack (..))
 

@@ -25,7 +25,7 @@ import Data.Text qualified as T
 import Data.Yaml qualified as Yaml
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 
 newtype LoadedConfig = LoadedConfig {getLoadedConfig :: ByteString}

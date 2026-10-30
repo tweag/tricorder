@@ -55,7 +55,7 @@ import Data.List qualified as List
 import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))

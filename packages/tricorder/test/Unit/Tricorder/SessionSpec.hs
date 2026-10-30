@@ -17,7 +17,7 @@ import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
 
 import Tricorder.Config.LoadedConfig (LoadedConfig (..))
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.IdleTimeout (IdleTimeout (..))
 import Unit.Tricorder.Session.Helpers (libWithPreludeCabal, preludeOnlyLibCabal)

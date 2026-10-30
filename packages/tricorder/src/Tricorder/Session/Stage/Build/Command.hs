@@ -10,7 +10,7 @@ import System.FilePath ((</>))
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.List qualified as List
 
-import Tricorder.Runtime (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetsPlaceholder)
