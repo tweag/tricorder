@@ -17,6 +17,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   project. Defaults to the current working directory (the old behavior) if no
   Cabal or Stack files are found.
 
+### Fixed
+
+- `Shift + R` in `tricorder ui` raised an error about
+  `Invalid argument 'restart'`. It used the now-removed `tricorder restart`
+  command to restart the daemon, but has now been fixed.
+
 ## [1.0.0.0] - 2026-10-29
 
 ### Added

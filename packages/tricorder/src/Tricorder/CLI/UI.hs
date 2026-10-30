@@ -19,6 +19,9 @@ import Effectful.Exception (bracket_, trySync)
 import Effectful.Reader.Static (Reader, ask)
 
 import Atelier.Effects.Conc qualified as Conc
+import Tricorder.API.Command qualified as Command
+import Tricorder.API.Daemon.Command qualified as Daemon.Command
+import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
 import Tricorder.CLI.Daemon (waitForDaemon)
 import Tricorder.CLI.UI.Brick (Brick)
@@ -108,7 +111,13 @@ restartWorker restartChan restarting = forever
             self <- getExecutablePath
             -- Swallow failures: a restart that errors must not take down the TUI, and
             -- the flag has to be cleared either way.
-            _ <- trySync $ runProcess $ proc self ["restart"]
+            _ <-
+                trySync
+                    $ runProcess
+                    $ proc self
+                    $ Command.toArgs
+                    $ Command.Daemon
+                    $ Daemon.Command.Restart IfThereArePendingQueries.DontWait
             void waitForDaemon
 
 
