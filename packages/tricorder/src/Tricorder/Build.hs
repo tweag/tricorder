@@ -6,15 +6,15 @@ module Tricorder.Build
     , BuildResult (..)
     , PostBuild (..)
     , Diagnostic (..)
-    , Severity (..)
     )
 where
 
 import Atelier.Effects.Clock (UTCTime)
-import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generically (..))
 
 import Tricorder.Build.Duration (Duration)
+import Tricorder.Build.Severity (Severity)
 import Tricorder.Session.TestTarget (TestTarget)
 
 import Tricorder.Build.EvalComment qualified as Eval
@@ -82,19 +82,3 @@ data Diagnostic = Diagnostic
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically Diagnostic
-
-
-data Severity = SError | SWarning
-    deriving stock (Eq, Ord, Show)
-
-
-instance FromJSON Severity where
-    parseJSON = withText "Severity" \case
-        "error" -> pure SError
-        "warning" -> pure SWarning
-        other -> fail $ "unknown severity: " <> toString other
-
-
-instance ToJSON Severity where
-    toJSON SError = "error"
-    toJSON SWarning = "warning"

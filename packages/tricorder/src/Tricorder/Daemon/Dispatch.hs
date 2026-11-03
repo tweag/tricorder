@@ -20,9 +20,10 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Daemon.Ghci.Diagnostic qualified as Ghci.Diagnostic
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci
 import Tricorder.Daemon.Ghci.LoadedModule qualified as Ghci (LoadedModule)
@@ -59,7 +60,15 @@ type DiagnosticMap = Map FilePath [Diagnostic]
 -- Files in 'compiledFiles' have their previous diagnostics cleared and replaced
 -- by any new diagnostics produced for them in this cycle. Files absent from
 -- 'compiledFiles' were skipped by incremental compilation and retain their
--- previous diagnostics unchanged.
+-- previous /warnings/ (GHC never re-emits those for unchanged modules).
+--
+-- Errors are never retained: GHC retries every failed module on each reload,
+-- so a still-present error is always re-emitted. The exception is a module
+-- blocked behind a failing upstream module, which GHC does not recompile.
+-- Retaining its old errors would leave them stale (e.g. an import error that
+-- has since been fixed) until the upstream failure is resolved. The upstream
+-- error keeps the build failing, and the blocked module's errors reappear once
+-- it is compiled again.
 --
 -- Location-less diagnostics (see 'isLocationLess') are never keyed to a real
 -- source file, so they would never appear in 'compiledFiles' and would persist
@@ -68,7 +77,13 @@ type DiagnosticMap = Map FilePath [Diagnostic]
 -- failure is still present.
 mergeDiagnostics :: DiagnosticMap -> Ghci.LoadResult -> DiagnosticMap
 mergeDiagnostics prev Ghci.LoadResult {compiledFiles, diagnostics} =
-    let retained = Map.filterWithKey (\f _ -> not (Ghci.Path.isLocationLess f)) prev
+    let retained =
+            Map.mapMaybeWithKey
+                ( \f ds -> case filter ((== Severity.Warning) . (.severity)) ds of
+                    ws | not (Ghci.Path.isLocationLess f), not (null ws) -> Just ws
+                    _ -> Nothing
+                )
+                prev
         cleared = foldr Map.delete retained compiledFiles
         newByFile = Map.fromListWith (++) [(d.file, [d]) | d <- diagnostics]
     in  Map.union newByFile cleared
@@ -200,4 +215,4 @@ preserveFailureVisibility raw filtered
     | any isError raw && not (any isError filtered) = filtered ++ [Ghci.Diagnostic.unattributedFailure]
     | otherwise = filtered
   where
-    isError d = d.severity == SError
+    isError d = d.severity == Severity.Error

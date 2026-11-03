@@ -5,8 +5,10 @@ import Test.Tasty.HUnit (Assertion, assertBool, testCase)
 
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
 import Tricorder.CLI.Render (diagnosticBlock)
+
+import Tricorder.Build.Severity qualified as Severity
 
 
 test_Render :: TestTree
@@ -40,7 +42,7 @@ test_Render =
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
-        { severity = SError
+        { severity = Severity.Error
         , file = "Foo.hs"
         , line = 10
         , col = 1
@@ -54,7 +56,7 @@ errMsg =
 warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
-        { severity = SWarning
+        { severity = Severity.Warning
         , file = "Bar.hs"
         , line = 3
         , col = 1
@@ -68,7 +70,7 @@ warnMsg =
 mixedMsg :: Diagnostic
 mixedMsg =
     Diagnostic
-        { severity = SError
+        { severity = Severity.Error
         , file = "Baz.hs"
         , line = 5
         , col = 1

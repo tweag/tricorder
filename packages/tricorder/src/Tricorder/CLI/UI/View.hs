@@ -35,8 +35,9 @@ import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 import Tricorder.API.TestFilter qualified as TestFilter
 
-import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic, Severity (..))
+import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic)
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.Severity (Severity)
 import Tricorder.CLI.UI.Keys (KeyEvent, viewKeybindings)
 import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
 import Tricorder.CLI.UI.Route (Route)
@@ -51,6 +52,7 @@ import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.CLI.UI.Route qualified as Route
@@ -297,8 +299,8 @@ viewBuildResult tz result
             ]
     | otherwise =
         let msgs = result.diagnostics
-            errCount = length $ filter (\m -> m.severity == SError) msgs
-            warnCount = length $ filter (\m -> m.severity == SWarning) msgs
+            errCount = length $ filter (\m -> m.severity == Severity.Error) msgs
+            warnCount = length $ filter (\m -> m.severity == Severity.Warning) msgs
             header =
                 if errCount > 0
                     then
@@ -330,13 +332,13 @@ viewDiagnostic m =
   where
     loc = m.file <> ":" <> show m.line <> ":" <> show m.col
     severityLabel = withDefAttr (severityToAttrName m.severity) $ txt $ case m.severity of
-        SError -> "error:"
-        SWarning -> "warning:"
+        Severity.Error -> "error:"
+        Severity.Warning -> "warning:"
 
 
 severityToAttrName :: Severity -> AttrName
-severityToAttrName SError = attrName "error"
-severityToAttrName SWarning = attrName "warning"
+severityToAttrName Severity.Error = attrName "error"
+severityToAttrName Severity.Warning = attrName "warning"
 
 
 viewDuration :: Duration -> Widget n
@@ -429,8 +431,8 @@ viewBuildResultLine tz result
             , viewTimestamp tz result.completedAt
             ]
     | otherwise =
-        let errCount = length $ filter (\m -> m.severity == SError) result.diagnostics
-            warnCount = length $ filter (\m -> m.severity == SWarning) result.diagnostics
+        let errCount = length $ filter (\m -> m.severity == Severity.Error) result.diagnostics
+            warnCount = length $ filter (\m -> m.severity == Severity.Warning) result.diagnostics
             header =
                 if errCount > 0
                     then

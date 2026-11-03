@@ -20,7 +20,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
 import Tricorder.Daemon.Ghci.LineParser (LineStream (..))
 import Tricorder.Daemon.Ghci.Load (Load)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
@@ -29,6 +29,7 @@ import Tricorder.Daemon.Ghci.Loading (Loading)
 import Tricorder.Daemon.Ghci.Message (Message (..))
 import Tricorder.Daemon.Ghci.Position (Position (..))
 
+import Tricorder.Build.Severity qualified as Build.Severity
 import Tricorder.Daemon.Ghci.Diagnostic qualified as Diagnostic
 import Tricorder.Daemon.Ghci.LineParser qualified as LineParser
 import Tricorder.Daemon.Ghci.Load qualified as Load
@@ -127,7 +128,7 @@ collectResult :: FilePath -> [Text] -> [(Text, FilePath)] -> [Text] -> LoadResul
 collectResult projectRoot reloadLines modules targets =
     let loads = parseReload reloadLines
         base = collectResultCustom projectRoot loads modules targets
-        hasError = any (\d -> d.severity == SError) base.diagnostics
+        hasError = any (\d -> d.severity == Build.Severity.Error) base.diagnostics
     in  if reloadFailed loads && not hasError
             then
                 base {diagnostics = base.diagnostics ++ [Diagnostic.unattributedFailure]}
@@ -163,8 +164,8 @@ toDiagnostics rel loads = mapMaybe toMsg loads
         Just
             Diagnostic
                 { severity = case m.severity of
-                    Severity.Warning -> SWarning
-                    Severity.Error -> SError
+                    Severity.Warning -> Build.Severity.Warning
+                    Severity.Error -> Build.Severity.Error
                 , file = rel m.file
                 , line = m.startPos.line
                 , col = m.startPos.col

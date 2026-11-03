@@ -11,10 +11,11 @@ import Prelude hiding (many)
 
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
 import Tricorder.Daemon.Ghci.Position (Position)
 import Tricorder.Daemon.Ghci.TextParser (TextParser)
 
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Daemon.Ghci.Position qualified as Position
 
 
@@ -24,7 +25,7 @@ import Tricorder.Daemon.Ghci.Position qualified as Position
 unattributedFailure :: Diagnostic
 unattributedFailure =
     Diagnostic
-        { severity = SError
+        { severity = Severity.Error
         , file = "<no location info>"
         , line = 0
         , col = 0

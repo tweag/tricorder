@@ -23,7 +23,7 @@ import Data.Map.Strict qualified as Map
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..), Severity (..))
+import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..))
 import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
@@ -43,6 +43,7 @@ import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.Builder qualified as Builder
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
@@ -284,7 +285,7 @@ runTests session buildResult
     | otherwise = pure mempty
   where
     hasTargets = not . null
-    noErrors = all \d -> d.severity /= SError
+    noErrors = all \d -> d.severity /= Severity.Error
 
 
 runTestsForTargets

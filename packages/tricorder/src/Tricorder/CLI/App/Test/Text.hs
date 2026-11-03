@@ -20,11 +20,11 @@ import Tricorder.Build
     , BuildState (..)
     , Diagnostic (..)
     , PostBuild (..)
-    , Severity (..)
     )
 import Tricorder.CLI.App.Test.SuiteView (selectSuites)
 import Tricorder.Session.TestTarget (TestTarget)
 
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Session.TestTarget qualified as TestTarget
 
@@ -78,7 +78,7 @@ showBasePhase showTests = \case
     Failed err -> Left $ "Build failed: " <> err
   where
     buildFailed result postBuild =
-        postBuild.testSuites == mempty && any (\d -> d.severity >= SError) result.diagnostics
+        postBuild.testSuites == mempty && any (\d -> d.severity >= Severity.Error) result.diagnostics
 
 
 showTestProgress :: Test.Suites -> Text
