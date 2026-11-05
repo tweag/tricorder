@@ -10,7 +10,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 
 import Atelier.Effects.PubSub.Pub qualified as Pub
 
-import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
@@ -40,7 +40,7 @@ testPublishChange =
         "with cabal file change"
         [ testCase "should publish CabalChangeDetected" do
             (cabalChanges, _) <- runTest "foo.cabal"
-            cabalChanges @?= [ProjectChangeDetected "foo.cabal" Modified]
+            cabalChanges @?= [CabalChangeDetected "foo.cabal" Modified]
         ]
     ]
   where
@@ -49,7 +49,7 @@ testPublishChange =
             . runWriter
             . Pub.toWriter @SourceChangeDetected
             . execWriter
-            . Pub.toWriter @ProjectChangeDetected
+            . Pub.toWriter @CabalChangeDetected
             . Watch.publishChange
             . (`WatchedFile` Modified)
 

@@ -1,6 +1,6 @@
 module Tricorder.Build.Changes
     ( ChangeKind (..)
-    , ProjectChangeDetected (..)
+    , CabalChangeDetected (..)
     , SourceChangeDetected (..)
     )
 where
@@ -9,12 +9,12 @@ import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 
 
 -- | Classifies what kind of file change triggered a dirty signal.
--- 'ProjectChange' takes priority over 'SourceChange': if both fire before the
+-- 'CabalChange' takes priority over 'SourceChange': if both fire before the
 -- next build starts, the session will be fully restarted rather than reloaded.
-data ChangeKind = SourceChange | ProjectChange deriving stock (Eq, Ord, Show)
+data ChangeKind = SourceChange | CabalChange deriving stock (Eq, Ord, Show)
 
 
-data ProjectChangeDetected = ProjectChangeDetected FilePath FileWatcher.Event
+data CabalChangeDetected = CabalChangeDetected FilePath FileWatcher.Event
     deriving stock (Eq, Show)
 
 

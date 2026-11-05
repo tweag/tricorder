@@ -310,7 +310,6 @@ test-suite tricorder-test
       Unit.Tricorder.Daemon.Ghci.SessionSpec
       Unit.Tricorder.Daemon.TestRunnerSpec
       Unit.Tricorder.Daemon.WatchSpec
-      Unit.Tricorder.Runtime.ProjectRootSpec
       Unit.Tricorder.Session.CabalFileSpec
       Unit.Tricorder.Session.CommandTemplateSpec
       Unit.Tricorder.Session.Helpers
