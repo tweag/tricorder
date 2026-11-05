@@ -9,6 +9,8 @@ module Tricorder.Session.CommandTemplate
     )
 where
 
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
 
 import Data.List qualified as List
@@ -32,6 +34,7 @@ data CommandTemplate (stage :: Stage) = CommandTemplate
     -- see 'targetsPlaceholder' and 'targetPlaceholder'.
     }
     deriving stock (Eq, Generic, Show)
+    deriving (ToJSON) via QuietSnake (CommandTemplate stage)
 
 
 -- | The @{targets}@ placeholder, used by @build@: one invocation covers

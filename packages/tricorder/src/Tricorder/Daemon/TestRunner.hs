@@ -149,7 +149,7 @@ runTestSuiteWithStdout session onProgress cmd = do
 
     result <- trySync
         $ Process.withProcessGroup processConfig \p ->
-            case Time.convertUnit @_ @Second session.options.timeout of
+            case Time.convertUnit @_ @Second session.options.timeout.getAsRawUnit of
                 secs | secs <= 0 -> Right <$> runToCompletion p
                 secs -> maybeToRight secs <$> Timeout.with secs (runToCompletion p)
     output <- T.unlines . toList <$> readTVarIO outputVar
@@ -195,7 +195,7 @@ runTestSuiteWithGHCi session onProgress cmd = do
     ProjectRoot projectRoot <- ask
     result <- trySync
         $ Ghci.Process.with session.ghci cmd projectRoot onProgress noReady \ghci _ ->
-            case Time.convertUnit @_ @Second session.options.timeout of
+            case Time.convertUnit @_ @Second session.options.timeout.getAsRawUnit of
                 secs | secs <= 0 -> Right <$> Ghci.Process.exec ghci ":main" noProgress
                 secs ->
                     maybeToRight secs

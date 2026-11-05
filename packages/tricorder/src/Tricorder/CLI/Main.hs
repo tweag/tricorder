@@ -94,7 +94,7 @@ main =
                         . GhcPkg.runGhcPkgIO
                         . PackageStore.run
                         . Hackage.run
-                        . DaemonInfo.runInput
+                        . DaemonInfo.asInput
                         $ do
                             installTerminationHandler
                             App.run

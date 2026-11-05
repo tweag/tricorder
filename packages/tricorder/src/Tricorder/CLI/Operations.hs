@@ -41,8 +41,10 @@ import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Render (diagnosticLineIndexed, formatDuration, renderSourceResults)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
+import Tricorder.Runtime.LogPath (LogPath (..))
 import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Session.CabalFile (CabalFile)
+import Tricorder.Session.Util (indent)
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.SourceLookup (lookupModuleSource, projectSourceDirs)
@@ -56,8 +58,8 @@ import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
+import Tricorder.Session qualified as Session
 import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
-import Tricorder.Session.Target qualified as Target
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
@@ -244,14 +246,14 @@ showDaemonInfo format daemonInfo = case format of
     JsonOutput -> json
   where
     text = do
-        Console.putTextLn "Targets:"
-        for_ daemonInfo.targets \target ->
-            Console.putTextLn $ "- " <> Target.render target
-        Console.putTextLn "Watch directories:"
-        for_ daemonInfo.watchDirs \dir ->
-            Console.putTextLn $ "- " <> toText dir
-        Console.putTextLn $ "Socket file path: " <> toText daemonInfo.sockPath
-        Console.putTextLn $ "Log file path: " <> toText daemonInfo.logFile
+        Console.putTextLn
+            $ T.intercalate
+                "\n"
+                [ "Session:"
+                , indent $ Session.display daemonInfo.session
+                , "Socket file path: " <> toText daemonInfo.sockPath.getSocketPath
+                , "Log file path: " <> toText daemonInfo.logFile.getLogPath
+                ]
     json = putJson daemonInfo
 
 

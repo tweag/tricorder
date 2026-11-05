@@ -1,6 +1,7 @@
 module Tricorder.Runtime.LogPath (LogPath (..), envName, asReader) where
 
 import Atelier.Effects.Env (Env)
+import Data.Aeson (ToJSON)
 import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.Env qualified as Env
@@ -11,6 +12,8 @@ import Tricorder.Runtime.Directory qualified as Runtime.Directory
 
 
 newtype LogPath = LogPath {getLogPath :: FilePath}
+    deriving stock (Eq, Generic, Show)
+    deriving (ToJSON) via FilePath
 
 
 envName :: String

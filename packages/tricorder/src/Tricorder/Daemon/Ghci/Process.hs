@@ -31,6 +31,7 @@ import Atelier.Effects.Process
     , shell
     )
 import Atelier.Effects.Timeout (Timeout)
+import Atelier.Time (AsRawUnit (..))
 import Control.Concurrent.STM (TVar, modifyTVar', readTVar, retry, writeTVar)
 import Data.Sequence ((|>))
 import Data.Time.Units (Second)
@@ -149,7 +150,7 @@ setupProcess config p onProgress onReady = do
     -- Wait for the version banner. We concurrently capture stderr so that if
     -- the build command exits before printing a banner (e.g. cabal's
     -- dependency resolution fails) we can surface its error output.
-    waitForBannerOrFail config.startupTimeout out err
+    waitForBannerOrFail config.startupTimeout.getAsRawUnit out err
 
     -- Send fixed setup commands (protocol requirements)
     File.hPutTextLn inp ":set prompt \"\""
@@ -290,7 +291,7 @@ quitGhci config ghciProcess = do
     void $ trySync $ do
         File.hPutTextLn ghciProcess.stdin ":quit"
         File.hFlush ghciProcess.stdin
-    void $ Timeout.with config.shutdownTimeout (Process.waitExitCode ghciProcess.handle)
+    void $ Timeout.with config.shutdownTimeout.getAsRawUnit (Process.waitExitCode ghciProcess.handle)
 
 
 -- ---------------------------------------------------------------------------

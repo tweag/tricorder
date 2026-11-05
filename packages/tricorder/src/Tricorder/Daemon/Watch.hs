@@ -28,7 +28,7 @@ import Tricorder.Build.Changes
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session (Session (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
-import Tricorder.Session.WatchExclusionPatterns (Pattern, WatchExclusionPatterns (..))
+import Tricorder.Session.WatchExclusionPatterns (Pattern (..), WatchExclusionPatterns (..))
 
 
 data WatchedFile = WatchedFile
@@ -84,7 +84,7 @@ sourceWatches exclusionPatterns =
 exclusionMatches :: [Pattern] -> FilePath -> Bool
 exclusionMatches exclusionPatterns fp = any matchPattern exclusionPatterns
   where
-    matchPattern p =
+    matchPattern (Pattern p) =
         match
             (patternToRegex p blankCompOpt blankExecOpt {captureGroups = False})
             fp

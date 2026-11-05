@@ -14,7 +14,7 @@ import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
-import Tricorder.Session.WatchExclusionPatterns (WatchExclusionPatterns (..))
+import Tricorder.Session.WatchExclusionPatterns (Pattern (..), WatchExclusionPatterns (..))
 
 import Tricorder.Daemon.Watch qualified as Watch
 
@@ -150,4 +150,4 @@ testSpecs =
         ]
     ]
   where
-    parsePattern p = fromRight (error . toText $ "bad test pattern: " <> p) (parseRegex p)
+    parsePattern p = Pattern $ fromRight (error . toText $ "bad test pattern: " <> p) (parseRegex p)

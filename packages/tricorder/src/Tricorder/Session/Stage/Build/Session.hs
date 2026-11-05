@@ -6,6 +6,8 @@ module Tricorder.Session.Stage.Build.Session
 where
 
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader)
 
@@ -35,7 +37,8 @@ data Session = Session
     , targets :: [Target]
     , ghci :: Ghci.Config
     }
-    deriving stock (Eq)
+    deriving stock (Eq, Generic)
+    deriving (ToJSON) via QuietSnake Session
 
 
 instance Default Session where

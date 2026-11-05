@@ -5,8 +5,10 @@ module Tricorder.Session.Repl
 where
 
 import Atelier.Effects.FileSystem (FileSystem)
+import Data.Aeson (ToJSON)
 import Data.Yaml (decodeEither')
 import Effectful.Exception (throwIO)
+import GHC.Generics (Generically (..))
 import System.FilePath ((</>))
 import System.IO.Error (userError)
 
@@ -19,6 +21,7 @@ import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 data Repl = StackMulti | Stack | Cabal | Unknown
     deriving stock (Eq, Generic, Show)
+    deriving (ToJSON) via Generically Repl
 
 
 -- | Resolve the project's REPL kind from the filesystem, independent of any

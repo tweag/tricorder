@@ -7,6 +7,9 @@ module Tricorder.Build.ByteSize
     )
 where
 
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (ToJSON)
+import GHC.Generics (Generically (..))
 import Text.Megaparsec (Parsec, eof, parseMaybe)
 import Text.Megaparsec.Char (space, string')
 import Text.Megaparsec.Char.Lexer (decimal)
@@ -17,6 +20,7 @@ import Text.Show qualified as S
 
 data ByteSize = ByteSize {amount :: Integer, unit :: Unit}
     deriving stock (Eq, Generic, Ord)
+    deriving (ToJSON) via QuietSnake ByteSize
 
 
 instance Show ByteSize where
@@ -36,6 +40,7 @@ data Unit
     | PB
     | PiB
     deriving stock (Eq, Generic, Ord, Show)
+    deriving (ToJSON) via Generically Unit
 
 
 asBytes :: ByteSize -> Integer
