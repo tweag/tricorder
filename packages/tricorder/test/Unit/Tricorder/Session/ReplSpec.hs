@@ -36,6 +36,9 @@ testResolveRepl =
         withFiles [("/foo.cabal", "")] (resolveRepl pr) @?= Cabal
     , testCase "prefers Stack over Cabal when both are present" do
         withFiles [("/stack.yaml", ""), ("/cabal.project", "")] (resolveRepl pr) @?= Stack
+    , testCase "finds stack.yaml in an ancestor of the project root" do
+        withFiles [("/stack.yaml", "packages:\n  - foo\n  - bar\n")] (resolveRepl (ProjectRoot "/foo"))
+            @?= StackMulti
     , testCase "falls back to Cabal when there are no project files at all" do
         withFiles [] (resolveRepl pr) @?= Cabal
     ]

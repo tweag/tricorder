@@ -22,10 +22,8 @@ import Effectful.Concurrent.STM (Concurrent, TVar)
 import Effectful.Dispatch.Dynamic (interpretWith, localUnlift)
 import Effectful.Reader.Static (Reader)
 import Effectful.TH (makeEffect)
-import System.FilePath ((</>))
 
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
 import Atelier.Effects.Input qualified as Input
@@ -38,7 +36,7 @@ import Data.Text qualified as T
 import Effectful.Concurrent.STM qualified as STM
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..), findFileUpwards)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.State.Invalid (Invalid (..))
 import Tricorder.Session.State.Result (Result)
@@ -152,10 +150,13 @@ conditionallyWatchStackYaml
     => Eff es ()
 conditionallyWatchStackYaml = do
     root <- Reader.ask
-    exists <- FileSystem.doesFileExist $ root.getProjectRoot </> "stack.yaml"
-    when exists do
+    stackDir <- findFileUpwards "stack.yaml" root.getProjectRoot
+    for_ stackDir \dir ->
         Conc.fork_ $ FileWatcher.watchFilePathsDebounced
-            [Watch.dirWhere root.getProjectRoot ("stack.yaml" `List.isSuffixOf`)]
+            [ Watch.dirWhere dir ("stack.yaml" `List.isSuffixOf`)
+                `Watch.excluding` Watch.containing ".stack-work"
+                `Watch.excluding` Watch.containing "dist-newstyle"
+            ]
             \_ _ -> Pub.publish Reload
 
 
