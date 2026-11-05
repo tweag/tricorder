@@ -10,13 +10,13 @@ where
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (ToJSON, encode)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (utcToLocalTime)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Provider (Provider_, provideWith_)
 import Effectful.Reader.Static (Reader, ask)
 import Tricorder.API.Command
@@ -31,6 +31,8 @@ import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexpo
 
 import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Exit qualified as Exit
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.ByteString.Lazy qualified as BSL
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
@@ -187,16 +189,12 @@ completionSummary c = statusText <> maybe "" (\d -> " (" <> formatDuration d.get
     isFailedCase _ = False
 
 
-showLog
-    :: ( Console :> es
-       , FileSystem :> es
-       )
-    => FilePath -> Eff es ()
+showLog :: (Console :> es, FileSystem :> es) => Path.Absolute -> Eff es ()
 showLog path = do
-    exists <- doesFileExist path
+    exists <- File.exists path
     if not exists
         then Console.putTextLn $ "Log file does not exist yet: " <> toText path
-        else readFileLbs path >>= Console.putStr . BSL.toStrict
+        else File.read path >>= Console.putStr
 
 
 showSource

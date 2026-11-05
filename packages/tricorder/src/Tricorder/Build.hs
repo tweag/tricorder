@@ -13,6 +13,7 @@ import Atelier.Effects.Clock (UTCTime)
 import Data.Aeson (FromJSON, ToJSON)
 import GHC.Generics (Generically (..))
 
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation)
 import Tricorder.Build.Duration (Duration)
 import Tricorder.Build.Severity (Severity)
 import Tricorder.Session.TestTarget (TestTarget)
@@ -72,7 +73,7 @@ data PostBuild = PostBuild
 
 data Diagnostic = Diagnostic
     { severity :: Severity
-    , file :: FilePath
+    , file :: DiagnosticLocation
     , line :: Int
     , col :: Int
     , endLine :: Int

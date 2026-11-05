@@ -3,6 +3,9 @@ module Unit.Tricorder.Daemon.Ghci.ResultSpec (test_Result) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?), (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
+
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
 import Tricorder.Daemon.Ghci.Message (Message (..))
@@ -119,16 +122,22 @@ testCleanBuild =
                         { index = 1
                         , total = 3
                         , moduleName = "Tricorder.Build"
-                        , sourceFile = "src/Tricorder.Build.hs"
+                        , sourceFile = Path.Relative (Path.rel @"src/Tricorder.Build.hs")
                         }
                 , Load.Loading
                     Loading
                         { index = 2
                         , total = 3
                         , moduleName = "Tricorder.Session"
-                        , sourceFile = "src/Tricorder/Session.hs"
+                        , sourceFile = Path.Relative (Path.rel @"src/Tricorder/Session.hs")
                         }
-                , Load.Loading Loading {index = 3, total = 3, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Loading
+                    Loading
+                        { index = 3
+                        , total = 3
+                        , moduleName = "Main"
+                        , sourceFile = Path.Relative (Path.rel @"app/Main.hs")
+                        }
                 , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     , testCase "handles padded module index (e.g. [ 1 of 47])" do
@@ -137,7 +146,13 @@ testCleanBuild =
                 , "Ok, 1 module loaded."
                 ]
         parseReload input
-            @?= [ Load.Loading Loading {index = 1, total = 47, moduleName = "Main", sourceFile = "app/Main.hs"}
+            @?= [ Load.Loading
+                    Loading
+                        { index = 1
+                        , total = 47
+                        , moduleName = "Main"
+                        , sourceFile = Path.Relative (Path.rel @"app/Main.hs")
+                        }
                 , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     , testGroup
@@ -156,7 +171,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Foo.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Foo.hs"))
                         , startPos = Position 10 5
                         , endPos = Position 10 5
                         , messageLines = ["src/Foo.hs:10:5: error: Variable not in scope: foo"]
@@ -172,7 +187,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Warning
-                        , file = "src/Bar.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Bar.hs"))
                         , startPos = Position 20 3
                         , endPos = Position 20 3
                         , messageLines =
@@ -188,7 +203,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Baz.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Baz.hs"))
                         , startPos = Position 5 1
                         , endPos = Position 5 10
                         , messageLines = ["src/Baz.hs:5:1-10: error: Parse error"]
@@ -200,7 +215,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Qux.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Qux.hs"))
                         , startPos = Position 3 1
                         , endPos = Position 5 20
                         , messageLines = ["src/Qux.hs:(3,1)-(5,20): error: Multi-line error"]
@@ -212,7 +227,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Qux.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Qux.hs"))
                         , startPos = Position 3 1
                         , endPos = Position 5 20
                         , messageLines = ["src/Qux.hs:(3,1)-((5,20): error: Multi-line error"]
@@ -230,7 +245,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Foo.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Foo.hs"))
                         , startPos = Position 10 5
                         , endPos = Position 10 5
                         , messageLines =
@@ -248,7 +263,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Foo.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Foo.hs"))
                         , startPos = Position 10 5
                         , endPos = Position 10 5
                         , messageLines = [ansiHeader]
@@ -260,7 +275,7 @@ testErrors =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "C:\\path\\file.hs"
+                        , file = Location (Path.Relative (Path.rel @"C:\\path\\file.hs"))
                         , startPos = Position 10 5
                         , endPos = Position 10 5
                         , messageLines = ["C:\\path\\file.hs:10:5: error: Variable not in scope: foo"]
@@ -274,16 +289,28 @@ testErrors =
                 , "Failed, 1 module loaded."
                 ]
         parseReload input
-            @?= [ Load.Loading Loading {index = 1, total = 2, moduleName = "Lib", sourceFile = "src/Lib.hs"}
+            @?= [ Load.Loading
+                    Loading
+                        { index = 1
+                        , total = 2
+                        , moduleName = "Lib"
+                        , sourceFile = Path.Relative (Path.rel @"src/Lib.hs")
+                        }
                 , Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "src/Lib.hs"
+                        , file = Location (Path.Relative (Path.rel @"src/Lib.hs"))
                         , startPos = Position 5 1
                         , endPos = Position 5 1
                         , messageLines = ["src/Lib.hs:5:1: error: Oops"]
                         }
-                , Load.Loading Loading {index = 2, total = 2, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Loading
+                    Loading
+                        { index = 2
+                        , total = 2
+                        , moduleName = "Main"
+                        , sourceFile = Path.Relative (Path.rel @"app/Main.hs")
+                        }
                 , Load.Summary LoadOutcome.LoadFailed
                 ]
     ]
@@ -303,7 +330,7 @@ testHideSourcePaths =
                 @?= [ Load.Message
                         Message
                             { severity = Severity.Error
-                            , file = "src/Foo.hs"
+                            , file = Location (Path.Relative (Path.rel @"src/Foo.hs"))
                             , startPos = Position 10 5
                             , endPos = Position 10 5
                             , messageLines =
@@ -334,7 +361,7 @@ testNoLocationInfo =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "<no location info>"
+                        , file = Locationless
                         , startPos = Position 0 0
                         , endPos = Position 0 0
                         , messageLines =
@@ -348,7 +375,7 @@ testNoLocationInfo =
             @?= [ Load.Message
                     Message
                         { severity = Severity.Error
-                        , file = "<no location info>"
+                        , file = Locationless
                         , startPos = Position 0 0
                         , endPos = Position 0 0
                         , messageLines = ["<no location info>: error: some error"]
@@ -373,7 +400,13 @@ testLoadedConfig =
                 ]
         parseReload input
             @?= [ Load.LoadConfig ".ghci"
-                , Load.Loading Loading {index = 1, total = 1, moduleName = "Main", sourceFile = "app/Main.hs"}
+                , Load.Loading
+                    Loading
+                        { index = 1
+                        , total = 1
+                        , moduleName = "Main"
+                        , sourceFile = Path.Relative (Path.rel @"app/Main.hs")
+                        }
                 , Load.Summary LoadOutcome.LoadSucceeded
                 ]
     ]
@@ -416,7 +449,7 @@ testPluginLoadFailure =
         , "[5 of 5] Compiling Main            ( test/Tests.hs, interpreted )[app-pkg-0.1.0.0-inplace-test]"
         , "Failed, 4 modules loaded."
         ]
-    result = collectResultCustom "/project" (parseReload reloadOutput) [] []
+    result = collectResultCustom (Path.absolute @"/project") (parseReload reloadOutput) [] []
 
 
 testCollectResult :: [TestTree]
@@ -438,7 +471,7 @@ testUnattributedFailure =
                     , "[2 of 2] Compiling Main ( app/Main.hs, interpreted )"
                     , "Failed, 1 module loaded."
                     ]
-                result = collectResult "/project" reloadOutput [] []
+                result = collectResult (Path.absolute @"/project") reloadOutput [] []
             map (.severity) result.diagnostics @?= [Build.Severity.Error]
         ]
     , testCase "does not duplicate a failure that already produced a located error" do
@@ -447,15 +480,15 @@ testUnattributedFailure =
                 , "src/Lib.hs:5:1: error: Oops"
                 , "Failed, 0 modules loaded."
                 ]
-            result = collectResult "/project" reloadOutput [] []
+            result = collectResult (Path.absolute @"/project") reloadOutput [] []
         -- Only the real, located diagnostic — no synthetic one appended.
-        map (.file) result.diagnostics @?= ["src/Lib.hs"]
+        map (.file) result.diagnostics @?= [Location (Path.Relative (Path.rel @"src/Lib.hs"))]
     , testCase "adds nothing for a successful load" do
         let reloadOutput =
                 [ "[1 of 1] Compiling Main ( app/Main.hs, interpreted )"
                 , "Ok, 1 module loaded."
                 ]
-            result = collectResult "/project" reloadOutput [] []
+            result = collectResult (Path.absolute @"/project") reloadOutput [] []
         result.diagnostics @?= []
     , testGroup
         "when 'Failed,' appears off the summary line"
@@ -471,7 +504,7 @@ testUnattributedFailure =
                     , "Failed, retrying with fallback" -- printed by a TH splice
                     , "Ok, 1 module loaded."
                     ]
-                result = collectResult "/project" reloadOutput [] []
+                result = collectResult (Path.absolute @"/project") reloadOutput [] []
             result.diagnostics @?= []
         ]
     ]

@@ -5,7 +5,7 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
-import Effectful.FileSystem (runFileSystem)
+import Effectful.FileSystem.IO (stderr)
 import Effectful.Provider (provideWith_, runProvider_)
 
 import Atelier.Effects.Arguments qualified as Arguments
@@ -15,7 +15,6 @@ import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Input qualified as Input
@@ -23,6 +22,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
+import Effectful.FileSystem qualified as FileSystem
 
 import Tricorder.CLI.UI.Brick (runBrick)
 import Tricorder.CLI.UI.BrickChan (runBrickChan)
@@ -63,13 +63,13 @@ main =
         . Clock.runIO
         . Delay.runIO
         . Handles.run
-        . runFileSystem
-        . FileSystem.runIO
+        . FileSystem.runFileSystem
         . Glob.runIO
         . Env.runIO
         . Runtime.ProjectRoot.asReader
         . Runtime.ProjectHash.asReader
         . Runtime.Cache.asReader
+        . Log.runToHandle stderr Log.INFO
         . Runtime.Directory.asReader
         . Runtime.PidFile.asReader
         . Runtime.SocketPath.asReader
@@ -83,7 +83,6 @@ main =
         . Arguments.runIO
         . CLI.Arguments.reader
         . UnixSocket.runIO
-        . Log.runNoOp
         . StackProject.inputWithCache
         . inputCabalFiles
         . Tricorder.Config.asInput

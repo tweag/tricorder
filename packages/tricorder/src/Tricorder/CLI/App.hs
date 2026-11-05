@@ -5,7 +5,6 @@ import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
@@ -14,6 +13,7 @@ import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Provider (Provider_)
 import Effectful.Reader.Static (Reader)
 import Tricorder.API.Command
@@ -25,7 +25,6 @@ import Tricorder.API.Command
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
-import Atelier.FileSystem.Path qualified as Path
 import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 
@@ -96,7 +95,7 @@ run =
         Log logMode -> do
             Runtime.LogPath logFile <- Reader.ask
             case logMode of
-                ShowLog -> showLog $ Path.toFilePath logFile
+                ShowLog -> showLog logFile
                 ShowLogPath -> Console.putTextLn (toText logFile)
         UI -> do
             running <- isDaemonRunning

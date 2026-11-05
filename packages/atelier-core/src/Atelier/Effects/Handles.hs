@@ -36,6 +36,8 @@ import Data.ByteString.Lazy.Char8 qualified as LB8
 import Data.Text.IO qualified as TIO
 import System.IO qualified as IO
 
+import Atelier.FileSystem.Path qualified as Path
+
 
 -- | Operations concerning file handles.
 data Handles :: Effect
@@ -48,8 +50,8 @@ data instance StaticRep Handles = Handles
 
 
 -- | Lifted `System.IO.withFile`:
-with :: (Handles :> es, HasCallStack) => FilePath -> IOMode -> (Handle -> Eff es a) -> Eff es a
-with fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile fp m (unlift . f)
+with :: (Handles :> es, HasCallStack) => Path.Absolute -> IOMode -> (Handle -> Eff es a) -> Eff es a
+with fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile (Path.toFilePath fp) m (unlift . f)
 
 
 -- | Lifted `System.IO.hClose`.

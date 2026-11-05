@@ -4,6 +4,7 @@ module Tricorder.Daemon.Ghci.LoadResult
     )
 where
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
@@ -14,11 +15,12 @@ import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 -- | The result of a GHCi load or reload operation.
 data LoadResult = LoadResult
     { moduleCount :: Int
-    , compiledFiles :: Set FilePath
+    , compiledFiles :: Set Path.Any
     -- ^ Files compiled in this cycle (derived from 'GLoading' items).
     -- Used by the session layer to decide which files' previous diagnostics to replace vs. retain.
-    , loadedModules :: Map FilePath LoadedModule
-    -- ^ Map from canonical absolute path to module metadata, derived from @:show modules@ output.
+    , loadedModules :: Map Path.Any LoadedModule
+    -- ^ Map from normalised path (as reported by GHCi, so absolute or
+    -- project-root-relative) to module metadata, derived from @:show modules@ output.
     -- Lists only modules that compiled successfully this cycle — GHCi drops
     -- failed-compile modules from @:show modules@.
     , targetNames :: [Text]
@@ -36,10 +38,10 @@ data LoadResult = LoadResult
 -- dropped out. Never-compiled targets are absent here (no path↔name
 -- mapping); the dispatcher recognises those via 'KnownTargetNames'.
 resolveKnownTargets
-    :: Map FilePath LoadedModule
+    :: Map Path.Any LoadedModule
     -- ^ Previous known-targets map (carryover source).
     -> LoadResult
-    -> Map FilePath LoadedModule
+    -> Map Path.Any LoadedModule
 resolveKnownTargets prev lr =
     let primary = lr.loadedModules
         primaryNames = Set.fromList [lm.moduleName | lm <- Map.elems primary]

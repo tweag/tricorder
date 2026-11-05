@@ -3,10 +3,12 @@ module Tricorder.Daemon.Ghci.LoadedModule
     )
 where
 
+import Atelier.FileSystem.Path qualified as Path
+
 
 -- | A module currently loaded in the GHCi session.
 data LoadedModule = LoadedModule
-    { relPath :: FilePath
+    { relPath :: Path.Relative
     -- ^ Path relative to the project root (e.g. @"./src/Foo.hs"@).
     , moduleName :: Text
     }

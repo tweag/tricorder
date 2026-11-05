@@ -3,9 +3,11 @@ module Unit.Tricorder.CLI.RenderSpec (test_Render) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
 import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.CLI.Render (diagnosticBlock)
 
 import Tricorder.Build.Severity qualified as Severity
@@ -43,7 +45,7 @@ errMsg :: Diagnostic
 errMsg =
     Diagnostic
         { severity = Severity.Error
-        , file = "Foo.hs"
+        , file = Location (Path.Relative (Path.rel @"Foo.hs"))
         , line = 10
         , col = 1
         , endLine = 10
@@ -57,7 +59,7 @@ warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
         { severity = Severity.Warning
-        , file = "Bar.hs"
+        , file = Location (Path.Relative (Path.rel @"Bar.hs"))
         , line = 3
         , col = 1
         , endLine = 3
@@ -71,7 +73,7 @@ mixedMsg :: Diagnostic
 mixedMsg =
     Diagnostic
         { severity = Severity.Error
-        , file = "Baz.hs"
+        , file = Location (Path.Relative (Path.rel @"Baz.hs"))
         , line = 5
         , col = 1
         , endLine = 5

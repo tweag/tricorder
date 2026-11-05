@@ -5,6 +5,8 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 import Prelude hiding (compare)
 
+import Atelier.FileSystem.Path qualified as Path
+
 import Tricorder.Session.CabalFile (CabalFile (..))
 import Tricorder.Session.Target
     ( ComponentKind (..)
@@ -108,7 +110,7 @@ testResolveTargets =
                     ]
         , testCase "sorts a library exposing a custom Prelude last" do
             let cabalFile =
-                    CabalFile "/myprelude.cabal"
+                    CabalFile (Path.absolute @"/myprelude.cabal")
                         $ fromMaybe (error "libWithPreludeCabal failed to parse")
                         $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
             let actual = resolve [cabalFile] []
@@ -264,6 +266,6 @@ testDefinesCustomPrelude =
     ]
   where
     preludeCF =
-        CabalFile "/myprelude.cabal"
+        CabalFile (Path.absolute @"/myprelude.cabal")
             $ fromMaybe (error "libWithPreludeCabal failed to parse")
             $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")

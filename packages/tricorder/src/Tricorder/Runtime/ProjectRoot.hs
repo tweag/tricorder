@@ -4,30 +4,32 @@ module Tricorder.Runtime.ProjectRoot
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem, getCurrentDirectory, listDirectory)
 import Data.Aeson (ToJSON)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader, runReader)
-import System.FilePath (takeDirectory, takeExtension)
+
+import Atelier.FileSystem.Directory qualified as Directory
+import Atelier.FileSystem.Path qualified as Path
 
 
-newtype ProjectRoot = ProjectRoot {getProjectRoot :: FilePath}
+newtype ProjectRoot = ProjectRoot {getProjectRoot :: Path.Absolute}
     deriving stock (Eq)
-    deriving (ToJSON) via FilePath
+    deriving (ToJSON) via Path.Absolute
 
 
 asReader
     :: (FileSystem :> es, HasCallStack)
     => Eff (Reader ProjectRoot : es) a -> Eff es a
 asReader act = do
-    cwd <- getCurrentDirectory
+    cwd <- Directory.getCurrent
     projectRoot <- fromMaybe cwd <$> findProjectRoot cwd
     runReader (ProjectRoot projectRoot) act
 
 
-findProjectRoot :: (FileSystem :> es) => FilePath -> Eff es (Maybe FilePath)
+findProjectRoot :: (FileSystem :> es) => Path.Absolute -> Eff es (Maybe Path.Absolute)
 findProjectRoot dir = do
-    files <- listDirectory dir
-    let parent = takeDirectory dir
+    files <- Directory.list dir
+    let parent = Path.takeDirectory dir
     if any isRootMarker files
         then pure (Just dir)
         else
@@ -36,7 +38,8 @@ findProjectRoot dir = do
                 else findProjectRoot parent
 
 
-isRootMarker :: FilePath -> Bool
+isRootMarker :: Path.Relative -> Bool
 isRootMarker f =
-    takeExtension f == ".cabal"
-        || f `elem` ["cabal.project", "cabal.project.freeze", "cabal.project.local", "stack.yaml"]
+    Path.takeExtension f == ".cabal"
+        || Path.toFilePath f
+            `elem` ["cabal.project", "cabal.project.freeze", "cabal.project.local", "stack.yaml"]

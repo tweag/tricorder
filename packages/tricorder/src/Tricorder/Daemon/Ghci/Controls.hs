@@ -4,13 +4,15 @@ module Tricorder.Daemon.Ghci.Controls
     )
 where
 
+import Atelier.FileSystem.Path qualified as Path
+
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult)
 
 
 data Controls m = Controls
     { reload :: m LoadResult
     , interrupt :: m ()
-    , add :: FilePath -> m LoadResult
+    , add :: Path.Any -> m LoadResult
     , unadd :: Text -> m LoadResult
     }
 

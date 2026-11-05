@@ -35,7 +35,7 @@ run
 run act = do
     LogPath path <- Reader.ask
     truncateLog path
-    Handles.with (Path.toFilePath path) AppendMode \h -> do
+    Handles.with path AppendMode \h -> do
         Handles.hSetBuffering h LineBuffering
         (maybeErr, sev) <- getMinimumSeverity
         Log.runToHandle h sev do

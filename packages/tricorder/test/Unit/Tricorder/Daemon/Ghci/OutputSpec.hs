@@ -3,6 +3,8 @@ module Unit.Tricorder.Daemon.Ghci.OutputSpec (test_Output) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
+
 import Tricorder.Daemon.Ghci.Output (parseShowModules, parseShowTargets)
 
 
@@ -31,16 +33,16 @@ testShowModules =
                 , "Main                     ( app/Main.hs, interpreted )"
                 ]
         parseShowModules input
-            @?= [ ("Tricorder.Build", "src/Tricorder.Build.hs")
-                , ("Tricorder.Session", "src/Tricorder/Session.hs")
-                , ("Main", "app/Main.hs")
+            @?= [ ("Tricorder.Build", Path.Relative (Path.rel @"src/Tricorder.Build.hs"))
+                , ("Tricorder.Session", Path.Relative (Path.rel @"src/Tricorder/Session.hs"))
+                , ("Main", Path.Relative (Path.rel @"app/Main.hs"))
                 ]
     , testCase "parses absolute paths" do
         parseShowModules ["Lib ( /home/user/project/src/Lib.hs, interpreted )"]
-            @?= [("Lib", "/home/user/project/src/Lib.hs")]
+            @?= [("Lib", Path.Absolute (Path.abs @"/home/user/project/src/Lib.hs"))]
     , testCase "strips ANSI codes before parsing" do
         parseShowModules ["\ESC[1mMain\ESC[0m                     ( app/Main.hs, interpreted )"]
-            @?= [("Main", "app/Main.hs")]
+            @?= [("Main", Path.Relative (Path.rel @"app/Main.hs"))]
     ]
 
 

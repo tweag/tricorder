@@ -15,15 +15,17 @@ module Tricorder.SourceLookup.Tarball
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem, readFileLbs)
 import Atelier.Effects.Log (Log)
 import Data.Char (isUpper)
 import Effectful.Exception (trySync)
+import Effectful.FileSystem (FileSystem)
 import System.FilePath (splitDirectories, (</>))
 import Tricorder.SourceLookup.PackageId (PackageId (..), splitPackageId)
 import Tricorder.SourceLookup.SourceQuery (ModuleName (..))
 
 import Atelier.Effects.Log qualified as Log
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Codec.Archive.Tar qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
@@ -41,12 +43,15 @@ import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 -- | The result of locating (and, if needed, fetching) a package's tarball.
 data TarballOutcome
-    = TarballAt FilePath
+    = TarballAt Path.Absolute
     | -- | No tarball, though the lookup completed cleanly (absent from every
       -- configured repository, or yanked).
       TarballAbsent
     | -- | The on-demand @cabal fetch@ itself failed (offline, stale index, …).
       TarballFetchFailed
+    | -- | The tarball was fetched, but could not be stored (no valid store
+      -- path could be built for the package).
+      TarballAddFailed
     deriving stock (Eq, Show)
 
 
@@ -69,17 +74,22 @@ obtainTarball pkgId = do
                     pure $ TarballFetchFailed
                 Hackage.Success bytes -> do
                     Log.info $ "Storing tarball for " <> pkgId.unPackageId
-                    path <- PackageStore.add pkgId bytes
-                    Log.info $ "Tarball stored at " <> toText path
-                    pure $ TarballAt path
+                    addResult <- PackageStore.add pkgId bytes
+                    case addResult of
+                        Left err -> do
+                            Log.err $ "Could not add package to store path: " <> err
+                            pure TarballAddFailed
+                        Right path -> do
+                            Log.info $ "Tarball stored at " <> toText path
+                            pure $ TarballAt path
 
 
 -- | Read a single module's source from a tarball, in-process. 'Nothing' when
 -- the member is absent or the archive cannot be read (any decompression or
 -- parse error is caught, never propagated).
-readModuleMember :: (FileSystem :> es) => FilePath -> ModuleName -> Eff es (Maybe Text)
+readModuleMember :: (FileSystem :> es) => Path.Absolute -> ModuleName -> Eff es (Maybe Text)
 readModuleMember tarball modName = do
-    raw <- readFileLbs tarball
+    raw <- File.read tarball
     -- 'force' drives the lazy gunzip + tar parse to completion inside 'trySync',
     -- so a corrupt archive yields 'Nothing' instead of a deferred exception.
     result <- trySync (pure $! force (extractModule modName raw))

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-warnings-deprecations #-}
+
 module Unit.Atelier.Effects.FileSystemSpec (test_FileSystem) where
 
 import Control.Exception (IOException, evaluate, try)
@@ -10,6 +12,20 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Map.Strict qualified as M
 
 import Atelier.Effects.FileSystem
+    ( FileSystem
+    , canonicalizePath
+    , createDirectoryIfMissing
+    , doesFileExist
+    , doesPathExist
+    , getCurrentDirectory
+    , getXdgRuntimeDir
+    , listDirectory
+    , readFileBs
+    , readFileLbs
+    , readFileLbsFrom
+    , removeFile
+    , runState
+    )
 
 
 test_FileSystem :: TestTree

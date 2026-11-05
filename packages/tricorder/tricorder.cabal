@@ -35,6 +35,7 @@ library tricorder-internal
       Tricorder.Build
       Tricorder.Build.ByteSize
       Tricorder.Build.Changes
+      Tricorder.Build.DiagnosticLocation
       Tricorder.Build.Duration
       Tricorder.Build.EvalComment
       Tricorder.Build.Severity

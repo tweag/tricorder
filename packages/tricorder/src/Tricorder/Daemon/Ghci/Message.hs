@@ -1,5 +1,6 @@
 module Tricorder.Daemon.Ghci.Message (Message (..)) where
 
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation)
 import Tricorder.Daemon.Ghci.Position (Position)
 import Tricorder.Daemon.Ghci.Severity (Severity)
 
@@ -7,7 +8,7 @@ import Tricorder.Daemon.Ghci.Severity (Severity)
 -- | Payload for a compiler diagnostic (error or warning).
 data Message = Message
     { severity :: Severity
-    , file :: FilePath
+    , file :: DiagnosticLocation
     , startPos :: Position
     , endPos :: Position
     -- ^ equals 'startPos' when no span

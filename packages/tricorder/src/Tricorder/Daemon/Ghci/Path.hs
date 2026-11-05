@@ -4,10 +4,12 @@ module Tricorder.Daemon.Ghci.Path
     )
 where
 
-import System.FilePath (dropExtension, normalise, splitDirectories)
+import Atelier.FileSystem.Path (Path)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.List qualified as List
 import Data.Text qualified as T
+import System.FilePath qualified as P
 
 
 -- | Whether a diagnostic file is a GHCi location-less pseudo-file — a fully
@@ -30,9 +32,9 @@ isLocationLess f = "<" `List.isPrefixOf` f && ">" `List.isSuffixOf` f
 -- suffix of the path (with @/@ → @.@, extension dropped) is a candidate.
 -- E.g. @./tricorder/src/Tricorder/Version.hs@ yields candidates
 -- @"Tricorder.Version"@ and @"Version"@.
-pathSuffixesAsModuleName :: FilePath -> [Text]
+pathSuffixesAsModuleName :: (Path path) => path -> [Text]
 pathSuffixesAsModuleName fp =
-    let segments = filter (not . null) (splitDirectories (dropExtension (normalise fp)))
+    let segments = filter (not . null) $ P.splitDirectories $ P.dropExtension $ P.normalise $ Path.toFilePath fp
         upperSegments = dropWhile (not . startsUpper) segments
         suffixes = takeWhile (not . null) (iterate (drop 1) upperSegments)
     in  [T.intercalate "." (map toText s) | s <- suffixes]

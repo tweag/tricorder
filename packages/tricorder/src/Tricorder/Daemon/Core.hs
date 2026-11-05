@@ -19,6 +19,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
@@ -65,7 +66,7 @@ import Tricorder.Waiters qualified as Waiters
 data RestartBuilder = RestartBuilder
 
 
-data ReloadBuilder = ReloadBuilder FilePath FileWatcher.Event
+data ReloadBuilder = ReloadBuilder Path.Any FileWatcher.Event
 
 
 -- | Top of the build loop. Responsible for handling changes to the Tricorder

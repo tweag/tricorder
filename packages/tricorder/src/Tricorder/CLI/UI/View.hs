@@ -325,12 +325,12 @@ viewDiagnostic m =
         [ hBoxSpaced
             1
             [ severityLabel
-            , txt $ toText loc
+            , txt loc
             ]
         , txtWrap m.text
         ]
   where
-    loc = m.file <> ":" <> show m.line <> ":" <> show m.col
+    loc = toText m.file <> ":" <> show m.line <> ":" <> show m.col
     severityLabel = withDefAttr (severityToAttrName m.severity) $ txt $ case m.severity of
         Severity.Error -> "error:"
         Severity.Warning -> "warning:"
