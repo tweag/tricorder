@@ -7,6 +7,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Time`: Added `Functor` instances for `AsRawUnit` and `AsJsonMicrosecond`.
+
 ## [1.0.0.0] - 2026-10-29
 
 ### Added

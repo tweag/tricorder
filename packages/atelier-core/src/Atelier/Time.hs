@@ -46,7 +46,7 @@ nominalDiffTime = fromMicroseconds . round @Double . (* 1_000_000) . realToFrac
 
 
 newtype AsJsonMicrosecond unit = AsJsonMicrosecond {getAsJsonMicroseconds :: unit}
-    deriving stock (Eq, Generic, Show)
+    deriving stock (Eq, Functor, Generic, Show)
 
 
 instance (TimeUnit unit) => ToJSON (AsJsonMicrosecond unit) where
@@ -58,7 +58,7 @@ instance (TimeUnit unit) => FromJSON (AsJsonMicrosecond unit) where
 
 
 newtype AsRawUnit unit = AsRawUnit {getAsRawUnit :: unit}
-    deriving stock (Eq, Generic, Show)
+    deriving stock (Eq, Functor, Generic, Show)
 
 
 instance (Integral unit) => ToJSON (AsRawUnit unit) where
