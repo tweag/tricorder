@@ -17,7 +17,9 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 import Atelier.Effects.Console qualified as Console
 import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
+
+import Tricorder.Build.Severity qualified as Severity
 
 
 formatDuration :: Millisecond -> Text
@@ -37,8 +39,8 @@ diagnosticLine :: Diagnostic -> Text
 diagnosticLine d =
     prefix d.severity <> " " <> toText d.file <> ":" <> show d.line <> " " <> d.title
   where
-    prefix SError = "E"
-    prefix SWarning = "W"
+    prefix Severity.Error = "E"
+    prefix Severity.Warning = "W"
 
 
 -- | Like 'diagnosticLine' but prefixed with a 1-based index.

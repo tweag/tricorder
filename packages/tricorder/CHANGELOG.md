@@ -22,6 +22,12 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `Shift + R` in `tricorder ui` raised an error about
   `Invalid argument 'restart'`. It used the now-removed `tricorder restart`
   command to restart the daemon, but has now been fixed.
+- Errors would sometimes linger on even though the source of the error was
+  fixed or changed. This was especially prevalent when moving existing data
+  types imported from other modules into a new module. Even though you would
+  fix the references to that data type in the importing modules, Tricorder
+  would complain that they attempt to import the data type from the old module.
+  This has now been fixed.
 
 ## [1.0.0.0] - 2026-10-29
 

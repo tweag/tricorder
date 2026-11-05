@@ -11,7 +11,7 @@ import Atelier.Effects.PubSub.Pub qualified as Pub
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (BuildProgress, Diagnostic (..), Severity (..))
+import Tricorder.Build (BuildProgress, Diagnostic (..))
 import Tricorder.Daemon.Ghci.Controls (Controls (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Daemon.Ghci.Session (Session)
@@ -19,6 +19,7 @@ import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.Stage (Stage (..))
 
+import Tricorder.Build.Severity qualified as Build.Severity
 import Tricorder.Daemon.Ghci.Session qualified as Session
 
 
@@ -107,7 +108,7 @@ boom = ErrorCall "simulated GHCi crash"
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
-        { severity = SError
+        { severity = Build.Severity.Error
         , file = "src/Foo.hs"
         , line = 1
         , col = 1
@@ -121,7 +122,7 @@ errMsg =
 warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
-        { severity = SWarning
+        { severity = Build.Severity.Warning
         , file = "src/Bar.hs"
         , line = 10
         , col = 3

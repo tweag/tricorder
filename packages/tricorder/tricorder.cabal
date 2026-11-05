@@ -37,6 +37,7 @@ library tricorder-internal
       Tricorder.Build.Changes
       Tricorder.Build.Duration
       Tricorder.Build.EvalComment
+      Tricorder.Build.Severity
       Tricorder.Build.Test
       Tricorder.CLI.App
       Tricorder.CLI.App.CLIResponse

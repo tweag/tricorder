@@ -7,12 +7,14 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (BuildResult (..), Diagnostic (..), Severity (..))
+import Tricorder.Build (BuildResult (..), Diagnostic (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
+
+import Tricorder.Build.Severity qualified as Severity
 
 
 test_Builder :: TestTree
@@ -49,8 +51,9 @@ testCompileBuildResults =
                         }
         r.duration @?= Duration 10_000
     , testCase "merges with existing results" do
+        let oldWarn = errMsg {severity = Severity.Warning}
         let (m, _) =
-                compileBuildResults root watchDirs (Map.fromList [(errMsg.file, [errMsg])])
+                compileBuildResults root watchDirs (Map.fromList [(errMsg.file, [oldWarn])])
                     $ NewLoadResult
                         { startTime = epoch
                         , endTime = epoch
@@ -66,7 +69,7 @@ testCompileBuildResults =
         m
             @?= fromList
                 [ (warnMsg.file, [warnMsg])
-                , (errMsg.file, [errMsg])
+                , (errMsg.file, [oldWarn])
                 ]
     , testCase "returns a BuildResult" do
         let (_, r) =
@@ -104,7 +107,7 @@ testCompileBuildResults =
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
-        { severity = SError
+        { severity = Severity.Error
         , file = "./src/Foo.hs"
         , line = 1
         , col = 1
@@ -118,7 +121,7 @@ errMsg =
 warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
-        { severity = SWarning
+        { severity = Severity.Warning
         , file = "./src/Bar.hs"
         , line = 10
         , col = 3

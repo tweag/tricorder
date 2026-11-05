@@ -11,12 +11,12 @@ import Tricorder.Build
     , BuildState (..)
     , Diagnostic (..)
     , PostBuild (..)
-    , Severity (..)
     )
 import Tricorder.Build.Duration (Duration (..))
 
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Severity qualified as Severity
 
 
 test_BuildState :: TestTree
@@ -28,7 +28,7 @@ test_BuildState =
             [ testCase "survives Unicode smart quotes in message text" do
                 let msg =
                         Diagnostic
-                            { severity = SWarning
+                            { severity = Severity.Warning
                             , file = "<interactive>"
                             , line = 2
                             , col = 8
@@ -43,7 +43,7 @@ test_BuildState =
             , testCase "survives control characters in message text" do
                 let msg =
                         Diagnostic
-                            { severity = SWarning
+                            { severity = Severity.Warning
                             , file = "<interactive>"
                             , line = 1
                             , col = 1
@@ -57,7 +57,7 @@ test_BuildState =
             , testCase "survives curly double quotes in message text" do
                 let msg =
                         Diagnostic
-                            { severity = SWarning
+                            { severity = Severity.Warning
                             , file = "<interactive>"
                             , line = 1
                             , col = 1

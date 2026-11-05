@@ -36,7 +36,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 
-import Tricorder.Build (BuildState (..), Severity (..))
+import Tricorder.Build (BuildState (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Render (diagnosticLineIndexed, formatDuration, renderSourceResults)
@@ -53,6 +53,7 @@ import Tricorder.TestOutput (stripGhciNoise)
 
 import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
 import Tricorder.Session.Stage.Build.Session qualified as Build (Session)
@@ -153,10 +154,10 @@ showStatus opts = do
             (Concise, firstLine : _ : _) -> firstLine <> " (use --verbose to see the full message)"
             _ -> message
 
-    buildHasErrors r = any ((== SError) . (.severity)) r.diagnostics
+    buildHasErrors r = any ((== Severity.Error) . (.severity)) r.diagnostics
     buildSummary tz r =
-        let errs = length $ filter ((== SError) . (.severity)) r.diagnostics
-            warns = length $ filter ((== SWarning) . (.severity)) r.diagnostics
+        let errs = length $ filter ((== Severity.Error) . (.severity)) r.diagnostics
+            warns = length $ filter ((== Severity.Warning) . (.severity)) r.diagnostics
             ts = toText $ "— " <> formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz r.completedAt)
             stats =
                 toText $ "(" <> show r.moduleCount <> " modules, " <> formatDuration r.duration.getDuration <> ")"

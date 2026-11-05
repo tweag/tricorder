@@ -6,7 +6,7 @@ import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (Diagnostic (..), Severity (..))
+import Tricorder.Build (Diagnostic (..))
 import Tricorder.Daemon.Dispatch
     ( KnownTargetNames (..)
     , fileMatchesAnyTarget
@@ -17,6 +17,8 @@ import Tricorder.Daemon.Dispatch
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Daemon.Ghci.Result (collectResult)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
+
+import Tricorder.Build.Severity qualified as Severity
 
 
 test_Dispatch :: TestTree
@@ -101,6 +103,21 @@ testMergeDiagnostics =
                     }
         let merged = mergeDiagnostics prev result
         Map.lookup warnMsg.file merged @?= Just [warnMsg]
+    , testCase "drops retained errors for files not in compiledFiles" do
+        -- Foo's error is stale if Foo was skipped (e.g. blocked behind a failing
+        -- upstream module): GHC re-emits errors for every module it attempts.
+        -- Warnings in the same file are kept.
+        let prev = Map.fromList [(errMsg.file, [errMsg, errMsg {severity = Severity.Warning}])]
+            result =
+                LoadResult
+                    { moduleCount = 1
+                    , compiledFiles = Set.empty
+                    , loadedModules = Map.empty
+                    , targetNames = []
+                    , diagnostics = []
+                    }
+        let merged = mergeDiagnostics prev result
+        Map.lookup errMsg.file merged @?= Just [errMsg {severity = Severity.Warning}]
     , testCase "clears diagnostics when a recompiled file now has no issues" do
         let prev = Map.fromList [(errMsg.file, [errMsg])]
             result =
@@ -253,7 +270,7 @@ testFilterToWatchDirs =
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
-        { severity = SError
+        { severity = Severity.Error
         , file = "./src/Foo.hs"
         , line = 1
         , col = 1
@@ -267,7 +284,7 @@ errMsg =
 warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
-        { severity = SWarning
+        { severity = Severity.Warning
         , file = "./src/Bar.hs"
         , line = 10
         , col = 3

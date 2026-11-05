@@ -3,7 +3,6 @@ module Unit.Tricorder.Daemon.Ghci.ResultSpec (test_Result) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?), (@?=))
 
-import Tricorder.Build (Severity (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
 import Tricorder.Daemon.Ghci.Message (Message (..))
@@ -11,6 +10,7 @@ import Tricorder.Daemon.Ghci.Position (Position (..))
 import Tricorder.Daemon.Ghci.Result (collectResult, collectResultCustom, extractTitle, parseReload)
 
 import Tricorder.Build qualified as Build.Diagnostic
+import Tricorder.Build.Severity qualified as Build.Severity
 import Tricorder.Daemon.Ghci.Load qualified as Load
 import Tricorder.Daemon.Ghci.LoadOutcome qualified as LoadOutcome
 import Tricorder.Daemon.Ghci.Severity qualified as Severity
@@ -399,7 +399,7 @@ testPluginLoadFailure =
     -- executable loads a home-unit GHC plugin: the plugin package's modules
     -- compile, then the unit using the plugin fails with a location-less error.
     [ testCase "surfaces the plugin load failure as an error diagnostic" do
-        Build.Diagnostic.SError `elem` map (.severity) result.diagnostics @? "expected an error diagnostic"
+        Build.Severity.Error `elem` map (.severity) result.diagnostics @? "expected an error diagnostic"
     , testCase "carries the plugin error message in the diagnostic title" do
         "Could not load module \8216My.Plugin\8217." `elem` map (.title) result.diagnostics
             @? "expected the plugin error message in a diagnostic title"
@@ -439,7 +439,7 @@ testUnattributedFailure =
                     , "Failed, 1 module loaded."
                     ]
                 result = collectResult "/project" reloadOutput [] []
-            map (.severity) result.diagnostics @?= [SError]
+            map (.severity) result.diagnostics @?= [Build.Severity.Error]
         ]
     , testCase "does not duplicate a failure that already produced a located error" do
         let reloadOutput =
