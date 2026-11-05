@@ -25,7 +25,7 @@ import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..))
-import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
     , BuildFailure
@@ -83,7 +83,7 @@ main
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
-       , Sub CabalChangeDetected :> es
+       , Sub ProjectChangeDetected :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
        , Waiters :> es
@@ -95,7 +95,7 @@ main session =
         $ Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
             buildId <- State.state (\s -> (s, s + 1))
 
-            Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) ->
+            Conc.fork_ $ Sub.listen_ \(ProjectChangeDetected _ _) ->
                 Pub.publish RestartBuilder
 
             Conc.fork_ $ Sub.listen_ \(SourceChangeDetected path event) ->

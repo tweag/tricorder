@@ -124,7 +124,12 @@ discoverCabalPackages
     => Eff es (Either Text [Path.Absolute])
 discoverCabalPackages = do
     ProjectRoot projectRoot <- Reader.ask
-    homeCabalFiles <- one . (</> Path.relative @".cabal/config") <$> Directory.getHome
+    homeCabalFiles <-
+        Directory.getHome <&> \h ->
+            (h </>)
+                <$> [ Path.relative @".cabal/config"
+                    , Path.relative @".config/cabal/config"
+                    ]
     let projectFilePaths = projectCabalFiles projectRoot <> homeCabalFiles
     projectFiles <- filterM File.exists projectFilePaths
     if null projectFiles

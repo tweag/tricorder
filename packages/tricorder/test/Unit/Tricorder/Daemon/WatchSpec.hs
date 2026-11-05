@@ -11,7 +11,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.FileSystem.Path qualified as Path
 
-import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
@@ -34,14 +34,14 @@ testPublishChange =
     [ testGroup
         "with non-cabal file change"
         [ testCase "should publish SourceChangeDetected" do
-            (_, sourceChanges) <- runTest (Path.Relative (Path.rel @"foo"))
-            sourceChanges @?= [SourceChangeDetected (Path.Relative (Path.rel @"foo")) Modified]
+            (_, sourceChanges) <- runTest (Path.Relative $ Path.rel @"foo")
+            sourceChanges @?= [SourceChangeDetected (Path.Relative $ Path.rel @"foo") Modified]
         ]
     , testGroup
         "with cabal file change"
         [ testCase "should publish CabalChangeDetected" do
-            (cabalChanges, _) <- runTest (Path.Relative (Path.rel @"foo.cabal"))
-            cabalChanges @?= [CabalChangeDetected (Path.Relative (Path.rel @"foo.cabal")) Modified]
+            (cabalChanges, _) <- runTest $ Path.Relative $ Path.rel @"foo.cabal"
+            cabalChanges @?= [ProjectChangeDetected (Path.Relative $ Path.rel @"foo.cabal") Modified]
         ]
     ]
   where
@@ -50,7 +50,7 @@ testPublishChange =
             . runWriter
             . Pub.toWriter @SourceChangeDetected
             . execWriter
-            . Pub.toWriter @CabalChangeDetected
+            . Pub.toWriter @ProjectChangeDetected
             . Watch.publishChange
             . (`WatchedFile` Modified)
 
@@ -127,13 +127,13 @@ testSpecs =
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
             matchesAny watches (Path.absolute @"/proj/cabal.project") @?= True
-        , testCase "matches package.yaml under project root" do
+        , testCase "does not match package.yaml (its .cabal file is watched instead)" do
             let watches =
                     Watch.specs
                         (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches (Path.absolute @"/proj/package.yaml") @?= True
+            matchesAny watches (Path.absolute @"/proj/package.yaml") @?= False
         , testCase "does not match non-cabal files" do
             let watches =
                     Watch.specs
