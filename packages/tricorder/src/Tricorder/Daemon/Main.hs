@@ -28,7 +28,7 @@ import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId (..), BuildPhase)
-import Tricorder.Build.Changes (ProjectChangeDetected, SourceChangeDetected)
+import Tricorder.Build.Changes (CabalChangeDetected, SourceChangeDetected)
 import Tricorder.Config (asInput)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Session.CabalFile (inputCabalFiles)
@@ -97,7 +97,7 @@ main =
         . TestRunner.run
         . Waiters.run
         . PubSub.run @BuildPhase
-        . PubSub.run @ProjectChangeDetected
+        . PubSub.run @CabalChangeDetected
         . PubSub.run @SourceChangeDetected
         . PubSub.run @WatchedFile
         . Tricorder.Config.asInput
