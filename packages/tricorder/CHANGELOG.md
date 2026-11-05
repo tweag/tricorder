@@ -28,6 +28,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   fix the references to that data type in the importing modules, Tricorder
   would complain that they attempt to import the data type from the old module.
   This has now been fixed.
+- Fixed Haskell file hooks not triggering.
 
 ## [1.0.0.0] - 2026-10-29
 
