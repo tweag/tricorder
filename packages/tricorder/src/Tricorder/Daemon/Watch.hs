@@ -3,7 +3,7 @@ module Tricorder.Daemon.Watch
     , files
     , publishChange
     , specs
-    , isCabalFile
+    , isProjectFile
     )
 where
 
@@ -21,8 +21,8 @@ import Atelier.Effects.FileWatcher.Watch qualified as Watch
 import Atelier.Effects.PubSub.Pub qualified as Pub
 
 import Tricorder.Build.Changes
-    ( CabalChangeDetected (..)
-    , ChangeKind (..)
+    ( ChangeKind (..)
+    , ProjectChangeDetected (..)
     , SourceChangeDetected (..)
     )
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
@@ -51,26 +51,26 @@ files projectRoot session =
 
 
 publishChange
-    :: ( Pub CabalChangeDetected :> es
+    :: ( Pub ProjectChangeDetected :> es
        , Pub SourceChangeDetected :> es
        )
     => WatchedFile -> Eff es ()
 publishChange f =
     case changeKindFor f.path of
-        CabalChange -> Pub.publish (CabalChangeDetected f.path f.event)
-        SourceChange -> Pub.publish (SourceChangeDetected f.path f.event)
+        ProjectChange -> Pub.publish $ ProjectChangeDetected f.path f.event
+        SourceChange -> Pub.publish $ SourceChangeDetected f.path f.event
 
 
 changeKindFor :: FilePath -> ChangeKind
 changeKindFor path
-    | isCabalFile path = CabalChange
+    | isProjectFile path = ProjectChange
     | otherwise = SourceChange
 
 
 specs :: ProjectRoot -> WatchExclusionPatterns -> WatchDirs -> [FileWatcher.Watch]
 specs projectRoot watchExclusionPatterns watchDirs =
     sourceWatches (coerce watchExclusionPatterns) (coerce watchDirs)
-        <> cabalWatches projectRoot
+        <> projectWatches projectRoot
 
 
 sourceWatches :: [Pattern] -> [FilePath] -> [FileWatcher.Watch]
@@ -82,7 +82,8 @@ sourceWatches exclusionPatterns =
 
 
 exclusionMatches :: [Pattern] -> FilePath -> Bool
-exclusionMatches exclusionPatterns fp = any matchPattern exclusionPatterns
+exclusionMatches exclusionPatterns fp =
+    any matchPattern exclusionPatterns
   where
     matchPattern (Pattern p) =
         match
@@ -90,14 +91,20 @@ exclusionMatches exclusionPatterns fp = any matchPattern exclusionPatterns
             fp
 
 
-cabalWatches :: ProjectRoot -> [FileWatcher.Watch]
-cabalWatches (ProjectRoot projectRoot) =
-    [ Watch.dirWhere projectRoot isCabalFile
+projectWatches :: ProjectRoot -> [FileWatcher.Watch]
+projectWatches (ProjectRoot projectRoot) =
+    [ Watch.dirWhere projectRoot isProjectFile
         `Watch.excluding` Watch.containing "dist-newstyle"
     ]
 
 
-isCabalFile :: FilePath -> Bool
-isCabalFile f =
+isProjectFile :: FilePath -> Bool
+isProjectFile f =
     takeExtension f == ".cabal"
-        || takeFileName f `elem` ["cabal.project", "package.yaml"]
+        || takeFileName f
+            `elem` [ "cabal.project"
+                   , "cabal.project.local"
+                   , "cabal.project.freeze"
+                   , "package.yaml"
+                   , "stack.yaml"
+                   ]

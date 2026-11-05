@@ -5,12 +5,11 @@ module Tricorder.Session.Stage.Build.Command
 where
 
 import Atelier.Effects.FileSystem (FileSystem)
-import System.FilePath ((</>))
 
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Data.List qualified as List
 
-import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..), findFileUpwards)
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand (..))
 import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), renderText, targetsPlaceholder)
@@ -55,7 +54,7 @@ resolve projectRoot cfg repl effectiveTargets = do
 -- bearing on 'Repl', which is 'Cabal' either way.
 isCabalProject :: (FileSystem :> es) => ProjectRoot -> Eff es Bool
 isCabalProject (ProjectRoot projectRoot) = do
-    hasCabalProject <- FileSystem.doesFileExist $ projectRoot </> "cabal.project"
+    hasCabalProject <- isJust <$> findFileUpwards "cabal.project" projectRoot
     hasCabalFiles <- any (".cabal" `List.isSuffixOf`) <$> FileSystem.listDirectory projectRoot
     pure $ hasCabalProject || hasCabalFiles
 
