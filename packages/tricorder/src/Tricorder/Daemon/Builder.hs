@@ -21,12 +21,12 @@ import Effectful.Exception (trySync)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State, get, modify)
 import Effectful.TH (makeEffect)
-import System.FilePath (normalise)
 
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Pub qualified as Pub
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Effectful.State.Static.Shared qualified as State
@@ -58,7 +58,7 @@ import Tricorder.Session.Stage qualified as Stage
 
 
 data Builder :: Effect where
-    Consider :: FilePath -> FileWatcher.Event -> Builder m BuildConsideration
+    Consider :: Path.Any -> FileWatcher.Event -> Builder m BuildConsideration
     Build :: DispatchAction -> Builder m (Either BuildFailure NewLoadResult)
 
 
@@ -126,12 +126,12 @@ with buildId command watchDirs action = do
 
 considerBuild
     :: (State BuilderState :> es)
-    => FilePath
+    => Path.Any
     -> FileWatcher.Event
     -> Eff es BuildConsideration
 considerBuild fp event = do
     builderState <- get
-    let known = Map.lookup (normalise fp) builderState.loadedModules
+    let known = Map.lookup (Path.normalise fp) builderState.loadedModules
     case dispatch builderState.knownTargets known fp event of
         Nothing ->
             -- File not loaded in GHCi, so we skip building.

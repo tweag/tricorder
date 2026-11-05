@@ -5,22 +5,22 @@ module Tricorder.Daemon.Ghci.Result
     , parseProgressLine
     , parseReload
     , extractTitle
-    , toAbsolute
-    , toRelative
     )
 where
 
+import Atelier.FileSystem.Path ((</>))
 import Data.Char (isDigit, isSpace, toLower)
-import System.FilePath (isAbsolute, makeRelative, normalise, splitDirectories, (</>))
 import Text.Megaparsec
 import Prelude hiding (many)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 
 import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.LineParser (LineStream (..))
 import Tricorder.Daemon.Ghci.Load (Load)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
@@ -35,7 +35,6 @@ import Tricorder.Daemon.Ghci.LineParser qualified as LineParser
 import Tricorder.Daemon.Ghci.Load qualified as Load
 import Tricorder.Daemon.Ghci.LoadOutcome qualified as LoadOutcome
 import Tricorder.Daemon.Ghci.Loading qualified as Loading
-import Tricorder.Daemon.Ghci.Path qualified as Path
 import Tricorder.Daemon.Ghci.Severity qualified as Severity
 import Tricorder.Daemon.Ghci.TextParser qualified as TextParser
 
@@ -76,43 +75,28 @@ parseProgressLine line =
 -- Pure utilities (unchanged)
 -- ---------------------------------------------------------------------------
 
--- | Make an absolute path relative to the given base directory, prefixed with @"./"@.
--- Paths already relative, or absolute paths outside @base@, are returned unchanged.
-toRelative :: FilePath -> FilePath -> FilePath
-toRelative base path
-    | not (isAbsolute path) = path
-    | otherwise = case splitDirectories (makeRelative base path) of
-        (".." : _) -> path
-        rel -> "." </> List.foldr1 (</>) rel
-
-
--- | Make a relative path absolute by prepending the given base directory.
--- Paths already absolute are returned unchanged.
-toAbsolute :: FilePath -> FilePath -> FilePath
-toAbsolute base path
-    | isAbsolute path = path
-    | otherwise = base </> path
-
-
 -- | Assemble a 'LoadResult' from a project root, parsed reload items, the
 -- @:show modules@ output, and the @:show targets@ output.
-collectResultCustom :: FilePath -> [Load] -> [(Text, FilePath)] -> [Text] -> LoadResult
+collectResultCustom :: Path.Absolute -> [Load] -> [(Text, Path.Any)] -> [Text] -> LoadResult
 collectResultCustom projectRoot loads modules targets =
-    let rel = toRelative projectRoot
-        abs' = toAbsolute projectRoot
+    let rel (Path.Relative p) = p
+        rel (Path.Absolute p) = (Path.relative @"." </>) . Path.makeRelative projectRoot $ p
         compiledFiles = case [l.sourceFile | Load.Loading l <- loads] of
-            [] -> Set.fromList (map (rel . snd) modules)
-            fs -> Set.fromList (map rel fs)
-        mkEntry (mn, fp) =
-            ( normalise (abs' fp)
-            , LoadedModule {relPath = rel fp, moduleName = mn}
+            [] -> Set.fromList (map snd modules)
+            fs -> Set.fromList fs
+        mkEntry (mn, (fp :: Path.Any)) =
+            ( Path.normalise fp
+            , LoadedModule
+                { relPath = rel fp
+                , moduleName = mn
+                }
             )
     in  LoadResult
             { moduleCount = length modules
             , compiledFiles
             , loadedModules = Map.fromList (map mkEntry modules)
             , targetNames = targets
-            , diagnostics = toDiagnostics rel loads
+            , diagnostics = toDiagnostics loads
             }
 
 
@@ -124,7 +108,7 @@ collectResultCustom projectRoot loads modules targets =
 -- location-less failure we don't otherwise attribute to a file), a synthetic
 -- error diagnostic is appended so the build can never be reported as clean
 -- while GHCi considers it failed.
-collectResult :: FilePath -> [Text] -> [(Text, FilePath)] -> [Text] -> LoadResult
+collectResult :: Path.Absolute -> [Text] -> [(Text, Path.Any)] -> [Text] -> LoadResult
 collectResult projectRoot reloadLines modules targets =
     let loads = parseReload reloadLines
         base = collectResultCustom projectRoot loads modules targets
@@ -151,22 +135,22 @@ reloadFailed loads =
         outcomes -> List.last outcomes == LoadOutcome.LoadFailed
 
 
-toDiagnostics :: (FilePath -> FilePath) -> [Load] -> [Diagnostic]
-toDiagnostics rel loads = mapMaybe toMsg loads
+toDiagnostics :: [Load] -> [Diagnostic]
+toDiagnostics loads = mapMaybe toMsg loads
   where
     -- Location-less messages (e.g. @<no location info>@, @<interactive>@) carry
     -- no source span. We keep the *errors* — a @<no location info>@ error is a
     -- genuine load failure (e.g. a home-unit GHC plugin that can't be loaded in
     -- @--enable-multi-repl@) and must not be silently dropped — but discard
     -- location-less warnings, which are just noise without a file to attach to.
-    toMsg (Load.Message m) | Path.isLocationLess m.file, m.severity /= Severity.Error = Nothing
+    toMsg (Load.Message m) | Locationless <- m.file, m.severity /= Severity.Error = Nothing
     toMsg (Load.Message m) =
         Just
             Diagnostic
                 { severity = case m.severity of
                     Severity.Warning -> Build.Severity.Warning
                     Severity.Error -> Build.Severity.Error
-                , file = rel m.file
+                , file = m.file
                 , line = m.startPos.line
                 , col = m.startPos.col
                 , endLine = m.endPos.line

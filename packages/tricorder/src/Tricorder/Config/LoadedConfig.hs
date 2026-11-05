@@ -9,15 +9,16 @@ module Tricorder.Config.LoadedConfig
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
+import Atelier.FileSystem.Path ((</>))
 import Data.Aeson (FromJSON)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
-import System.FilePath ((</>))
 
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 import Data.List qualified as List
@@ -37,10 +38,10 @@ asInput
 asInput = Input.withEff do
     ProjectRoot projectRoot <- Reader.ask
     let configFilePath = projectRoot </> configFileName
-    exists <- FileSystem.doesFileExist configFilePath
+    exists <- File.exists configFilePath
     if exists
         then do
-            bs <- FileSystem.readFileBs configFilePath
+            bs <- File.read configFilePath
             pure $ LoadedConfig bs
         else pure $ LoadedConfig ""
 
@@ -57,8 +58,8 @@ asNestedInput = Input.withEff do
     pure $ decodeNestedValue @key loadedConfig
 
 
-configFileName :: FilePath
-configFileName = ".tricorder.yaml"
+configFileName :: Path.Relative
+configFileName = Path.relative @".tricorder.yaml"
 
 
 decodeNestedValue

@@ -2,23 +2,23 @@ module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Sub (Sub)
 import Data.Aeson (ToJSON, decode, encode)
 import Effectful.Exception (IOException, finally, trySync)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.State.Static.Shared (State)
 import System.IO (Handle)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Exit qualified as Exit
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Sub qualified as Sub
+import Atelier.FileSystem.File qualified as File
 import Data.ByteString.Lazy qualified as BSL
 import Effectful.State.Static.Shared qualified as State
 
@@ -67,7 +67,7 @@ main = State.evalState Build.Starting do
     Conc.fork_ $ Sub.listen_ @BuildPhase State.put
 
     SocketPath sockPath <- ask
-    void $ trySync $ FileSystem.removeFile sockPath
+    void $ trySync $ File.remove sockPath
     acceptTrigger
 
 

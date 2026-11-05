@@ -3,7 +3,7 @@
 {-# OPTIONS_HADDOCK not-home #-}
 
 -- |
--- Module      : Atelier.Effects.FileSystem.Path.Symbol
+-- Module      : Atelier.FileSystem.Path.Symbol
 -- Description : 'Symbol' constructors for 'Absolute' and 'Relative'.
 -- Copyright   : (c) <Tweag> 2026
 -- License     : MIT
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : POSIX
 --
--- Internal types and functions for the @Atelier.Effects.FileSystem.*@ family
+-- Internal types and functions for the @Atelier.FileSystem.*@ family
 -- of modules. The API of this module is considered unstable, and will not be
 -- reflected in the change log or the package version of this package.
 module Atelier.FileSystem.Path.Symbol

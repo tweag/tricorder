@@ -4,8 +4,8 @@ module Tricorder.Session.StackProject
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
+import Atelier.FileSystem.Path ((</>))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -18,20 +18,21 @@ import Effectful.Concurrent.STM
     , writeTVar
     )
 import Effectful.Exception (throwIO)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader, ask)
 import GHC.Generics (Generically (..))
-import System.FilePath ((</>))
 import System.IO.Error (userError)
 
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Input qualified as Input
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Yaml qualified as Yaml
 
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 
 
 newtype StackProject = StackProject
-    { packages :: [FilePath]
+    { packages :: [Path.Relative]
     }
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically StackProject
@@ -48,16 +49,16 @@ inputWithCache act = do
     lastModified :: TVar UTCTime <- newTVarIO $ posixSecondsToUTCTime 0
     flip Input.withEff act do
         ProjectRoot projectRoot <- ask
-        let stackYamlPath = projectRoot </> "stack.yaml"
-        exists <- FileSystem.doesFileExist stackYamlPath
+        let stackYamlPath = projectRoot </> Path.relative @"stack.yaml"
+        exists <- File.exists stackYamlPath
         if not exists
             then throwIO $ userError "stack.yaml does not exist"
             else do
-                newLastMod <- FileSystem.getModificationTime stackYamlPath
+                newLastMod <- File.getModificationTime stackYamlPath
                 oldLastMod <- atomically $ readTVar lastModified
                 if oldLastMod /= newLastMod
                     then do
-                        contents <- FileSystem.readFileBs stackYamlPath
+                        contents <- File.read stackYamlPath
                         let result = Yaml.decodeEither' contents
                         case result of
                             Right x -> do

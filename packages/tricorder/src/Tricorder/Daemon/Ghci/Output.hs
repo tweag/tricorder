@@ -9,6 +9,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char (char)
 import Prelude hiding (many)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.LineParser (LineParser, LineStream (..))
@@ -19,7 +20,7 @@ import Tricorder.Daemon.Ghci.TextParser qualified as TextParser
 
 
 -- | Parse the output of @:show modules@ into (module name, file path) pairs.
-parseShowModules :: [Text] -> [(Text, FilePath)]
+parseShowModules :: [Text] -> [(Text, Path.Any)]
 parseShowModules ls =
     case parse (catMaybes <$> many showModuleLine <* eof) "" (LineStream ls) of
         Right items -> items
@@ -27,20 +28,23 @@ parseShowModules ls =
 
 
 -- | Parse or skip one line of @:show modules@ output.
-showModuleLine :: LineParser (Maybe (Text, FilePath))
+showModuleLine :: LineParser (Maybe (Text, Path.Any))
 showModuleLine = do
     line <- anySingle
     pure $ TextParser.run showModuleLineP (LineParser.stripAnsi line)
 
 
-showModuleLineP :: TextParser (Text, FilePath)
+showModuleLineP :: TextParser (Text, Path.Any)
 showModuleLineP = do
     modName <- takeWhile1P Nothing (not . isSpace)
     _ <- takeWhileP Nothing (/= '(')
     _ <- char '('
     _ <- char ' '
     filePath <- takeWhile1P Nothing (\c -> c /= ',' && c /= ')')
-    pure (modName, toString (T.stripEnd filePath))
+    let cleanPath = toString (T.stripEnd filePath)
+    case Path.fromFilePath cleanPath of
+        Right path -> pure (modName, path)
+        Left _ -> fail $ "invalid file path: " <> cleanPath
 
 
 -- | Parse the output of @:show targets@.

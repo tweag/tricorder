@@ -5,12 +5,12 @@ module Tricorder.Session
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 import Text.Regex.TDFA.Pattern (showPattern)
 
@@ -96,12 +96,12 @@ load = do
         Left err -> do
             Log.err $ "Failed to parse config: " <> err
             pure $ Left $ "Failed to parse Tricorder config: " <> err
-        Right (Tricorder.Config cfgFile) -> Right <$> mkSession (fromMaybe def cfgFile)
+        Right (Tricorder.Config cfgFile) -> mkSession (fromMaybe def cfgFile)
 
 
 mkSession
     :: (FileSystem :> es, Input [CabalFile] :> es, Log :> es, Reader ProjectRoot :> es)
-    => Config -> Eff es Session
+    => Config -> Eff es (Either Text Session)
 mkSession cfgFile = do
     projectRoot <- Reader.ask @ProjectRoot
     projectFiles <- Input.input
@@ -126,38 +126,42 @@ mkSession cfgFile = do
     testSession <- Test.Session.resolve repl buildSession.targets cfgFile
     let evalSession = Eval.Session.resolve repl cfgFile
         effectiveTargets = buildSession.targets <> (getTestTarget <$> testSession.targets)
-        watchDirs = WatchDirs.resolve projectRoot projectFiles cfgFile effectiveTargets
 
-    when (not (null effectiveTargets) && all (definesCustomPrelude projectFiles) effectiveTargets)
-        $ Log.warn
-            "Every resolved target exposes a custom Prelude module. GHCi may \
-            \fail to start because the first target's Prelude will be loaded \
-            \before its package is ready. Consider adding a target that does \
-            \not define its own Prelude, or set an explicit command in your \
-            \tricorder configuration."
+    case WatchDirs.resolve projectRoot projectFiles cfgFile effectiveTargets of
+        Left err ->
+            pure $ Left $ "Failed to resolve watch dirs: " <> err
+        Right watchDirs -> do
+            when (not (null effectiveTargets) && all (definesCustomPrelude projectFiles) effectiveTargets)
+                $ Log.warn
+                    "Every resolved target exposes a custom Prelude module. GHCi may \
+                    \fail to start because the first target's Prelude will be loaded \
+                    \before its package is ready. Consider adding a target that does \
+                    \not define its own Prelude, or set an explicit command in your \
+                    \tricorder configuration."
 
-    warnMissingTargetPlaceholder "test" cfgFile.test.commandConfig.commandTemplate
-    warnMissingTargetPlaceholder "eval" cfgFile.eval.commandTemplate
+            warnMissingTargetPlaceholder "test" cfgFile.test.commandConfig.commandTemplate
+            warnMissingTargetPlaceholder "eval" cfgFile.eval.commandTemplate
 
-    warnIgnoredextraAutoArguments "build" cfgFile.build.commandTemplate cfgFile.build.extraAutoArguments
-    warnIgnoredextraAutoArguments
-        "test"
-        cfgFile.test.commandConfig.commandTemplate
-        cfgFile.test.commandConfig.extraAutoArguments
-    warnIgnoredextraAutoArguments "eval" cfgFile.eval.commandTemplate cfgFile.eval.extraAutoArguments
+            warnIgnoredextraAutoArguments "build" cfgFile.build.commandTemplate cfgFile.build.extraAutoArguments
+            warnIgnoredextraAutoArguments
+                "test"
+                cfgFile.test.commandConfig.commandTemplate
+                cfgFile.test.commandConfig.extraAutoArguments
+            warnIgnoredextraAutoArguments "eval" cfgFile.eval.commandTemplate cfgFile.eval.extraAutoArguments
 
-    pure
-        $ Session
-            { buildSession
-            , testSession
-            , evalSession
-            , watchDirs
-            , watchExclusionPatterns
-            , replBuildDir = ReplBuildDir cfgFile.replBuildDir
-            , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
-            , hooks = fromMaybe def cfgFile.hooks
-            , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
-            }
+            pure
+                $ Right
+                $ Session
+                    { buildSession
+                    , testSession
+                    , evalSession
+                    , watchDirs
+                    , watchExclusionPatterns
+                    , replBuildDir = ReplBuildDir cfgFile.replBuildDir
+                    , generateWithHpack = GenerateWithHpack cfgFile.generateWithHpack
+                    , hooks = fromMaybe def cfgFile.hooks
+                    , idleTimeout = IdleTimeout $ fromIntegral cfgFile.idleTimeoutSeconds
+                    }
 
 
 -- | Warn once per session load for each deprecated top-level config key
