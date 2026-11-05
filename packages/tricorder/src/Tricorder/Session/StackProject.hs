@@ -6,17 +6,11 @@ where
 
 import Atelier.Effects.Input (Input)
 import Atelier.FileSystem.Path ((</>))
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON (..), ToJSON, (.!=), (.:?))
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Effectful.Concurrent.MVar.Strict (Concurrent)
-import Effectful.Concurrent.STM
-    ( TVar
-    , atomically
-    , newTVarIO
-    , readTVar
-    , writeTVar
-    )
+import Effectful.Concurrent.STM (TVar, atomically, newTVarIO, readTVar, writeTVar)
 import Effectful.Exception (throwIO)
 import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader, ask)
@@ -26,6 +20,7 @@ import System.IO.Error (userError)
 import Atelier.Effects.Input qualified as Input
 import Atelier.FileSystem.File qualified as File
 import Atelier.FileSystem.Path qualified as Path
+import Data.Aeson qualified as Aeson
 import Data.Yaml qualified as Yaml
 
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
@@ -35,7 +30,13 @@ newtype StackProject = StackProject
     { packages :: [Path.Relative]
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically StackProject
+    deriving (ToJSON) via Generically StackProject
+
+
+-- | Stack defaults @packages@ to @["."]@ when the field is absent.
+instance FromJSON StackProject where
+    parseJSON = Aeson.withObject "StackProject" \o ->
+        StackProject <$> o .:? "packages" .!= [Path.rel @"."]
 
 
 inputWithCache

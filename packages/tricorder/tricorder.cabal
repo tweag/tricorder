@@ -356,6 +356,7 @@ test-suite tricorder-test
       Unit.Tricorder.Session.CommandTemplateSpec
       Unit.Tricorder.Session.Helpers
       Unit.Tricorder.Session.ReplSpec
+      Unit.Tricorder.Session.StackProjectSpec
       Unit.Tricorder.Session.Stage.Build.CommandSpec
       Unit.Tricorder.Session.Stage.Eval.CommandSpec
       Unit.Tricorder.Session.Stage.Eval.SessionSpec
@@ -426,6 +427,7 @@ test-suite tricorder-test
     , typed-process ==0.2.*
     , unagi-chan ==0.4.*
     , unix ==2.8.*
+    , yaml ==0.11.*
     , zlib ==0.7.*
   mixins:
       base hiding (Prelude)

@@ -43,6 +43,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ### Fixed
 
+- A `stack.yaml` without a `packages` key no longer fails to parse. Like Stack,
+  Tricorder now defaults `packages` to `["."]`.
 - `Shift + R` in `tricorder ui` raised an error about
   `Invalid argument 'restart'`. It used the now-removed `tricorder restart`
   command to restart the daemon, but has now been fixed.
