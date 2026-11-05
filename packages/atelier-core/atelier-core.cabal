@@ -72,6 +72,12 @@ library
       Atelier.Effects.Timeout
       Atelier.Effects.Yield
       Atelier.Exception
+      Atelier.FileSystem.Directory
+      Atelier.FileSystem.File
+      Atelier.FileSystem.Path
+      Atelier.FileSystem.Path.Internal
+      Atelier.FileSystem.Path.Symbol
+      Atelier.FileSystem.SymbolicLink
       Atelier.Signal
       Atelier.Time
       Atelier.Types.HttpApiDataReadShow
