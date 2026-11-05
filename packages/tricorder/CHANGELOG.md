@@ -16,6 +16,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   in one package of a multi-package repo), and use that as the root of the
   project. Defaults to the current working directory (the old behavior) if no
   Cabal or Stack files are found.
+- Failed hooks now output a message to the log file.
 
 ### Fixed
 
