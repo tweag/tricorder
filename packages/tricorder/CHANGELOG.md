@@ -17,6 +17,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   project. Defaults to the current working directory (the old behavior) if no
   Cabal or Stack files are found.
 - Failed hooks now output a message to the log file.
+- `tricorder daemon info` now outputs the full session instead of just the
+  build targets and watch directories.
 
 ### Fixed
 

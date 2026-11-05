@@ -8,11 +8,12 @@ module Tricorder.Session.Stage.Test.Session
 where
 
 import Atelier.Effects.Log (Log)
-import Atelier.Time (Millisecond)
+import Atelier.Time (AsRawUnit (..), Millisecond)
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
 
 import Atelier.Effects.Log qualified as Log
-import Atelier.Time qualified as Time
 import Data.Text qualified as T
 
 import Tricorder.Build.ByteSize (ByteSize)
@@ -40,7 +41,8 @@ data Session = Session
     , options :: ResolvedTestOptions
     , ghci :: Ghci.Config
     }
-    deriving stock (Eq)
+    deriving stock (Eq, Generic)
+    deriving (ToJSON) via QuietSnake Session
 
 
 instance Default Session where
@@ -55,17 +57,18 @@ instance Default Session where
 
 data ResolvedTestOptions = ResolvedTestOptions
     { outputMode :: OutputMode
-    , timeout :: Millisecond
+    , timeout :: AsRawUnit Millisecond
     , memoryLimit :: Maybe ByteSize
     }
-    deriving stock (Eq)
+    deriving stock (Eq, Generic)
+    deriving (ToJSON) via QuietSnake ResolvedTestOptions
 
 
 instance Default ResolvedTestOptions where
     def =
         ResolvedTestOptions
             { outputMode = ReplOutput
-            , timeout = 10
+            , timeout = AsRawUnit 10
             , memoryLimit = Nothing
             }
 
@@ -98,7 +101,7 @@ resolve repl buildTargets cfg = Log.withNamespace "session.test" do
             , options =
                 ResolvedTestOptions
                     { outputMode = fromMaybe detectedOutputMode cfg.test.options.outputMode
-                    , timeout = maybe 10 Time.getAsRawUnit cfg.test.options.timeoutMs
+                    , timeout = fromMaybe (AsRawUnit 10) cfg.test.options.timeoutMs
                     , memoryLimit
                     }
             , ghci = maybe def Ghci.Config.File.toConfig cfg.test.commandConfig.ghci

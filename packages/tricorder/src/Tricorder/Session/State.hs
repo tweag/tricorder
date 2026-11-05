@@ -171,4 +171,4 @@ logSession = \case
                 , indent $ indent $ Session.display invalid.fallback
                 ]
     Result.Ok session ->
-        Log.info . (<> "\n") $ Session.display session
+        Log.info . (<> "\n") $ "Session:" <> Session.display session

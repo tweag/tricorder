@@ -5,6 +5,10 @@ module Tricorder.Session.Stage.Eval.Session
     )
 where
 
+import Atelier.Types.JSON.QuietSnake
+    ( QuietSnake (..)
+    )
+import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
 
 import Data.Text qualified as T
@@ -27,7 +31,8 @@ data Session = Session
     { commandTemplate :: CommandTemplate 'Stage.Eval
     , ghci :: Ghci.Config
     }
-    deriving stock (Eq)
+    deriving stock (Eq, Generic)
+    deriving (ToJSON) via QuietSnake Session
 
 
 instance Default Session where

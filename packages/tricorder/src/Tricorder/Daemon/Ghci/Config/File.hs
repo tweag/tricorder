@@ -36,8 +36,8 @@ instance Default File where
 toConfig :: File -> Config
 toConfig file =
     Config
-        { startupTimeout = maybe cfg.startupTimeout (Time.convertUnit . getAsRawUnit) file.startupTimeoutMs
-        , shutdownTimeout = maybe cfg.shutdownTimeout (Time.convertUnit . getAsRawUnit) file.shutdownTimeoutMs
+        { startupTimeout = maybe cfg.startupTimeout (fmap Time.convertUnit) file.startupTimeoutMs
+        , shutdownTimeout = maybe cfg.shutdownTimeout (fmap Time.convertUnit) file.shutdownTimeoutMs
         , extraSetupCommands = fromMaybe cfg.extraSetupCommands file.extraSetupCommands
         }
   where

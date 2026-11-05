@@ -8,6 +8,8 @@ where
 import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
+import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
 import Effectful.Reader.Static (Reader)
 import Text.Regex.TDFA.Pattern (showPattern)
@@ -46,6 +48,7 @@ import Tricorder.Session.Stage.Eval.Session qualified as Eval.Session
 import Tricorder.Session.Stage.Test.Session qualified as Test (Session)
 import Tricorder.Session.Stage.Test.Session qualified as Test.Session
 import Tricorder.Session.WatchDirs qualified as WatchDirs
+import Tricorder.Session.WatchExclusionPatterns qualified as WatchExclusionPatterns
 
 
 data Session = Session
@@ -59,7 +62,8 @@ data Session = Session
     , hooks :: Hooks
     , idleTimeout :: IdleTimeout
     }
-    deriving stock (Eq)
+    deriving stock (Eq, Generic)
+    deriving (ToJSON) via QuietSnake Session
 
 
 instance Default Session where
@@ -209,8 +213,7 @@ display :: Session -> Text
 display session =
     T.intercalate
         "\n"
-        [ "Loaded session"
-        , "Build configuration:"
+        [ "Build configuration:"
         , indent $ Build.Session.display session.buildSession
         , "Test configuration:"
         , indent $ Test.Session.display session.testSession
@@ -221,7 +224,7 @@ display session =
         , "Watch exclusion patterns:"
         , indent
             $ displayList
-                (toText . showPattern . fst)
+                (toText . showPattern . fst . WatchExclusionPatterns.getPattern)
                 session.watchExclusionPatterns.getWatchExclusionPatterns
         , "Repl build dir: " <> toText session.replBuildDir.getReplBuildDir
         , "Generate with hpack: " <> show session.generateWithHpack.getGenerateWithHpack

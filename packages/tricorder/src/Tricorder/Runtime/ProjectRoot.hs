@@ -5,11 +5,14 @@ module Tricorder.Runtime.ProjectRoot
 where
 
 import Atelier.Effects.FileSystem (FileSystem, getCurrentDirectory, listDirectory)
+import Data.Aeson (ToJSON)
 import Effectful.Reader.Static (Reader, runReader)
 import System.FilePath (takeDirectory, takeExtension)
 
 
 newtype ProjectRoot = ProjectRoot {getProjectRoot :: FilePath}
+    deriving stock (Eq)
+    deriving (ToJSON) via FilePath
 
 
 asReader
