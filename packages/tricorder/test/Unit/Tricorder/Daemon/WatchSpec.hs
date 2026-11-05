@@ -127,13 +127,13 @@ testSpecs =
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
             matchesAny watches (Path.absolute @"/proj/cabal.project") @?= True
-        , testCase "matches package.yaml under project root" do
+        , testCase "does not match package.yaml (its .cabal file is watched instead)" do
             let watches =
                     Watch.specs
                         (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches (Path.absolute @"/proj/package.yaml") @?= True
+            matchesAny watches (Path.absolute @"/proj/package.yaml") @?= False
         , testCase "does not match non-cabal files" do
             let watches =
                     Watch.specs

@@ -17,7 +17,7 @@ import Atelier.FileSystem.Path qualified as Path
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 
-import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..), findFileUpwards)
 
 
 data Repl = StackMulti | Stack | Cabal | Unknown
@@ -30,16 +30,18 @@ data Repl = StackMulti | Stack | Cabal | Unknown
 -- automatically resolved templates and how targets are rendered for all
 -- three phases.
 resolveRepl :: (FileSystem :> es) => ProjectRoot -> Eff es Repl
-resolveRepl pr@(ProjectRoot projectRoot) = do
-    hasStack <- File.exists $ projectRoot </> Path.relative @"stack.yaml"
-    if hasStack
-        then stackReplKind pr
-        else pure Cabal
+resolveRepl (ProjectRoot projectRoot) = do
+    stackDir <- findFileUpwards stackYaml projectRoot
+    case stackDir of
+        Just dir -> stackReplKind $ dir </> stackYaml
+        Nothing -> pure Cabal
+  where
+    stackYaml = Path.rel @"stack.yaml"
 
 
-stackReplKind :: (FileSystem :> es) => ProjectRoot -> Eff es Repl
-stackReplKind (ProjectRoot projectRoot) = do
-    stackYaml <- File.read $ projectRoot </> Path.relative @"stack.yaml"
+stackReplKind :: (FileSystem :> es) => Path.Absolute -> Eff es Repl
+stackReplKind stackYamlPath = do
+    stackYaml <- File.read stackYamlPath
     case decodeEither' stackYaml of
         Left err -> throwIO $ userError $ "Could not read and decode stack.yaml: " <> show err
         Right value -> pure $ case value of

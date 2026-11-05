@@ -203,8 +203,8 @@ withProjectFiles
     -> IO a
 withProjectFiles files act =
     bracket (mkAbsolute <$> mkdtemp "/tmp/tricorder-test-") cleanup \root -> run do
-        for_ (Map.toList files) \(rel, content) -> do
-            let file = root </> rel
+        for_ (Map.toList files) \(path, content) -> do
+            let file = root </> path
             Directory.createIfMissing True (Path.takeDirectory file)
             File.write file content
         act root
