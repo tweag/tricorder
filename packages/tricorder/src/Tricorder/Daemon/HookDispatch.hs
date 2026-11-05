@@ -22,7 +22,7 @@ main :: (Process :> es, Reader ProjectRoot :> es, Sub WatchedFile :> es) => Sess
 main session =
     Sub.listen_ \case
         (WatchedFile path event)
-            | Path.takeExtension path == "hs"
+            | Path.takeExtension path == ".hs"
             , Just hooks <- session.hooks.haskell ->
                 runHsHook hooks event
             | otherwise -> pure ()
