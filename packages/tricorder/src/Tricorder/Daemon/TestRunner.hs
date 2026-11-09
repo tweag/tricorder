@@ -17,7 +17,7 @@ module Tricorder.Daemon.TestRunner
 where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process
     ( Process
@@ -47,7 +47,7 @@ import Effectful.TH (makeEffect)
 import System.Exit (ExitCode (..))
 
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.File qualified as File
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
 import Atelier.Time qualified as Time
@@ -89,7 +89,7 @@ makeEffect ''TestRunner
 run
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Process :> es
        , Reader ProjectRoot :> es
@@ -109,7 +109,7 @@ run act = do
 runTestSuiteWithStdout
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Process :> es
        , Reader ProjectRoot :> es
        , Timeout :> es
@@ -131,15 +131,15 @@ runTestSuiteWithStdout session onProgress cmd = do
                 $ toString cmd.getRenderedCommand
 
         drain h =
-            unlessM (File.hIsEOF h) do
-                line <- File.hGetLine h
+            unlessM (Handles.hIsEOF h) do
+                line <- Handles.hGetLine h
                 atomically $ modifyTVar' outputVar (|> line)
                 traverse_ onProgress (Ghci.Result.parseProgressLine line)
                 drain h
 
         runToCompletion p = do
             -- The suite gets no input; close stdin so it sees EOF if it reads.
-            File.hClose (getStdin p)
+            Handles.hClose (getStdin p)
             Conc.scoped do
                 stdoutThread <- Conc.fork $ drain (getStdout p)
                 stderrThread <- Conc.fork $ drain (getStderr p)
@@ -181,7 +181,7 @@ runTestSuiteWithStdout session onProgress cmd = do
 runTestSuiteWithGHCi
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Process :> es
        , Reader ProjectRoot :> es

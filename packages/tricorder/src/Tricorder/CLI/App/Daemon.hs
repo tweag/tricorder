@@ -2,7 +2,7 @@ module Tricorder.CLI.App.Daemon (run) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
@@ -27,7 +27,7 @@ run
     :: ( Console :> es
        , Daemons :> es
        , Delay :> es
-       , File :> es
+       , Handles :> es
        , IOE :> es
        , Input DaemonInfo :> es
        , Reader PidFile :> es

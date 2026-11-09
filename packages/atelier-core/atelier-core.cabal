@@ -47,7 +47,6 @@ library
       Atelier.Effects.Delay
       Atelier.Effects.Env
       Atelier.Effects.Exit
-      Atelier.Effects.File
       Atelier.Effects.FileSystem
       Atelier.Effects.FileSystem.Glob
       Atelier.Effects.FileWatcher
@@ -56,6 +55,7 @@ library
       Atelier.Effects.FSNotify
       Atelier.Effects.FSNotify.Devel
       Atelier.Effects.GenUUID
+      Atelier.Effects.Handles
       Atelier.Effects.Input
       Atelier.Effects.Internal.Coroutine
       Atelier.Effects.Iterator

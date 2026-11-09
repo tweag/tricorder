@@ -8,7 +8,7 @@ import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Process (Process, getExecutablePath, proc, runProcess)
 import Brick (App (..), EventM, neverShowCursor)
 import Brick.BChan (BChan, writeBChanNonBlocking)
@@ -52,7 +52,7 @@ viewUi
        , Console :> es
        , Delay :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , Process :> es
        , Reader Keys.Config :> es
        , Reader SocketPath :> es

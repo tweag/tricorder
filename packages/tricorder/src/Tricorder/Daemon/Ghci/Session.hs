@@ -10,7 +10,7 @@ module Tricorder.Daemon.Ghci.Session
 where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
@@ -101,7 +101,7 @@ runScripted results = reinterpret (evalState results) $ \env ->
 run
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Process :> es
        , Timeout :> es

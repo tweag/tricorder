@@ -35,7 +35,7 @@ import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
-import Atelier.Effects.File qualified as File
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as AProc
 import Atelier.Effects.Process qualified as Atelier.Process
@@ -81,10 +81,10 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . Log.runWriter
-                . File.run
+                . Handles.run
                 $ do
-                    for_ ["line1", "line2", finishMarker 1, "line3"] (File.hPutTextLn w)
-                    File.hClose w
+                    for_ ["line1", "line2", finishMarker 1, "line3"] (Handles.hPutTextLn w)
+                    Handles.hClose w
                     Process.drainUntil r (finishMarker 1) (\_ -> pure ())
         result @?= ["line1", "line2"]
     , testCase "streams each non-marker line to onLine, in order, before returning" do
@@ -94,10 +94,10 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . Log.runWriter
-                . File.run
+                . Handles.run
                 $ do
-                    for_ ["a", "b", "c", finishMarker 2] (File.hPutTextLn w)
-                    File.hClose w
+                    for_ ["a", "b", "c", finishMarker 2] (Handles.hPutTextLn w)
+                    Handles.hClose w
                     Process.drainUntil r (finishMarker 2) (\l -> liftIO $ modifyIORef' seenRef (l :))
         seen <- reverse <$> readIORef seenRef
         seen @?= ["a", "b", "c"]
@@ -108,13 +108,13 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . Log.runWriter
-                . File.run
+                . Handles.run
                 $ do
                     -- 'finishMarker 5' is a leftover from a prior, interrupted
                     -- command; the drain waiting for 'finishMarker 9' must
                     -- skip it rather than stopping.
-                    for_ ["before", finishMarker 5, "after", finishMarker 9] (File.hPutTextLn w)
-                    File.hClose w
+                    for_ ["before", finishMarker 5, "after", finishMarker 9] (Handles.hPutTextLn w)
+                    Handles.hClose w
                     Process.drainUntil r (finishMarker 9) (\_ -> pure ())
         result @?= ["before", "after"]
     , testCase
@@ -125,10 +125,10 @@ testDrainUntil =
                 runEff
                     . runWriter @[Message]
                     . Log.runWriter
-                    . File.run
+                    . Handles.run
                     $ do
-                        for_ ["first", "second", "third"] (File.hPutTextLn w)
-                        File.hClose w -- EOF before the marker ever arrives
+                        for_ ["first", "second", "third"] (Handles.hPutTextLn w)
+                        Handles.hClose w -- EOF before the marker ever arrives
                         trySync (Process.drainUntil r (finishMarker 1) (\_ -> pure ()))
             case outcome of
                 Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
@@ -144,9 +144,9 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . Log.runWriter
-                . File.run
+                . Handles.run
                 $ do
-                    File.hClose w
+                    Handles.hClose w
                     trySync (Process.drainUntil r (finishMarker 1) (\_ -> pure ()))
         case outcome of
             Right ls -> assertFailure ("expected UnexpectedExit, got: " <> show ls)
@@ -170,9 +170,9 @@ testDrainUntil =
                 runEff
                     . runWriter @[Message]
                     . Log.runWriter
-                    . File.run
+                    . Handles.run
                     $ do
-                        File.hClose w
+                        Handles.hClose w
                         trySync (Process.drainUntil r (finishMarker 3) (\_ -> pure ()))
             case filter (\m -> m.severity == ERROR) msgs of
                 [] -> assertFailure "expected an ERROR log message"
@@ -185,10 +185,10 @@ testDrainUntil =
             runEff
                 . runWriter @[Message]
                 . Log.runWriter
-                . File.run
+                . Handles.run
                 $ do
-                    for_ ["oops-line-1", "oops-line-2"] (File.hPutTextLn w)
-                    File.hClose w
+                    for_ ["oops-line-1", "oops-line-2"] (Handles.hPutTextLn w)
+                    Handles.hClose w
                     trySync (Process.drainUntil r (finishMarker 4) (\_ -> pure ()))
         case filter (\m -> m.severity == ERROR) msgs of
             [] -> assertFailure "expected an ERROR log message"
@@ -236,21 +236,21 @@ testExecGhciStaleMarker =
                 . runConcurrent
                 . Timeout.run
                 . Delay.runIO
-                . File.run
+                . Handles.run
                 . Log.runNoOp
                 . Conc.runIO
                 $ do
                     -- A stale 'marker 5' (left by a prior interrupted reload)
                     -- precedes the fresh command's real output + its 'marker 9'
                     -- (state is 'Idle 9', so 'execGhci' waits for marker 9).
-                    for_ [marker 5, "out-line", marker 9] (File.hPutTextLn stdoutW)
-                    for_ [marker 5, "err-line", marker 9] (File.hPutTextLn stderrW)
-                    File.hClose stdoutW
-                    File.hClose stderrW
+                    for_ [marker 5, "out-line", marker 9] (Handles.hPutTextLn stdoutW)
+                    for_ [marker 5, "err-line", marker 9] (Handles.hPutTextLn stderrW)
+                    Handles.hClose stdoutW
+                    Handles.hClose stderrW
                     -- Keep the stdin read-end alive across the write inside
                     -- 'execGhci' (otherwise it is GC-finalised → broken pipe).
                     r <- Process.exec gp "reload" (\_ -> pure ())
-                    File.hClose stdinR
+                    Handles.hClose stdinR
                     pure r
         _ <- (Right <$> stopProcess p) `catch` \(_ :: SomeException) -> pure (Left ())
         result @?= ["out-line", "err-line"]
@@ -295,20 +295,20 @@ testSyncMarkerScopeIndependent =
                 . runConcurrent
                 . Timeout.run
                 . Delay.runIO
-                . File.run
+                . Handles.run
                 . Log.runNoOp
                 . Conc.runIO
                 $ do
                     -- Pre-seed the marker on both streams so the drain returns
                     -- immediately; we only care about what was written to stdin.
-                    File.hPutTextLn stdoutW marker
-                    File.hPutTextLn stderrW marker
-                    File.hClose stdoutW
-                    File.hClose stderrW
+                    Handles.hPutTextLn stdoutW marker
+                    Handles.hPutTextLn stderrW marker
+                    Handles.hClose stdoutW
+                    Handles.hClose stderrW
                     _ <- Process.exec gp ":reload" (\_ -> pure ())
-                    File.hClose stdinW
+                    Handles.hClose stdinW
                     let readAll acc =
-                            trySync (File.hGetLine stdinR) >>= \case
+                            trySync (Handles.hGetLine stdinR) >>= \case
                                 Left (_ :: SomeException) -> pure (reverse acc)
                                 Right l -> readAll (l : acc)
                     readAll []
@@ -340,13 +340,13 @@ testWaitForBannerOrFail =
                 . runConcurrent
                 . Timeout.run
                 . Delay.runIO
-                . File.run
+                . Handles.run
                 . Conc.runIO
                 $ do
                     -- No banner will ever arrive: close the write end so the
                     -- wait sees EOF at once and takes the "command exited"
                     -- failure branch.
-                    File.hClose bannerOutW
+                    Handles.hClose bannerOutW
                     -- Producer: pause long enough that a snapshot-at-exit reads
                     -- an empty buffer, THEN stream the whole error log and
                     -- close so the drain sees EOF. A correct implementation
@@ -354,8 +354,8 @@ testWaitForBannerOrFail =
                     _ <- Conc.fork do
                         Delay.wait (30 :: Millisecond)
                         for_ [1 .. lineCount] \i ->
-                            File.hPutTextLn errW ("err line " <> show i :: Text)
-                        File.hClose errW
+                            Handles.hPutTextLn errW ("err line " <> show i :: Text)
+                        Handles.hClose errW
                     trySync (Process.waitForBannerOrFail (5 :: Second) bannerOut errR)
         case result of
             Right () -> assertFailure "expected waitForBannerOrFail to throw a startup error"
@@ -384,17 +384,17 @@ testWithProcessGroupCleanup =
                     . runConcurrent
                     . Timeout.run
                     . Delay.runIO
-                    . File.run
+                    . Handles.run
                     . Conc.runIO
                     . Atelier.Process.run
                     $ withProcessGroup procConfig \p -> do
                         -- First stdout line is the long-lived child's pid.
-                        line <- File.hGetLine (AProc.getStdout p)
+                        line <- Handles.hGetLine (AProc.getStdout p)
                         liftIO $ writeIORef childPidRef (parsePid (T.unpack line))
                         -- Let the leader exit and reap it, so the cleanup runs
                         -- with the leader already gone — the path the bug needed.
-                        File.hPutTextLn (AProc.getStdin p) ""
-                        File.hFlush (AProc.getStdin p)
+                        Handles.hPutTextLn (AProc.getStdin p) ""
+                        Handles.hFlush (AProc.getStdin p)
                         void $ AProc.waitExitCode p
         -- Hard wall-clock bound: a regression must surface as a failed
         -- assertion, never as a hang that stalls the whole suite.
@@ -533,7 +533,7 @@ testExecGhciScope =
                 . runConcurrent
                 . Timeout.run
                 . Delay.runIO
-                . File.run
+                . Handles.run
                 . Log.runNoOp
                 . Conc.runIO
                 $ Conc.scoped do

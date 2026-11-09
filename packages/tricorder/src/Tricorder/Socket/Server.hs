@@ -2,8 +2,8 @@ module Tricorder.Socket.Server (main, SocketRemoved (..)) where
 
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Sub (Sub)
@@ -15,8 +15,8 @@ import System.IO (Handle)
 
 import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Exit qualified as Exit
-import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Data.ByteString.Lazy qualified as BSL
@@ -52,8 +52,8 @@ data SocketRemoved = SocketRemoved
 main
     :: ( Conc :> es
        , Exit :> es
-       , File :> es
        , FileSystem :> es
+       , Handles :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
@@ -74,7 +74,7 @@ main = State.evalState Build.Starting do
 acceptTrigger
     :: ( Conc :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
@@ -91,13 +91,13 @@ acceptTrigger = do
     forever do
         h <- UnixSocket.accept sock
         void $ Conc.forkTry @IOException do
-            handleConnection h `finally` File.hClose h
+            handleConnection h `finally` Handles.hClose h
 
 
 handleConnection
     :: ( Conc :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , IdleTimer :> es
        , Input BuildId :> es
        , Log :> es
@@ -108,7 +108,7 @@ handleConnection
     => Handle
     -> Eff es ()
 handleConnection h = IdleTimer.withActivity do
-    line <- File.hGetLine h
+    line <- Handles.hGetLine h
     case decode (BSL.fromStrict (encodeUtf8 line)) of
         Nothing -> sendJson h (ErrorResponse "invalid request")
         Just ClientMessage {clientVersion, payload} -> do
@@ -123,7 +123,7 @@ handleConnection h = IdleTimer.withActivity do
 dispatch
     :: ( Conc :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , Input BuildId :> es
        , Log :> es
        , State BuildPhase :> es
@@ -143,7 +143,7 @@ dispatch query h = case query of
 
 quit
     :: ( Exit :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Waiters :> es
        )
@@ -159,7 +159,7 @@ quit h = \case
 
 
 respondOnce
-    :: ( File :> es
+    :: ( Handles :> es
        , Input BuildId :> es
        , State BuildPhase :> es
        )
@@ -171,7 +171,7 @@ respondOnce h = do
 
 respondWhenDone
     :: ( Conc :> es
-       , File :> es
+       , Handles :> es
        , Input BuildId :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -195,7 +195,7 @@ respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
 
 -- | Stream a JSON object after each state change event.
 watchStream
-    :: ( File :> es
+    :: ( Handles :> es
        , Input BuildId :> es
        , State BuildPhase :> es
        , Sub BuildPhase :> es
@@ -208,7 +208,7 @@ watchStream h = do
         mkBuildState progress >>= sendJson h
 
 
-respondDiagnostic :: (File :> es, State BuildPhase :> es) => Int -> Handle -> Eff es ()
+respondDiagnostic :: (Handles :> es, State BuildPhase :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
     progress <- State.get
     case progress of
@@ -229,8 +229,8 @@ respondDiagnostic idx h = do
         _ -> sendJson h $ ErrorResponse "Build in progress"
 
 
-sendJson :: (File :> es, ToJSON a) => Handle -> a -> Eff es ()
-sendJson h val = File.hPutTextLn h (decodeUtf8 (BSL.toStrict (encode val))) >> File.hFlush h
+sendJson :: (Handles :> es, ToJSON a) => Handle -> a -> Eff es ()
+sendJson h val = Handles.hPutTextLn h (decodeUtf8 (BSL.toStrict (encode val))) >> Handles.hFlush h
 
 
 mkBuildState :: (Input BuildId :> es) => BuildPhase -> Eff es BuildState

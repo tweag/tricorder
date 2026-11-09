@@ -5,8 +5,8 @@ import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Posix.Daemons (Daemons)
@@ -60,10 +60,10 @@ run
        , Daemons :> es
        , Delay :> es
        , Exit :> es
-       , File :> es
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , Handles :> es
        , IOE :> es
        , Input Build.Session :> es
        , Input DaemonInfo :> es

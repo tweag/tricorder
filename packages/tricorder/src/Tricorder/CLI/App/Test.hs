@@ -3,7 +3,7 @@ module Tricorder.CLI.App.Test (run) where
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
 import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
@@ -37,7 +37,7 @@ run
        , Daemons :> es
        , Delay :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
@@ -61,7 +61,7 @@ printResult = \case
 showSuites
     :: ( Daemons :> es
        , Delay :> es
-       , File :> es
+       , Handles :> es
        , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
@@ -104,7 +104,7 @@ showSuites opts =
 
 
 awaitBuildStatus
-    :: ( File :> es
+    :: ( Handles :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
        )

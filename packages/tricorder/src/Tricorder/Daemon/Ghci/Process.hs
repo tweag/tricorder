@@ -16,7 +16,7 @@ module Tricorder.Daemon.Ghci.Process
 where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.File (BufferMode (..), File, Handle)
+import Atelier.Effects.Handles (BufferMode (..), Handle, Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process
     ( RunningProcess
@@ -40,7 +40,7 @@ import Effectful.Concurrent.STM (atomically, newTVarIO)
 import Effectful.Exception (finally, throwIO, trySync)
 
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.File qualified as File
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Atelier
 import Atelier.Effects.Process qualified as Process
@@ -106,7 +106,7 @@ data UnexpectedExit = MkUnexpectedExit
 setupProcess
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Timeout :> es
        )
@@ -126,9 +126,9 @@ setupProcess config p onProgress onReady = do
     let inp = getStdin p
         out = getStdout p
         err = getStderr p
-    File.hSetBuffering inp LineBuffering
-    File.hSetBuffering out LineBuffering
-    File.hSetBuffering err LineBuffering
+    Handles.hSetBuffering inp LineBuffering
+    Handles.hSetBuffering out LineBuffering
+    Handles.hSetBuffering err LineBuffering
 
     -- Register the process for interruption before the (possibly slow) banner
     -- wait, so an interrupt during @cabal repl@ startup can terminate it.
@@ -144,8 +144,8 @@ setupProcess config p onProgress onReady = do
     onReady ghciProcess
 
     -- Send a blank line to kick GHCi into producing output
-    File.hPutTextLn inp ""
-    File.hFlush inp
+    Handles.hPutTextLn inp ""
+    Handles.hFlush inp
 
     -- Wait for the version banner. We concurrently capture stderr so that if
     -- the build command exits before printing a banner (e.g. cabal's
@@ -153,12 +153,12 @@ setupProcess config p onProgress onReady = do
     waitForBannerOrFail config.startupTimeout.getAsRawUnit out err
 
     -- Send fixed setup commands (protocol requirements)
-    File.hPutTextLn inp ":set prompt \"\""
-    File.hPutTextLn inp ":set prompt-cont \"\""
+    Handles.hPutTextLn inp ":set prompt \"\""
+    Handles.hPutTextLn inp ":set prompt-cont \"\""
     -- Send any caller-supplied extra setup commands
     for_ config.extraSetupCommands \c ->
-        File.hPutTextLn inp c
-    File.hFlush inp
+        Handles.hPutTextLn inp c
+    Handles.hFlush inp
 
     -- Sync: drain until marker 1 seen, then set counter to 2.
     -- Capture lines from both streams — the stderr output contains the initial
@@ -186,7 +186,7 @@ setupProcess config p onProgress onReady = do
 -- action receives the process handle and the output captured during startup.
 -- See 'setupProcess' for the @onProgress@ and @onReady@ callbacks.
 with
-    :: (Atelier.Process :> es, Conc :> es, Concurrent :> es, File :> es, Log :> es, Timeout :> es)
+    :: (Atelier.Process :> es, Conc :> es, Concurrent :> es, Handles :> es, Log :> es, Timeout :> es)
     => Config
     -> RenderedCommand stage
     -> FilePath
@@ -215,7 +215,7 @@ with config cmd dir onProgress onReady action =
 exec
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        )
     => Process -> Text -> (Loading -> Eff es ()) -> Eff es [Text]
@@ -229,8 +229,8 @@ exec ghciProcess command onProgress = do
     doExec n = do
         let marker = markerFor n
             hook = progressLineHook onProgress
-        File.hPutTextLn ghciProcess.stdin command
-        File.hFlush ghciProcess.stdin
+        Handles.hPutTextLn ghciProcess.stdin command
+        Handles.hFlush ghciProcess.stdin
         sendSyncCommand ghciProcess.stdin marker
         -- Scoped so that an exception from one drain (e.g. 'UnexpectedExit'
         -- when the underlying process is terminated mid-command) is
@@ -257,7 +257,7 @@ exec ghciProcess command onProgress = do
 --
 -- When GHCi is 'Idle' this is a true no-op: sending SIGINT and a sync marker to
 -- an idle GHCi leaves leftover marker output in the buffers.
-interruptGhci :: (Atelier.Process :> es, Concurrent :> es, File :> es) => Process -> Eff es ()
+interruptGhci :: (Atelier.Process :> es, Concurrent :> es, Handles :> es) => Process -> Eff es ()
 interruptGhci ghciProcess = do
     decision <- atomically do
         s <- readTVar ghciProcess.stateVar
@@ -286,11 +286,11 @@ terminateProcess ghciProcess =
 -- | Ask GHCi to @:quit@ and wait briefly for it to exit cleanly, letting it
 -- shut down gracefully before the enclosing 'withProcess' tears down the
 -- group. Never throws.
-quitGhci :: (Atelier.Process :> es, File :> es, Timeout :> es) => Config -> Process -> Eff es ()
+quitGhci :: (Atelier.Process :> es, Handles :> es, Timeout :> es) => Config -> Process -> Eff es ()
 quitGhci config ghciProcess = do
     void $ trySync $ do
-        File.hPutTextLn ghciProcess.stdin ":quit"
-        File.hFlush ghciProcess.stdin
+        Handles.hPutTextLn ghciProcess.stdin ":quit"
+        Handles.hFlush ghciProcess.stdin
     void $ Timeout.with config.shutdownTimeout.getAsRawUnit (Process.waitExitCode ghciProcess.handle)
 
 
@@ -321,13 +321,13 @@ markerPrefix = "#~TRI-FINISH-"
 -- forever waiting for it (the "stuck Building…" stall). Fully-qualified
 -- 'System.IO.hPutStrLn' resolves via GHCi's implicit qualified imports even
 -- with an emptied scope, so the marker survives an interrupt.
-sendSyncCommand :: (File :> es) => Handle -> Text -> Eff es ()
+sendSyncCommand :: (Handles :> es) => Handle -> Text -> Eff es ()
 sendSyncCommand h marker = do
     -- Use show to produce a valid Haskell string literal for the marker text.
     let markerLit = toText (show @String (toString marker)) -- e.g. "\"#~TRI-FINISH-3~#\""
-    File.hPutTextLn h ("System.IO.hPutStrLn System.IO.stdout " <> markerLit)
-    File.hPutTextLn h ("System.IO.hPutStrLn System.IO.stderr " <> markerLit)
-    File.hFlush h
+    Handles.hPutTextLn h ("System.IO.hPutStrLn System.IO.stdout " <> markerLit)
+    Handles.hPutTextLn h ("System.IO.hPutStrLn System.IO.stderr " <> markerLit)
+    Handles.hFlush h
 
 
 -- | Read lines from a handle until /this command's/ finish marker is seen (or
@@ -340,11 +340,11 @@ sendSyncCommand h marker = do
 -- Each ordinary line is passed to @onLine@ as it arrives, so callers can stream
 -- progress without waiting for the full drain to complete. Returns accumulated
 -- non-marker lines in order. Throws 'UnexpectedExit' on EOF before the marker.
-drainUntil :: (File :> es, Log :> es) => Handle -> Text -> (Text -> Eff es ()) -> Eff es [Text]
+drainUntil :: (Handles :> es, Log :> es) => Handle -> Text -> (Text -> Eff es ()) -> Eff es [Text]
 drainUntil h marker onLine = go mempty
   where
     go acc = do
-        result <- trySync $ File.hGetLine h
+        result <- trySync $ Handles.hGetLine h
         case result of
             Left ex -> do
                 let accumulatedLines = T.intercalate "\n" $ toList acc
@@ -397,7 +397,7 @@ progressLineHook onProgress line = traverse_ onProgress (parseProgressLine line)
 waitForBannerOrFail
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Timeout :> es
        )
     => Second -> Handle -> Handle -> Eff es ()
@@ -426,7 +426,7 @@ waitForBannerOrFail delay out err = do
                 throwIO $ maybe StartupTimeout StartupFailed (renderCapturedLines captured)
 
 
-waitForBannerStdout :: (File :> es) => Handle -> (Text -> Eff es ()) -> Eff es ()
+waitForBannerStdout :: (Handles :> es) => Handle -> (Text -> Eff es ()) -> Eff es ()
 waitForBannerStdout h captureLine = go
   where
     isVersionLine :: Text -> Bool
@@ -437,7 +437,7 @@ waitForBannerStdout h captureLine = go
                 || "Clashi, version " `T.isInfixOf` stripped
 
     go = do
-        result <- trySync $ File.hGetLine h
+        result <- trySync $ Handles.hGetLine h
         case result of
             Left ex -> throwIO ex
             Right line ->
@@ -449,11 +449,11 @@ waitForBannerStdout h captureLine = go
                         go
 
 
-drainUntilEof :: (File :> es) => Handle -> (Text -> Eff es ()) -> Eff es ()
+drainUntilEof :: (Handles :> es) => Handle -> (Text -> Eff es ()) -> Eff es ()
 drainUntilEof h onLine = go
   where
     go = do
-        result <- trySync $ File.hGetLine h
+        result <- trySync $ Handles.hGetLine h
         case result of
             Left _ -> pure ()
             Right line -> onLine line >> go
@@ -481,7 +481,7 @@ startupExitedMessage ex =
 -- Progress is emitted live by 'drainUntil' as lines arrive, so no replay
 -- callback is needed here — this function only assembles the final result.
 collectResult
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
+    :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> [Text]
     -> FilePath
@@ -510,7 +510,7 @@ collectResult process lines' projectRoot = do
 -- | Execute @:reload@ and return the assembled 'LoadResult'. Progress events
 -- fire live via @onProgress@ as each @[N of M] Compiling …@ line is read.
 reload
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
+    :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> FilePath
     -> (Loading -> Eff es ())
@@ -523,7 +523,7 @@ reload process projectRoot onProgress = do
 -- | Execute @:add@ for the given file and return the assembled 'LoadResult'.
 -- Progress events fire live via @onProgress@ as compilation proceeds.
 add
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
+    :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> FilePath -- the file to :add
     -> FilePath -- projectRoot
@@ -538,7 +538,7 @@ add process filePath projectRoot onProgress = do
 -- 'LoadResult'. Progress events fire live via @onProgress@ as compilation
 -- proceeds.
 unadd
-    :: (Conc :> es, Concurrent :> es, File :> es, Log :> es)
+    :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> Text -- the module name to :unadd
     -> FilePath -- projectRoot

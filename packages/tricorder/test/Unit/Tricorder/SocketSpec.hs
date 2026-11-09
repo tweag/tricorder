@@ -1,15 +1,15 @@
 module Unit.Tricorder.SocketSpec (test_Socket) where
 
-import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.Effects.Handles (Handles)
 import Effectful (IOE, runEff)
 import Effectful.Exception (trySync)
 import System.IO (hClose, hGetLine, openFile, writeFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.Effects.Handles qualified as Handles
 
 import Tricorder.Socket.Client (isDaemonReady)
 import Tricorder.Socket.UnixSocket (SocketScript (..), UnixSocket)
@@ -75,10 +75,10 @@ testReady =
 --------------------------------------------------------------------------------
 
 -- | Run scripted socket operations (no Delay needed).
-runScripted :: [SocketScript] -> Eff '[UnixSocket, File, IOE] a -> IO a
-runScripted script = runEff . File.run . UnixSocket.runScripted script
+runScripted :: [SocketScript] -> Eff '[UnixSocket, Handles, IOE] a -> IO a
+runScripted script = runEff . Handles.run . UnixSocket.runScripted script
 
 
 -- | Run socket operations against the real IO interpreter.
-runIO' :: Eff '[UnixSocket, File, FileSystem, IOE] a -> IO a
-runIO' = runEff . FileSystem.runIO . File.run . UnixSocket.runIO
+runIO' :: Eff '[UnixSocket, Handles, FileSystem, IOE] a -> IO a
+runIO' = runEff . FileSystem.runIO . Handles.run . UnixSocket.runIO
