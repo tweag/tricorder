@@ -58,11 +58,11 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-14
+          - macos-latest
           - ubuntu-latest
         ghc-version: ${{ fromJson(needs.ghc-versions.outputs.versions) }}
         include:
-          - os: macos-14
+          - os: macos-latest
             system: aarch64-darwin
           - os: ubuntu-latest
             system: x86_64-linux
@@ -88,7 +88,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14
+          - os: macos-latest
             system: aarch64-darwin
           - os: ubuntu-latest
             system: x86_64-linux
@@ -115,10 +115,10 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-14
+          - macos-latest
           - ubuntu-latest
         include:
-          - os: macos-14
+          - os: macos-latest
             system: aarch64-darwin
           - os: ubuntu-latest
             system: x86_64-linux
