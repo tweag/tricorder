@@ -7,7 +7,7 @@ module Tricorder.CLI.Daemon
 where
 
 import Atelier.Effects.Delay (Delay)
-import Atelier.Effects.File (File)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
 import Atelier.Time (Millisecond, Second)
@@ -48,7 +48,7 @@ startDaemon = do
 stopDaemon
     :: ( Daemons :> es
        , Delay :> es
-       , File :> es
+       , Handles :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , Timeout :> es
@@ -108,7 +108,7 @@ stopDaemon force = do
 restartDaemon
     :: ( Daemons :> es
        , Delay :> es
-       , File :> es
+       , Handles :> es
        , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es

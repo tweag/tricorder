@@ -14,9 +14,9 @@ import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
-import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Posix.Daemons qualified as Daemons
@@ -59,7 +59,7 @@ main =
         . Exit.runIO
         . Clock.runIO
         . Delay.runIO
-        . File.run
+        . Handles.run
         . FileSystem.runIO
         . Glob.runIO
         . Env.runIO

@@ -10,8 +10,8 @@ module Tricorder.Daemon.EvalCommentRunner
 where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, readFileBs)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
@@ -62,8 +62,8 @@ makeEffect ''EvalCommentRunner
 run
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
        , FileSystem :> es
+       , Handles :> es
        , Log :> es
        , Process :> es
        , Reader ProjectRoot :> es
@@ -99,7 +99,7 @@ run act = do
 runFileEvals
     :: ( Conc :> es
        , Concurrent :> es
-       , File :> es
+       , Handles :> es
        , Log :> es
        , Process :> es
        , Reader ProjectRoot :> es

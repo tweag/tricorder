@@ -13,10 +13,10 @@ import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.FSNotify qualified as FSNotify
-import Atelier.Effects.File qualified as File
 import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.FileWatcher qualified as FileWatcher
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Process
@@ -80,7 +80,7 @@ main =
         . Runtime.SocketPath.asReader
         . Runtime.LogPath.asReader
         . Exit.runIO
-        . File.run
+        . Handles.run
         . LoadedConfig.asInput
         . Logging.run
         . Chan.run

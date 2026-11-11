@@ -11,7 +11,7 @@ module Tricorder.Socket.Client
 where
 
 import Atelier.Effects.Delay (Delay)
-import Atelier.Effects.File (File, Handle)
+import Atelier.Effects.Handles (Handle, Handles)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Time (Millisecond)
 import Data.Aeson (decode, eitherDecode, encode)
@@ -24,7 +24,7 @@ import Tricorder.API.IfThereArePendingQueries (IfThereArePendingQueries)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
-import Atelier.Effects.File qualified as File
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
 import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
@@ -45,7 +45,7 @@ import Tricorder.Version qualified as Version
 
 -- | Query the current build status (non-blocking).
 queryStatus
-    :: (File :> es, UnixSocket :> es)
+    :: (Handles :> es, UnixSocket :> es)
     => FilePath
     -> Eff es (Either Text BuildState)
 queryStatus sockPath = withConnection sockPath \h -> do
@@ -55,7 +55,7 @@ queryStatus sockPath = withConnection sockPath \h -> do
 
 -- | Query the build status, blocking until the current build cycle completes.
 queryStatusWait
-    :: (File :> es, UnixSocket :> es)
+    :: (Handles :> es, UnixSocket :> es)
     => FilePath
     -> Eff es (Either Text BuildState)
 queryStatusWait sockPath = withConnection sockPath \h -> do
@@ -76,7 +76,7 @@ data Restarting = Restarting
 -- socket.
 queryWatch
     :: forall es
-     . (Delay :> es, File :> es, UnixSocket :> es)
+     . (Delay :> es, Handles :> es, UnixSocket :> es)
     => FilePath
     -> Eff es Bool
     -- ^ Whether a restart is currently in progress.
@@ -98,7 +98,7 @@ queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
         mLine <-
             catchJust
                 (\e -> if isEOFError e then Just e else Nothing)
-                (Just <$> File.hGetLine h)
+                (Just <$> Handles.hGetLine h)
                 (\_ -> pure Nothing)
         case mLine of
             Nothing -> inject $ handler (Left Restarting)
@@ -112,24 +112,24 @@ queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
 
 -- | Fetch the full body of a single diagnostic by 1-based index.
 queryDiagnostic
-    :: (File :> es, UnixSocket :> es)
+    :: (Handles :> es, UnixSocket :> es)
     => FilePath
     -> Int
     -> Eff es (Either Text Diagnostic)
 queryDiagnostic sockPath idx = withConnection sockPath \h -> do
     sendQuery h (DiagnosticAt (DiagnosticQuery {index = idx}))
-    line <- File.hGetLine h
+    line <- Handles.hGetLine h
     case eitherDecode (BSL.fromStrict (encodeUtf8 (toText line))) of
         Left err -> pure $ Left (toText err)
         Right d -> pure $ Right d
 
 
 requestShutdown
-    :: (File :> es, UnixSocket :> es)
+    :: (Handles :> es, UnixSocket :> es)
     => IfThereArePendingQueries -> FilePath -> Eff es (Either Text ())
 requestShutdown force sockPath = withConnection sockPath \h -> do
     sendQuery h $ Quit waiters
-    line <- File.hGetLine h
+    line <- Handles.hGetLine h
     if eitherDecode (BSL.fromStrict (encodeUtf8 line)) == Right True
         then
             pure $ Right ()
@@ -161,13 +161,13 @@ isDaemonReady sockPath =
 
 -- internals
 
-sendQuery :: (File :> es) => Handle -> Query -> Eff es ()
-sendQuery h q = File.hPutLBsLn h $ encode ClientMessage {clientVersion = Version.gitHash, payload = q}
+sendQuery :: (Handles :> es) => Handle -> Query -> Eff es ()
+sendQuery h q = Handles.hPutLBsLn h $ encode ClientMessage {clientVersion = Version.gitHash, payload = q}
 
 
-receiveState :: (File :> es) => Handle -> Eff es (Either Text BuildState)
+receiveState :: (Handles :> es) => Handle -> Eff es (Either Text BuildState)
 receiveState h = do
-    line <- File.hGetLine h
+    line <- Handles.hGetLine h
     case eitherDecode (BSL.fromStrict (encodeUtf8 (toText line))) of
         Left err -> pure $ Left (toText err)
         Right state -> pure $ Right state

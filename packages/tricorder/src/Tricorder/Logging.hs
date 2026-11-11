@@ -1,13 +1,13 @@
 module Tricorder.Logging (run) where
 
 import Atelier.Effects.Env (Env)
-import Atelier.Effects.File (BufferMode (..), File)
+import Atelier.Effects.Handles (BufferMode (..), Handles)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log, Severity (..))
 import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
 
-import Atelier.Effects.File qualified as File
+import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Effectful.Reader.Static qualified as Reader
@@ -20,7 +20,7 @@ import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 
 run
     :: ( Env :> es
-       , File :> es
+       , Handles :> es
        , IOE :> es
        , Input LoadedConfig :> es
        , Reader LogPath :> es
@@ -28,8 +28,8 @@ run
     => Eff (Log : es) a -> Eff es a
 run act = do
     LogPath path <- Reader.ask
-    File.with path AppendMode \h -> do
-        File.hSetBuffering h LineBuffering
+    Handles.with path AppendMode \h -> do
+        Handles.hSetBuffering h LineBuffering
         (maybeErr, sev) <- getMinimumSeverity
         Log.runToHandle h sev do
             whenJust maybeErr \err -> Log.err err

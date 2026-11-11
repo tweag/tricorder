@@ -10,8 +10,8 @@ where
 import Atelier.Effects.Clock (Clock, currentTimeZone)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Exit (Exit)
-import Atelier.Effects.File (File)
 import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
+import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Log (Log)
 import Data.Aeson (ToJSON, encode)
@@ -75,7 +75,7 @@ showStatus
     :: ( Clock :> es
        , Console :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , Provider_ Console Console.Output :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -226,7 +226,7 @@ showSource opts = do
 showEvalComments
     :: ( Console :> es
        , Exit :> es
-       , File :> es
+       , Handles :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
@@ -344,7 +344,7 @@ putJson = Console.putStrLn . toStrict . encode
 
 displayPendingBuildStatus
     :: ( Console :> es
-       , File :> es
+       , Handles :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
@@ -373,7 +373,7 @@ displayPendingBuildStatus = do
 
 
 awaitBuildStatus
-    :: ( File :> es
+    :: ( Handles :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
