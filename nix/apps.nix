@@ -77,6 +77,19 @@
             }
           );
         };
+
+        update-skill-docs = {
+          type = "app";
+          program = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "update-skill-docs";
+              text = ''
+                root="$(${lib.getExe config.flake-root.package})"
+                cp '${self'.packages.skill-docs}' "$root/agent-plugins/tricorder/skills/tricorder-cli/CLI.md"
+              '';
+            }
+          );
+        };
       };
     };
 }

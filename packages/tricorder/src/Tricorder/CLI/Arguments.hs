@@ -1,4 +1,4 @@
-module Tricorder.CLI.Arguments (reader) where
+module Tricorder.CLI.Arguments (reader, opts) where
 
 import Atelier.Effects.Arguments (Arguments)
 import Effectful.Reader.Static (Reader)
