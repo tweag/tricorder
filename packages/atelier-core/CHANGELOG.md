@@ -10,6 +10,15 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Added
 
 - `Atelier.Time`: Added `Functor` instances for `AsRawUnit` and `AsJsonMicrosecond`.
+- `Atelier.FileSystem.Path`: paths that are distinguished at the type level on
+  whether they are absolute or relative, as well as operations around these
+  paths lifted from `System.FilePath` and `System.Directory`.
+- `Atelier.FileSystem.File`: file operations on `Atelier.FileSystem.Path`
+  paths.
+- `Atelier.FileSystem.Directory`: directory operations on
+  `Atelier.FileSystem.Path` paths.
+- `Atelier.FileSystem.SymbolicLink`: symbolic link operations on
+  `Atelier.FileSystem.Path` paths.
 
 ### Changed
 
