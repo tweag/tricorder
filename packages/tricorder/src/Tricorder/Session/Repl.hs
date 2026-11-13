@@ -4,15 +4,16 @@ module Tricorder.Session.Repl
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem)
+import Atelier.FileSystem.Path ((</>))
 import Data.Aeson (ToJSON)
 import Data.Yaml (decodeEither')
 import Effectful.Exception (throwIO)
+import Effectful.FileSystem (FileSystem)
 import GHC.Generics (Generically (..))
-import System.FilePath ((</>))
 import System.IO.Error (userError)
 
-import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KM
 
@@ -30,7 +31,7 @@ data Repl = StackMulti | Stack | Cabal | Unknown
 -- three phases.
 resolveRepl :: (FileSystem :> es) => ProjectRoot -> Eff es Repl
 resolveRepl pr@(ProjectRoot projectRoot) = do
-    hasStack <- FileSystem.doesFileExist $ projectRoot </> "stack.yaml"
+    hasStack <- File.exists $ projectRoot </> Path.relative @"stack.yaml"
     if hasStack
         then stackReplKind pr
         else pure Cabal
@@ -38,7 +39,7 @@ resolveRepl pr@(ProjectRoot projectRoot) = do
 
 stackReplKind :: (FileSystem :> es) => ProjectRoot -> Eff es Repl
 stackReplKind (ProjectRoot projectRoot) = do
-    stackYaml <- FileSystem.readFileBs $ projectRoot </> "stack.yaml"
+    stackYaml <- File.read $ projectRoot </> Path.relative @"stack.yaml"
     case decodeEither' stackYaml of
         Left err -> throwIO $ userError $ "Could not read and decode stack.yaml: " <> show err
         Right value -> pure $ case value of

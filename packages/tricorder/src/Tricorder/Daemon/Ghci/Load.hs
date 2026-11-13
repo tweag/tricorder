@@ -8,10 +8,12 @@ where
 import Text.Megaparsec (anySingle, choice, satisfy, takeWhile1P, takeWhileP)
 import Text.Megaparsec.Char (char, string)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Char qualified as Char
 import Data.Text qualified as T
 import Text.Megaparsec.Char.Lexer qualified as L
 
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.LineParser (LineParser)
 import Tricorder.Daemon.Ghci.LoadOutcome (LoadOutcome)
 import Tricorder.Daemon.Ghci.Position (Position (..))
@@ -66,7 +68,7 @@ parser =
                 $ Message
                     Ghci.Message
                         { severity = Severity.Error
-                        , file = "<no location info>"
+                        , file = Locationless
                         , startPos = Position 0 0
                         , endPos = Position 0 0
                         , messageLines = origLine : body
@@ -82,20 +84,20 @@ parser =
                     )
             case TextParser.run Diagnostic.headerParser stripped of
                 Nothing -> pure Nothing
-                Just (fileT, sp, ep, afterPos) ->
+                Just (file, startPos, endPos, afterPos) ->
                     let lower = T.toLower (T.stripStart afterPos)
                     in  case Severity.parse lower of
                             Nothing -> pure Nothing
-                            Just sev -> do
+                            Just severity -> do
                                 body <- many (satisfy isMessageBody)
                                 pure
                                     $ Just
                                     $ Message
                                         Ghci.Message
-                                            { severity = sev
-                                            , file = toString fileT
-                                            , startPos = sp
-                                            , endPos = ep
+                                            { severity
+                                            , file = Location file
+                                            , startPos
+                                            , endPos
                                             , messageLines = origLine : body
                                             }
         , -- Fallback: skip any other line
@@ -121,13 +123,17 @@ textParser = do
     _ <- char '('
     _ <- takeWhileP Nothing (== ' ')
     filePath <- takeWhile1P Nothing (\c -> c /= ',' && c /= ')')
+    let cleanPath = toString (T.stripEnd filePath)
+    path <- case Path.fromFilePath @Path.Any cleanPath of
+        Left _ -> fail $ "Not a valid file path: " <> cleanPath
+        Right path -> pure path
     pure
         $ Loading
             Ghci.Loading
                 { Ghci.Loading.index = n
                 , Ghci.Loading.total = m
                 , Ghci.Loading.moduleName = modName
-                , Ghci.Loading.sourceFile = toString (T.stripEnd filePath)
+                , Ghci.Loading.sourceFile = path
                 }
 
 

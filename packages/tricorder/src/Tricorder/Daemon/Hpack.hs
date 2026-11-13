@@ -7,6 +7,7 @@ import Atelier.Effects.Debounce (Debounce)
 import Atelier.Effects.FileWatcher (FileWatcher)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Pub (Pub)
+import Atelier.FileSystem.Path ((</>))
 import Effectful.Reader.Static (Reader)
 
 import Atelier.Effects.Conc qualified as Conc
@@ -16,7 +17,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
-import Data.List qualified as List
+import Atelier.FileSystem.Path qualified as Path
 import Effectful.Reader.Static qualified as Reader
 
 import Tricorder.Daemon.Hpack.Effect (Hpack)
@@ -47,7 +48,7 @@ main session = PubSub.run @RePack $ Conc.scoped do
             vacuous $ watchPackageYaml projectRoot
 
 
-runHpack :: (Hpack :> es, Log :> es) => FilePath -> Eff es ()
+runHpack :: (Hpack :> es, Log :> es) => Path.Absolute -> Eff es ()
 runHpack path = do
     res <- Hpack.hpack path
     case res of
@@ -74,12 +75,15 @@ watchPackageYaml
     => ProjectRoot -> Eff es Void
 watchPackageYaml root = do
     FileWatcher.watchFilePathsDebounced
-        [FileWatcher.Watch.dirWhere root.getProjectRoot (packageYaml `List.isSuffixOf`)]
-        \path _ -> Pub.publish $ RePack path
+        [FileWatcher.Watch.dirWhere root.getProjectRoot (packageYaml `Path.isSuffixOf`)]
+        \path _ -> case Path.fromFilePath path of
+            Right (Path.Absolute parsedPath) -> Pub.publish $ RePack parsedPath
+            Right (Path.Relative parsedPath) -> Pub.publish $ RePack $ root.getProjectRoot </> parsedPath
+            _ -> pure ()
 
 
-data RePack = RePack FilePath
+data RePack = RePack Path.Absolute
 
 
-packageYaml :: FilePath
-packageYaml = "package.yaml"
+packageYaml :: Path.Relative
+packageYaml = Path.relative @"package.yaml"

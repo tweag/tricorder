@@ -6,6 +6,7 @@ module Tricorder.Build.Changes
 where
 
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
+import Atelier.FileSystem.Path qualified as Path
 
 
 -- | Classifies what kind of file change triggered a dirty signal.
@@ -14,9 +15,9 @@ import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 data ChangeKind = SourceChange | CabalChange deriving stock (Eq, Ord, Show)
 
 
-data CabalChangeDetected = CabalChangeDetected FilePath FileWatcher.Event
+data CabalChangeDetected = CabalChangeDetected Path.Any FileWatcher.Event
     deriving stock (Eq, Show)
 
 
-data SourceChangeDetected = SourceChangeDetected FilePath FileWatcher.Event
+data SourceChangeDetected = SourceChangeDetected Path.Any FileWatcher.Event
     deriving stock (Eq, Show)

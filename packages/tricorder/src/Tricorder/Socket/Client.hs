@@ -13,6 +13,7 @@ where
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Handles (Handle, Handles)
 import Atelier.Effects.Posix.Daemons (Daemons)
+import Atelier.FileSystem.Path (Path)
 import Atelier.Time (Millisecond)
 import Data.Aeson (decode, eitherDecode, encode)
 import Effectful (inject)
@@ -45,8 +46,8 @@ import Tricorder.Version qualified as Version
 
 -- | Query the current build status (non-blocking).
 queryStatus
-    :: (Handles :> es, UnixSocket :> es)
-    => FilePath
+    :: (Handles :> es, Path path, UnixSocket :> es)
+    => path
     -> Eff es (Either Text BuildState)
 queryStatus sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = False}))
@@ -55,8 +56,8 @@ queryStatus sockPath = withConnection sockPath \h -> do
 
 -- | Query the build status, blocking until the current build cycle completes.
 queryStatusWait
-    :: (Handles :> es, UnixSocket :> es)
-    => FilePath
+    :: (Handles :> es, Path path, UnixSocket :> es)
+    => path
     -> Eff es (Either Text BuildState)
 queryStatusWait sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = True}))
@@ -75,9 +76,9 @@ data Restarting = Restarting
 -- survives the gap between stopping the old daemon and the new one binding its
 -- socket.
 queryWatch
-    :: forall es
-     . (Delay :> es, Handles :> es, UnixSocket :> es)
-    => FilePath
+    :: forall path es
+     . (Delay :> es, Handles :> es, Path path, UnixSocket :> es)
+    => path
     -> Eff es Bool
     -- ^ Whether a restart is currently in progress.
     -> (Either Restarting BuildState -> Eff es ())
@@ -112,8 +113,8 @@ queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
 
 -- | Fetch the full body of a single diagnostic by 1-based index.
 queryDiagnostic
-    :: (Handles :> es, UnixSocket :> es)
-    => FilePath
+    :: (Handles :> es, Path path, UnixSocket :> es)
+    => path
     -> Int
     -> Eff es (Either Text Diagnostic)
 queryDiagnostic sockPath idx = withConnection sockPath \h -> do
@@ -125,8 +126,8 @@ queryDiagnostic sockPath idx = withConnection sockPath \h -> do
 
 
 requestShutdown
-    :: (Handles :> es, UnixSocket :> es)
-    => IfThereArePendingQueries -> FilePath -> Eff es (Either Text ())
+    :: (Handles :> es, Path path, UnixSocket :> es)
+    => IfThereArePendingQueries -> path -> Eff es (Either Text ())
 requestShutdown force sockPath = withConnection sockPath \h -> do
     sendQuery h $ Quit waiters
     line <- Handles.hGetLine h
@@ -153,7 +154,7 @@ isDaemonRunning = do
 -- running process is not enough to guarantee a client can connect. This opens
 -- (and immediately closes) a throwaway connection and reports whether it
 -- succeeded.
-isDaemonReady :: (UnixSocket :> es) => FilePath -> Eff es Bool
+isDaemonReady :: (Path path, UnixSocket :> es) => path -> Eff es Bool
 isDaemonReady sockPath =
     either (const False) (const True)
         <$> trySync (withConnection sockPath \_ -> pass)

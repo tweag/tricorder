@@ -2,6 +2,7 @@
 
 module Atelier.Effects.FSNotify
     ( FSNotify
+    , eventPath
     , withManager
     , startManager
     , stopManager
@@ -27,6 +28,7 @@ import Effectful.Dispatch.Static
     )
 import System.FSNotify hiding
     ( Action
+    , eventPath
     , startManager
     , startManagerConf
     , stopManager
@@ -40,6 +42,9 @@ import System.FSNotify hiding
 
 import System.FSNotify qualified as FSNotify
 
+import Atelier.FileSystem.Path qualified as Path
+import Atelier.FileSystem.Path.Internal qualified as Path.Internal
+
 
 data FSNotify :: Effect
 
@@ -51,6 +56,10 @@ data instance StaticRep FSNotify = FSNotify
 
 
 type Action es = Event -> Eff es ()
+
+
+eventPath :: Event -> Path.Absolute
+eventPath = Path.Internal.UnsafeMkAbsolute . FSNotify.eventPath
 
 
 withManager :: (FSNotify :> es) => (WatchManager -> Eff es a) -> Eff es a
@@ -80,33 +89,37 @@ startManagerConf = unsafeEff_ . FSNotify.startManagerConf
 
 
 watchDir
-    :: (FSNotify :> es) => WatchManager -> FilePath -> ActionPredicate -> Action es -> Eff es StopListening
+    :: (FSNotify :> es)
+    => WatchManager -> Path.Absolute -> ActionPredicate -> Action es -> Eff es StopListening
 watchDir watchManager filePath actionPredicate action =
     unsafeEff \env ->
         concUnliftIO env Persistent Unlimited \unlift ->
-            FSNotify.watchDir watchManager filePath actionPredicate (unlift . action)
+            FSNotify.watchDir watchManager (Path.toFilePath filePath) actionPredicate (unlift . action)
 
 
 watchDirChan
     :: (FSNotify :> es)
-    => WatchManager -> FilePath -> ActionPredicate -> EventChannel -> Eff es StopListening
+    => WatchManager -> Path.Absolute -> ActionPredicate -> EventChannel -> Eff es StopListening
 watchDirChan watchManager filePath actionPredicate eventChannel =
-    unsafeEff_ $ FSNotify.watchDirChan watchManager filePath actionPredicate eventChannel
+    unsafeEff_
+        $ FSNotify.watchDirChan watchManager (Path.toFilePath filePath) actionPredicate eventChannel
 
 
 watchTree
-    :: (FSNotify :> es) => WatchManager -> FilePath -> ActionPredicate -> Action es -> Eff es StopListening
+    :: (FSNotify :> es)
+    => WatchManager -> Path.Absolute -> ActionPredicate -> Action es -> Eff es StopListening
 watchTree watchManager filePath actionPredicate action =
     unsafeEff \env ->
         concUnliftIO env Persistent Unlimited \unlift ->
-            FSNotify.watchTree watchManager filePath actionPredicate (unlift . action)
+            FSNotify.watchTree watchManager (Path.toFilePath filePath) actionPredicate (unlift . action)
 
 
 watchTreeChan
     :: (FSNotify :> es)
-    => WatchManager -> FilePath -> ActionPredicate -> EventChannel -> Eff es StopListening
+    => WatchManager -> Path.Absolute -> ActionPredicate -> EventChannel -> Eff es StopListening
 watchTreeChan watchManager filePath actionPredicate eventChannel =
-    unsafeEff_ $ FSNotify.watchTreeChan watchManager filePath actionPredicate eventChannel
+    unsafeEff_
+        $ FSNotify.watchTreeChan watchManager (Path.toFilePath filePath) actionPredicate eventChannel
 
 
 run :: (IOE :> es) => Eff (FSNotify : es) a -> Eff es a

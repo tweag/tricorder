@@ -5,10 +5,10 @@ module Tricorder.Session.Stage.Build.Session
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (ToJSON)
 import Data.Default (Default (..))
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 
 import Data.Text qualified as T

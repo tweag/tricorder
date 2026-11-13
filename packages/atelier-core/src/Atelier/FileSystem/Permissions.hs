@@ -18,11 +18,8 @@ module Atelier.FileSystem.Permissions
     , copy
 
       -- ** Reexports
+    , Reexports.Permissions (..)
     , Reexports.emptyPermissions
-    , Reexports.readable
-    , Reexports.writable
-    , Reexports.executable
-    , Reexports.searchable
     , Reexports.setOwnerReadable
     , Reexports.setOwnerWritable
     , Reexports.setOwnerExecutable

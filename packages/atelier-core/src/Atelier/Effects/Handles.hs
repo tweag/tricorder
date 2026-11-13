@@ -5,9 +5,11 @@ module Atelier.Effects.Handles
     , Handle
     , BufferMode (..)
     , IOMode (..)
+    , SeekMode (..)
     , with
     , hClose
     , hFlush
+    , hSeek
     , hGetLine
     , hPutText
     , hPutTextLn
@@ -27,12 +29,14 @@ import Effectful.Dispatch.Static
     , unsafeEff_
     , unsafeSeqUnliftIO
     )
-import System.IO (BufferMode (..), Handle)
+import System.IO (BufferMode (..), Handle, SeekMode (..))
 import Prelude
 
 import Data.ByteString.Lazy.Char8 qualified as LB8
 import Data.Text.IO qualified as TIO
 import System.IO qualified as IO
+
+import Atelier.FileSystem.Path qualified as Path
 
 
 -- | Operations concerning file handles.
@@ -46,8 +50,8 @@ data instance StaticRep Handles = Handles
 
 
 -- | Lifted `System.IO.withFile`:
-with :: (Handles :> es, HasCallStack) => FilePath -> IOMode -> (Handle -> Eff es a) -> Eff es a
-with fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile fp m (unlift . f)
+with :: (Handles :> es, HasCallStack) => Path.Absolute -> IOMode -> (Handle -> Eff es a) -> Eff es a
+with fp m f = unsafeSeqUnliftIO \unlift -> IO.withFile (Path.toFilePath fp) m (unlift . f)
 
 
 -- | Lifted `System.IO.hClose`.
@@ -58,6 +62,11 @@ hClose = unsafeEff_ . IO.hClose
 -- | Lifted `System.IO.hFlush`.
 hFlush :: (Handles :> es, HasCallStack) => Handle -> Eff es ()
 hFlush = unsafeEff_ . IO.hFlush
+
+
+-- | Lifted `System.IO.hSeek`.
+hSeek :: (Handles :> es, HasCallStack) => Handle -> SeekMode -> Integer -> Eff es ()
+hSeek h sm i = unsafeEff_ $ IO.hSeek h sm i
 
 
 -- | Lifted `System.IO.hGetLine`.
