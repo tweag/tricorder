@@ -9,9 +9,11 @@ import Text.Megaparsec (getInput, takeWhile1P)
 import Text.Megaparsec.Char (char)
 import Prelude hiding (many)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
 import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.Position (Position)
 import Tricorder.Daemon.Ghci.TextParser (TextParser)
 
@@ -26,7 +28,7 @@ unattributedFailure :: Diagnostic
 unattributedFailure =
     Diagnostic
         { severity = Severity.Error
-        , file = "<no location info>"
+        , file = Locationless
         , line = 0
         , col = 0
         , endLine = 0
@@ -40,7 +42,7 @@ unattributedFailure =
 -- | Parse the full diagnostic header:
 --   @file:pos:@ or @drive:path:pos:@ for Windows.
 -- Returns @(file, startPos, endPos, textAfterColon)@.
-headerParser :: TextParser (Text, Position, Position, Text)
+headerParser :: TextParser (Path.Any, Position, Position, Text)
 headerParser = do
     a <- takeWhile1P Nothing (/= ':')
     _ <- char ':'
@@ -52,6 +54,9 @@ headerParser = do
                 pure (a <> ":" <> pathRest)
             else
                 pure a
-    (sp, ep) <- Position.parser
-    afterPos <- getInput
-    pure (filePart, sp, ep, afterPos)
+    case Path.fromFilePath @Path.Any $ toString filePart of
+        Left _ -> fail $ "not a valid file path: " <> toString filePart
+        Right path -> do
+            (sp, ep) <- Position.parser
+            afterPos <- getInput
+            pure (path, sp, ep, afterPos)

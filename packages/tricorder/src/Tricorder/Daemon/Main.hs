@@ -13,7 +13,6 @@ import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.FSNotify qualified as FSNotify
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Handles qualified as Handles
@@ -24,11 +23,12 @@ import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Atelier.Effects.Timeout qualified as Timeout
+import Effectful.FileSystem qualified as FileSystem
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId (..), BuildPhase)
-import Tricorder.Build.Changes (CabalChangeDetected, SourceChangeDetected)
+import Tricorder.Build.Changes (ProjectChangeDetected, SourceChangeDetected)
 import Tricorder.Config (asInput)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Session.CabalFile (inputCabalFiles)
@@ -46,8 +46,10 @@ import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
 import Tricorder.Logging qualified as Logging
+import Tricorder.Runtime.Cache qualified as Runtime.Cache
 import Tricorder.Runtime.Directory qualified as Runtime.Directory
 import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
+import Tricorder.Runtime.ProjectHash qualified as Runtime.ProjectHash
 import Tricorder.Runtime.ProjectRoot qualified as Runtime.ProjectRoot
 import Tricorder.Runtime.SocketPath qualified as Runtime.SocketPath
 import Tricorder.Session qualified as Session
@@ -65,24 +67,26 @@ main :: IO ()
 main =
     runEff
         . runConcurrent
+        . FileSystem.runFileSystem
         . Conc.runIO
         . Clock.runIO
         . Delay.runIO
         . Timeout.run
         . Debounce.run @FilePath
-        . FileSystem.runIO
         . FSNotify.run
         . FileWatcher.runIO
         . Glob.runIO
         . Env.runIO
+        . Exit.runIO
         . Runtime.ProjectRoot.asReader
+        . Runtime.ProjectHash.asReader
+        . Runtime.Cache.asReader
+        . Runtime.LogPath.asReader
+        . LoadedConfig.asInput
+        . Handles.run
+        . Logging.run
         . Runtime.Directory.asReader
         . Runtime.SocketPath.asReader
-        . Runtime.LogPath.asReader
-        . Exit.runIO
-        . Handles.run
-        . LoadedConfig.asInput
-        . Logging.run
         . Chan.run
         . StackProject.inputWithCache
         . inputCabalFiles
@@ -97,7 +101,7 @@ main =
         . TestRunner.run
         . Waiters.run
         . PubSub.run @BuildPhase
-        . PubSub.run @CabalChangeDetected
+        . PubSub.run @ProjectChangeDetected
         . PubSub.run @SourceChangeDetected
         . PubSub.run @WatchedFile
         . Tricorder.Config.asInput

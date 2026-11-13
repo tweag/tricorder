@@ -19,12 +19,13 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
 import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..))
-import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
     , BuildFailure
@@ -65,7 +66,7 @@ import Tricorder.Waiters qualified as Waiters
 data RestartBuilder = RestartBuilder
 
 
-data ReloadBuilder = ReloadBuilder FilePath FileWatcher.Event
+data ReloadBuilder = ReloadBuilder Path.Any FileWatcher.Event
 
 
 -- | Top of the build loop. Responsible for handling changes to the Tricorder
@@ -82,7 +83,7 @@ main
        , Pub BuildPhase :> es
        , Reader ProjectRoot :> es
        , State BuildId :> es
-       , Sub CabalChangeDetected :> es
+       , Sub ProjectChangeDetected :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
        , Waiters :> es
@@ -94,7 +95,7 @@ main session =
         $ Conc.restartableFork (Waiters.wait $ Sub.listenOnce_ @RestartBuilder) do
             buildId <- State.state (\s -> (s, s + 1))
 
-            Conc.fork_ $ Sub.listen_ \(CabalChangeDetected _ _) ->
+            Conc.fork_ $ Sub.listen_ \(ProjectChangeDetected _ _) ->
                 Pub.publish RestartBuilder
 
             Conc.fork_ $ Sub.listen_ \(SourceChangeDetected path event) ->

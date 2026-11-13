@@ -1,13 +1,10 @@
 module Unit.Tricorder.Session.Stage.Build.CommandSpec (test_Command) where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Data.Default (def)
-import Effectful (runPureEff)
-import Effectful.State.Static.Shared (State, evalState)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
@@ -16,9 +13,9 @@ import Tricorder.Session.CommandConfig (CommandConfig (..))
 import Tricorder.Session.CommandTemplate (CommandTemplate (..), targetsPlaceholder)
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Repl (Repl (..), resolveRepl)
-import Tricorder.Session.Stage (Stage (..))
 import Tricorder.Session.Stage.Build.Command (render, resolve)
 import Tricorder.Session.Target (Target)
+import Unit.Tricorder.Session.Helpers (withProjectFiles)
 
 import Tricorder.Session.Config qualified as Config
 import Tricorder.Session.Target qualified as Target
@@ -77,48 +74,46 @@ testResolveBuildCommand =
     [ testGroup
         "explicit targets"
         [ testCase "spell them out verbatim" do
-            renderBuildFor [("/cabal.project", "")] cfg0 (Target.parse <$> ["lib:foo"])
-                @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo"
+            renderBuildFor [(Path.rel @"cabal.project", "")] cfg0 (Target.parse <$> ["lib:foo"])
+                >>= (@?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo")
         ]
     , testGroup
         "no command or targets configured"
         [ testGroup
             "and there is a cabal.project file"
             [ testCase "uses cabal 'all'" do
-                renderBuildFor [("/cabal.project", "")] cfg0 []
-                    @?= "cabal repl --enable-multi-repl --builddir /replbuild all"
+                renderBuildFor [(Path.rel @"cabal.project", "")] cfg0 []
+                    >>= (@?= "cabal repl --enable-multi-repl --builddir /replbuild all")
             ]
         , testGroup
             "and there is at least one *.cabal file"
             [ testCase "uses cabal 'all'" do
-                renderBuildFor [("/foo.cabal", "")] cfg0 []
-                    @?= "cabal repl --enable-multi-repl --builddir /replbuild all"
+                renderBuildFor [(Path.rel @"foo.cabal", "")] cfg0 []
+                    >>= (@?= "cabal repl --enable-multi-repl --builddir /replbuild all")
             ]
         , testGroup
             "and there is a stack.yaml file"
             [ testCase "uses stack ghci with 'all'" do
-                renderBuildFor [("/stack.yaml", "")] cfg0 []
-                    @?= "stack ghci all"
+                renderBuildFor [(Path.rel @"stack.yaml", "")] cfg0 [] >>= (@?= "stack ghci all")
             ]
         , testGroup
             "and there is both a stack.yaml and a cabal.project file"
             [ testCase "prefers stack ghci over cabal" do
-                renderBuildFor [("/stack.yaml", ""), ("/cabal.project", "")] cfg0 []
-                    @?= "stack ghci all"
+                renderBuildFor [(Path.rel @"stack.yaml", ""), (Path.rel @"cabal.project", "")] cfg0 []
+                    >>= (@?= "stack ghci all")
             ]
         , testGroup
             "but there are no project files"
             [ testCase "uses default cabal repl with 'all'" do
-                renderBuildFor [] cfg0 []
-                    @?= "cabal repl --builddir /replbuild all"
+                renderBuildFor [] cfg0 [] >>= (@?= "cabal repl --builddir /replbuild all")
             ]
         ]
     , testGroup
         "build.extra_auto_arguments"
         [ testCase "is appended after the rendered automatically resolved template" do
             let cfg = cfg0 {build = cfg0.build {extraAutoArguments = ["--extra-flag"]}}
-            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
-                @?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo --extra-flag"
+            renderBuildFor [(Path.rel @"cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
+                >>= (@?= "cabal repl --enable-multi-repl --builddir /replbuild lib:foo --extra-flag")
         , testCase "is ignored when build.command_template is set" do
             let cfg =
                     cfg0
@@ -128,43 +123,24 @@ testResolveBuildCommand =
                                 , extraAutoArguments = ["--extra-flag"]
                                 }
                         }
-            renderBuildFor [("/cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
-                @?= "cabal repl lib:foo"
+            renderBuildFor [(Path.rel @"cabal.project", "")] cfg (Target.parse <$> ["lib:foo"])
+                >>= (@?= "cabal repl lib:foo")
         ]
     ]
 
 
--- | Resolve and fully render the build command against a faked filesystem —
--- the composition 'Tricorder.Session.loadSession' and 'Tricorder.Daemon.Core'
--- perform between them (resolve a 'CommandTemplate' plus its target list,
--- then 'renderBuild' the two together).
-renderBuildFor :: [(FilePath, ByteString)] -> Config -> [Target] -> Text
+-- | Resolve and fully render the build command against a temporary project
+-- root seeded with the given files — the composition
+-- 'Tricorder.Session.loadSession' and 'Tricorder.Daemon.Core' perform between
+-- them (resolve a 'CommandTemplate' plus its target list, then 'renderBuild'
+-- the two together).
+renderBuildFor :: [(Path.Relative, ByteString)] -> Config -> [Target] -> IO Text
 renderBuildFor files cfg targets =
-    (uncurry render $ withFiles files $ resolveBuild cfg targets).getRenderedCommand
-
-
--- | Run a 'FileSystem'-using computation against a faked in-memory
--- filesystem seeded with the given files (content is irrelevant except for
--- @stack.yaml@, which is parsed for its @packages@ key).
-withFiles :: [(FilePath, ByteString)] -> Eff '[FileSystem, State (Map FilePath ByteString)] a -> a
-withFiles files action =
-    runPureEff $ evalState (Map.fromList files) $ FileSystem.runState action
+    withProjectFiles (Map.fromList files) \root -> do
+        let pr = ProjectRoot root
+        repl <- resolveRepl pr
+        (.getRenderedCommand) . uncurry render <$> resolve pr cfg repl targets
 
 
 cfg0 :: Config
 cfg0 = def {Config.replBuildDir = "/replbuild"}
-
-
--- | Resolve 'Repl' from the faked filesystem, then resolve the build
--- command from it — mirrors how 'Tricorder.Session.loadSession' chains the
--- two steps.
-resolveBuild
-    :: (FileSystem :> es)
-    => Config -> [Target] -> Eff es (CommandTemplate 'Build, [Target])
-resolveBuild cfg targets = do
-    repl <- resolveRepl pr
-    resolve pr cfg repl targets
-
-
-pr :: ProjectRoot
-pr = ProjectRoot "/"

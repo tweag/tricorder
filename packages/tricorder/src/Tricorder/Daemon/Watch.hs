@@ -3,14 +3,15 @@ module Tricorder.Daemon.Watch
     , files
     , publishChange
     , specs
-    , isCabalFile
+    , isProjectFile
     )
 where
 
 import Atelier.Effects.Debounce (Debounce)
 import Atelier.Effects.FileWatcher (FileWatcher)
+import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Pub (Pub)
-import System.FilePath (takeExtension, takeFileName)
+import Atelier.FileSystem.Path (Path)
 import Text.Regex.TDFA (ExecOption (..), blankCompOpt, blankExecOpt, match)
 import Text.Regex.TDFA.TDFA (patternToRegex)
 
@@ -18,11 +19,13 @@ import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.FileWatcher.Watch qualified as FileWatcher (Watch)
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
+import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Pub qualified as Pub
+import Atelier.FileSystem.Path qualified as Path
 
 import Tricorder.Build.Changes
-    ( CabalChangeDetected (..)
-    , ChangeKind (..)
+    ( ChangeKind (..)
+    , ProjectChangeDetected (..)
     , SourceChangeDetected (..)
     )
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
@@ -32,7 +35,7 @@ import Tricorder.Session.WatchExclusionPatterns (Pattern (..), WatchExclusionPat
 
 
 data WatchedFile = WatchedFile
-    { path :: FilePath
+    { path :: Path.Any
     , event :: FileWatcher.Event
     }
 
@@ -40,40 +43,43 @@ data WatchedFile = WatchedFile
 files
     :: ( Debounce FilePath :> es
        , FileWatcher :> es
+       , Log :> es
        , Pub WatchedFile :> es
        )
     => ProjectRoot -> Session -> Eff es Void
 files projectRoot session =
     FileWatcher.watchFilePathsDebounced watches \filePath fileEvent ->
-        Pub.publish $ WatchedFile filePath fileEvent
+        case Path.fromFilePath filePath of
+            Right path -> Pub.publish $ WatchedFile path fileEvent
+            Left err -> Log.warn $ "Received invalid file path for watched file: " <> err
   where
     watches = specs projectRoot session.watchExclusionPatterns session.watchDirs
 
 
 publishChange
-    :: ( Pub CabalChangeDetected :> es
+    :: ( Pub ProjectChangeDetected :> es
        , Pub SourceChangeDetected :> es
        )
     => WatchedFile -> Eff es ()
 publishChange f =
     case changeKindFor f.path of
-        CabalChange -> Pub.publish (CabalChangeDetected f.path f.event)
-        SourceChange -> Pub.publish (SourceChangeDetected f.path f.event)
+        ProjectChange -> Pub.publish $ ProjectChangeDetected f.path f.event
+        SourceChange -> Pub.publish $ SourceChangeDetected f.path f.event
 
 
-changeKindFor :: FilePath -> ChangeKind
+changeKindFor :: (Path path) => path -> ChangeKind
 changeKindFor path
-    | isCabalFile path = CabalChange
+    | isProjectFile path = ProjectChange
     | otherwise = SourceChange
 
 
 specs :: ProjectRoot -> WatchExclusionPatterns -> WatchDirs -> [FileWatcher.Watch]
 specs projectRoot watchExclusionPatterns watchDirs =
     sourceWatches (coerce watchExclusionPatterns) (coerce watchDirs)
-        <> cabalWatches projectRoot
+        <> projectWatches projectRoot
 
 
-sourceWatches :: [Pattern] -> [FilePath] -> [FileWatcher.Watch]
+sourceWatches :: [Pattern] -> [Path.Absolute] -> [FileWatcher.Watch]
 sourceWatches exclusionPatterns =
     map \d ->
         Watch.dirExt d ".hs"
@@ -81,23 +87,34 @@ sourceWatches exclusionPatterns =
             `Watch.excluding` exclusionMatches exclusionPatterns
 
 
-exclusionMatches :: [Pattern] -> FilePath -> Bool
-exclusionMatches exclusionPatterns fp = any matchPattern exclusionPatterns
+exclusionMatches :: [Pattern] -> Path.Absolute -> Bool
+exclusionMatches exclusionPatterns fp =
+    any matchPattern exclusionPatterns
   where
     matchPattern (Pattern p) =
         match
             (patternToRegex p blankCompOpt blankExecOpt {captureGroups = False})
-            fp
+            $ Path.toFilePath fp
 
 
-cabalWatches :: ProjectRoot -> [FileWatcher.Watch]
-cabalWatches (ProjectRoot projectRoot) =
-    [ Watch.dirWhere projectRoot isCabalFile
+projectWatches :: ProjectRoot -> [FileWatcher.Watch]
+projectWatches (ProjectRoot projectRoot) =
+    [ Watch.dirWhere projectRoot isProjectFile
         `Watch.excluding` Watch.containing "dist-newstyle"
     ]
 
 
-isCabalFile :: FilePath -> Bool
-isCabalFile f =
-    takeExtension f == ".cabal"
-        || takeFileName f `elem` ["cabal.project", "package.yaml"]
+isProjectFile :: (Path path) => path -> Bool
+isProjectFile f =
+    Path.takeExtension f == ".cabal"
+        || Path.toFilePath (Path.takeFileName f)
+            -- We explicitly do not watch for changes to `package.yaml`, since
+            -- changes to `package.yaml` would result in changes to `.cabal`
+            -- files, which would just end up causing the builder to restart
+            -- twice, once for `package.yaml` and once for the corresponding
+            -- `.cabal` file.
+            `elem` [ "cabal.project"
+                   , "cabal.project.local"
+                   , "cabal.project.freeze"
+                   , "stack.yaml"
+                   ]

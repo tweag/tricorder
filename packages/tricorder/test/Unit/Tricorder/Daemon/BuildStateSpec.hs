@@ -5,6 +5,8 @@ import Data.Time (UTCTime (..), fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
+
 import Tricorder.Build
     ( BuildId (..)
     , BuildResult (..)
@@ -12,6 +14,7 @@ import Tricorder.Build
     , Diagnostic (..)
     , PostBuild (..)
     )
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Build.Duration (Duration (..))
 
 import Tricorder.Build qualified as Build
@@ -29,7 +32,7 @@ test_BuildState =
                 let msg =
                         Diagnostic
                             { severity = Severity.Warning
-                            , file = "<interactive>"
+                            , file = Location (Path.Relative (Path.rel @"<interactive>"))
                             , line = 2
                             , col = 8
                             , endLine = 2
@@ -44,7 +47,7 @@ test_BuildState =
                 let msg =
                         Diagnostic
                             { severity = Severity.Warning
-                            , file = "<interactive>"
+                            , file = Location (Path.Relative (Path.rel @"<interactive>"))
                             , line = 1
                             , col = 1
                             , endLine = 1
@@ -58,7 +61,7 @@ test_BuildState =
                 let msg =
                         Diagnostic
                             { severity = Severity.Warning
-                            , file = "<interactive>"
+                            , file = Location (Path.Relative (Path.rel @"<interactive>"))
                             , line = 1
                             , col = 1
                             , endLine = 1

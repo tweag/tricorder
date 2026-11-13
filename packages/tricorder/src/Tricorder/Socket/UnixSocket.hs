@@ -13,6 +13,7 @@ module Tricorder.Socket.UnixSocket
 where
 
 import Atelier.Effects.Handles (BufferMode (..), Handle, Handles)
+import Atelier.FileSystem.Path (Path)
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (interpretWith, localSeqUnlift, reinterpret)
 import Effectful.Exception (finally)
@@ -27,18 +28,19 @@ import Network.Socket
 import System.IO (hSetEncoding, utf8)
 
 import Atelier.Effects.Handles qualified as Handles
+import Atelier.FileSystem.Path qualified as Path
 import Network.Socket qualified as Net
 import Network.Socket qualified as Socket
 
 
 data UnixSocket :: Effect where
     -- | Create, bind, and listen on a Unix socket at the given path.
-    Bind :: FilePath -> UnixSocket m Socket
+    Bind :: (Path path) => path -> UnixSocket m Socket
     -- | Accept the next incoming connection and return a line-buffered 'Handle'.
     Accept :: Socket -> UnixSocket m Handle
     -- | Connect to a Unix socket and run the callback with the resulting handle.
     -- The handle is closed when the callback returns.
-    WithConnection :: FilePath -> (Handle -> m a) -> UnixSocket m a
+    WithConnection :: (Path path) => path -> (Handle -> m a) -> UnixSocket m a
 
 
 makeEffect ''UnixSocket
@@ -53,7 +55,7 @@ runIO :: (Handles :> es, IOE :> es) => Eff (UnixSocket : es) a -> Eff es a
 runIO eff = interpretWith eff \env -> \case
     Bind path -> liftIO do
         sock <- Socket.socket AF_UNIX Stream Socket.defaultProtocol
-        Socket.bind sock (SockAddrUnix path)
+        Socket.bind sock (SockAddrUnix $ Path.toFilePath path)
         Socket.listen sock 5
         pure sock
     Accept sock -> do
@@ -68,7 +70,7 @@ runIO eff = interpretWith eff \env -> \case
         localSeqUnlift env \unlift -> do
             h <- liftIO do
                 sock <- Socket.socket AF_UNIX Stream Socket.defaultProtocol
-                Net.connect sock (SockAddrUnix sockPath)
+                Net.connect sock (SockAddrUnix $ Path.toFilePath sockPath)
                 h <- Socket.socketToHandle sock ReadWriteMode
                 hSetEncoding h utf8
                 pure h

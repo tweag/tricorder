@@ -70,7 +70,6 @@ import Effectful.Concurrent qualified as Concurrent
 import Atelier.Effects.Debounce (Debounce)
 import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.FSNotify (FSNotify)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher.Event (Event)
 import Atelier.Effects.FileWatcher.Watch (Watch)
 
@@ -79,6 +78,7 @@ import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.FSNotify qualified as FSNotify
 import Atelier.Effects.FileWatcher.Event qualified as Event
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
+import Atelier.FileSystem.Path qualified as Path
 import Atelier.Time qualified as Time
 
 
@@ -108,15 +108,14 @@ watchFilePathsDebounced watches callback =
 
 
 -- | Production interpreter backed by fsnotify.
-runIO :: (Delay :> es, FSNotify :> es, FileSystem :> es) => Eff (FileWatcher : es) a -> Eff es a
+runIO :: (Delay :> es, FSNotify :> es) => Eff (FileWatcher : es) a -> Eff es a
 runIO = interpret \env -> \case
-    WatchFilePaths watches callback -> do
-        absWatches <- forM watches Watch.makeAbsolute
+    WatchFilePaths absWatches callback -> do
         FSNotify.withManager \mgr -> do
             let dedupedDirs = deduplicateDirs $ Watch.path <$> absWatches
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift ->
                 for_ dedupedDirs \d ->
-                    FSNotify.watchTree mgr d (matchesAny absWatches . eventPath) \fsEvent ->
+                    FSNotify.watchTree mgr d (matchesAny absWatches . FSNotify.eventPath) \fsEvent ->
                         void $ unlift $ callback (eventPath fsEvent) (Event.fromFS fsEvent)
             -- Park indefinitely to hold the manager open. fsnotify delivers
             -- events on its own threads, so there is nothing to do here, and
@@ -154,12 +153,12 @@ runScripted events = reinterpret (evalState events) \env -> \case
 -- Helpers
 
 -- | Remove dirs that are proper subdirectories of another dir in the list.
-deduplicateDirs :: [FilePath] -> [FilePath]
+deduplicateDirs :: [Path.Absolute] -> [Path.Absolute]
 deduplicateDirs dirs = filter notRedundant (nub dirs)
   where
-    notRedundant d = not $ any (\d' -> d' /= d && Watch.isStrictAncestor d' d) dirs
+    notRedundant d = not $ any (\d' -> d' /= d && Path.isPrefixOf d' d) dirs
 
 
 -- | Check whether a file path matches at least one 'Watch' entry.
-matchesAny :: [Watch] -> FilePath -> Bool
+matchesAny :: [Watch] -> Path.Absolute -> Bool
 matchesAny watches path = any (Watch.matches path) watches

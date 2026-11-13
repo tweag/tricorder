@@ -5,6 +5,7 @@
 -- inert results; and 'runFileSystemState' simulates a filesystem backed by an
 -- in-memory 'Map' for tests. 'followFile' tails a file as it grows.
 module Atelier.Effects.FileSystem
+    {-# DEPRECATED "Use the more discrete @Atelier.FileSystem.*@ family of modules instead." #-}
     ( FileSystem (..)
     , readFileBs
     , readFileLbsFrom
@@ -97,6 +98,51 @@ data FileSystem :: Effect where
 
 
 makeEffect ''FileSystem
+
+
+{-# DEPRECATED readFileBs "Use 'Atelier.FileSystem.Path.File.readFile' instead." #-}
+
+
+{-# DEPRECATED readFileLbs "Use 'Atelier.FileSystem.Path.File.readFile' instead." #-}
+
+
+{-# DEPRECATED writeFileBS "Use 'Atelier.FileSystem.Path.File.writeFile' instead." #-}
+
+
+{-# DEPRECATED writeFileLBS "Use 'Atelier.FileSystem.Path.File.writeFile' instead." #-}
+
+
+{-# DEPRECATED doesFileExist "Use 'Atelier.FileSystem.Path.File.exists' instead." #-}
+
+
+{-# DEPRECATED doesDirectoryExist "Use 'Atelier.FileSystem.Path.Directory.exists' instead." #-}
+
+
+{-# DEPRECATED doesPathExist "Use 'Atelier.FileSystem.Path.exists' instead." #-}
+
+
+{-# DEPRECATED listDirectory "Use 'Atelier.FileSystem.Directory.list' instead." #-}
+
+
+{-# DEPRECATED createDirectoryIfMissing "Use 'Atelier.FileSystem.Directory.createIfMissing' instead." #-}
+
+
+{-# DEPRECATED removeFile "Use 'Atelier.FileSystem.File.remove' instead." #-}
+
+
+{-# DEPRECATED canonicalizePath "Use 'Atelier.FileSystem.Path.canonicalize' instead." #-}
+
+
+{-# DEPRECATED getCurrentDirectory "Use 'Atelier.FileSystem.Directory.getCurrent' instead." #-}
+
+
+{-# DEPRECATED getXdgRuntimeDir "Use 'Atelier.FileSystem.Directory.getXdg' instead." #-}
+
+
+{-# DEPRECATED getModificationTime "Use 'Atelier.FileSystem.File.getModificationTime' instead." #-}
+
+
+{-# DEPRECATED makeAbsolute "Use 'Atelier.FileSystem.Path.Relative.makeAbsolute' instead." #-}
 
 
 -- | Read a file's full contents lazily (equivalent to reading from offset 0).

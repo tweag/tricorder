@@ -5,10 +5,10 @@ module Tricorder.SourceLookup
     )
 where
 
-import Atelier.Effects.FileSystem (FileSystem, doesFileExist, readFileLbs)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
-import System.FilePath (normalise, takeDirectory, (</>))
+import Atelier.FileSystem.Path ((<.>), (</>))
+import Effectful.FileSystem (FileSystem)
 import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
 import Tricorder.SourceLookup.PackageId (PackageId (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..))
@@ -16,6 +16,8 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
@@ -42,7 +44,7 @@ import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 
 -- | The directories holding the project's own modules: the @hs-source-dirs@ of
 -- every component of every project package, resolved against the package dir.
-newtype ProjectSourceDirs = ProjectSourceDirs [FilePath]
+newtype ProjectSourceDirs = ProjectSourceDirs [Path.Absolute]
     deriving stock (Eq, Show)
 
 
@@ -50,13 +52,15 @@ projectSourceDirs :: [CabalFile] -> ProjectSourceDirs
 projectSourceDirs cabalFiles =
     ProjectSourceDirs
         $ ordNub
-            [ normalise (takeDirectory cabalFile.projectFilePath </> dir)
+            [ Path.normalise $ case dir of
+                Path.Relative d -> Path.takeDirectory cabalFile.projectFilePath </> d
+                Path.Absolute d -> d
             | cabalFile <- cabalFiles
-            , dir <- orRoot (allSourceDirs cabalFile.projectPackageDescription)
+            , dir <- orRoot (either (const []) id $ allSourceDirs cabalFile.projectPackageDescription)
             ]
   where
     -- A component without @hs-source-dirs@ keeps its sources in the package dir.
-    orRoot [] = ["."]
+    orRoot [] = [Path.Relative $ Path.relative @"."]
     orRoot dirs = dirs
 
 
@@ -129,7 +133,7 @@ lookupLocal dirs parent query = do
     case mFile of
         Just path -> do
             Log.debug $ "Source: " <> unModuleName query.moduleName <> " → " <> toText path
-            src <- decodeUtf8 . toStrict <$> readFileLbs path
+            src <- File.read path
             pure (Just InProject, fromModuleSource query src)
         Nothing -> do
             mPkg <- (<|> fallback) <$> resolvePackage query.moduleName
@@ -147,13 +151,17 @@ lookupLocal dirs parent query = do
 -- candidate path, in source dir then extension order, that exists.
 findProjectModule
     :: (FileSystem :> es)
-    => ProjectSourceDirs -> ModuleName -> Eff es (Maybe FilePath)
+    => ProjectSourceDirs -> ModuleName -> Eff es (Maybe Path.Absolute)
 findProjectModule (ProjectSourceDirs dirs) modName =
-    firstExisting [dir </> relPath <> toString ext | dir <- dirs, ext <- sourceExtensions]
+    firstExisting
+        [ dir </> relPath <.> toString rawExt
+        | dir <- dirs
+        , rawExt <- sourceExtensions
+        , Right relPath <- one $ Path.fromFilePath $ toString $ T.replace "." "/" (unModuleName modName)
+        ]
   where
-    relPath = toString $ T.replace "." "/" (unModuleName modName)
     firstExisting [] = pure Nothing
-    firstExisting (path : rest) = ifM (doesFileExist path) (pure (Just path)) (firstExisting rest)
+    firstExisting (path : rest) = ifM (File.exists path) (pure (Just path)) (firstExisting rest)
 
 
 -- | The result of a query against the source of the module it names.
@@ -267,6 +275,7 @@ serveFromTarball
 serveFromTarball query p =
     obtainTarball p >>= \case
         TarballFetchFailed -> pure $ SourceUnavailable query p
+        TarballAddFailed -> pure $ SourceUnavailable query p
         TarballAbsent -> pure $ SourceUnavailable query p
         TarballAt tarball -> do
             mModuleSrc <- readModuleMember tarball query.moduleName

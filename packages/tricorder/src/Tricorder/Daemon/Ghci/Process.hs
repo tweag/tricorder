@@ -45,6 +45,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as Atelier
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
+import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
 import Tricorder.Daemon.Ghci.Config (Config (..))
@@ -189,7 +190,7 @@ with
     :: (Atelier.Process :> es, Conc :> es, Concurrent :> es, Handles :> es, Log :> es, Timeout :> es)
     => Config
     -> RenderedCommand stage
-    -> FilePath
+    -> Path.Absolute
     -> (Loading -> Eff es ())
     -> (Process -> Eff es ())
     -> (Process -> [Text] -> Eff es a)
@@ -484,7 +485,7 @@ collectResult
     :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> [Text]
-    -> FilePath
+    -> Path.Absolute
     -> Eff es LoadResult
 collectResult process lines' projectRoot = do
     let noProgress = \_ -> pure ()
@@ -512,7 +513,7 @@ collectResult process lines' projectRoot = do
 reload
     :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
-    -> FilePath
+    -> Path.Absolute
     -> (Loading -> Eff es ())
     -> Eff es LoadResult
 reload process projectRoot onProgress = do
@@ -525,12 +526,12 @@ reload process projectRoot onProgress = do
 add
     :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
-    -> FilePath -- the file to :add
-    -> FilePath -- projectRoot
+    -> Path.Any -- the file to :add
+    -> Path.Absolute -- projectRoot
     -> (Loading -> Eff es ())
     -> Eff es LoadResult
 add process filePath projectRoot onProgress = do
-    addLines <- exec process (":add " <> T.pack filePath) onProgress
+    addLines <- exec process (":add " <> toText filePath) onProgress
     collectResult process addLines projectRoot
 
 
@@ -541,7 +542,7 @@ unadd
     :: (Conc :> es, Concurrent :> es, Handles :> es, Log :> es)
     => Process
     -> Text -- the module name to :unadd
-    -> FilePath -- projectRoot
+    -> Path.Absolute -- projectRoot
     -> (Loading -> Eff es ())
     -> Eff es LoadResult
 unadd process moduleName projectRoot onProgress = do

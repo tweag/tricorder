@@ -14,31 +14,24 @@ module Atelier.Effects.FileWatcher.Watch
 
       -- ** Check
     , matches
-
-      -- ** Utils
-    , isStrictAncestor
-    , makeAbsolute
     )
 where
 
 import Data.Text qualified as T
-import System.FilePath qualified as Path
 
-import Atelier.Effects.FileSystem (FileSystem)
-
-import Atelier.Effects.FileSystem qualified as FileSystem
+import Atelier.FileSystem.Path qualified as Path
 
 
 -- | Specification of a directory to watch recursively, with a file predicate.
-data Watch = Watch FilePath (FilePath -> Bool)
+data Watch = Watch Path.Absolute (Path.Absolute -> Bool)
 
 
-path :: Watch -> FilePath
+path :: Watch -> Path.Absolute
 path (Watch p _) = p
 
 
 -- | Watch all files in a directory recursively.
-dir :: FilePath -> Watch
+dir :: Path.Absolute -> Watch
 dir p = Watch p (const True)
 
 
@@ -47,7 +40,7 @@ dir p = Watch p (const True)
 -- @
 -- dirWhere "src" (\f -> takeExtension f == ".hs")
 -- @
-dirWhere :: FilePath -> (FilePath -> Bool) -> Watch
+dirWhere :: Path.Absolute -> (Path.Absolute -> Bool) -> Watch
 dirWhere = Watch
 
 
@@ -56,7 +49,7 @@ dirWhere = Watch
 -- @
 -- dirExt "src" ".hs"
 -- @
-dirExt :: FilePath -> Text -> Watch
+dirExt :: Path.Absolute -> Text -> Watch
 dirExt p ext = dirWhere p (\f -> toText (Path.takeExtension f) == ext)
 
 
@@ -65,7 +58,7 @@ dirExt p ext = dirWhere p (\f -> toText (Path.takeExtension f) == ext)
 -- @
 -- dirExt "src" ".hs" \`excluding\` containing "dist-newstyle"
 -- @
-excluding :: Watch -> (FilePath -> Bool) -> Watch
+excluding :: Watch -> (Path.Absolute -> Bool) -> Watch
 excluding (Watch p predicate) excl = Watch p (\f -> predicate f && not (excl f))
 
 
@@ -76,20 +69,10 @@ excluding (Watch p predicate) excl = Watch p (\f -> predicate f && not (excl f))
 -- @
 -- dir "src" \`excluding\` containing "dist-newstyle"
 -- @
-containing :: Text -> FilePath -> Bool
-containing fragment f = fragment `T.isInfixOf` toText f
+containing :: Text -> Path.Absolute -> Bool
+containing fragment f = fragment `T.isInfixOf` toText (Path.toFilePath f)
 
 
-matches :: FilePath -> Watch -> Bool
+matches :: Path.Absolute -> Watch -> Bool
 matches filePath (Watch d predicate) =
-    (d == filePath || isStrictAncestor d filePath) && predicate filePath
-
-
--- | @isStrictAncestor parent child@ is true iff @parent@ is a proper ancestor
--- of @child@ in the filesystem hierarchy.
-isStrictAncestor :: FilePath -> FilePath -> Bool
-isStrictAncestor parent child = (parent <> "/") `isPrefixOf` child
-
-
-makeAbsolute :: (FileSystem :> es) => Watch -> Eff es Watch
-makeAbsolute (Watch p predicate) = flip Watch predicate <$> FileSystem.makeAbsolute p
+    (d == filePath || Path.isPrefixOf d filePath) && predicate filePath

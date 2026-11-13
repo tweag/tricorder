@@ -59,7 +59,6 @@ import System.Process.Typed
     , setStderr
     , setStdin
     , setStdout
-    , setWorkingDir
     , shell
     )
 
@@ -67,6 +66,8 @@ import System.Environment qualified as Env
 import System.Process.Typed qualified as TP
 
 import Atelier.Effects.Process.Internal (RunningProcess (..))
+
+import Atelier.FileSystem.Path qualified as Path
 
 
 -- | The process's stdin stream (its type set by the 'ProcessConfig').
@@ -91,6 +92,10 @@ type instance DispatchOf Process = Static 'WithSideEffects
 
 
 data instance StaticRep Process = Process
+
+
+setWorkingDir :: Path.Absolute -> ProcessConfig i o e -> ProcessConfig i o e
+setWorkingDir path = TP.setWorkingDir (Path.toFilePath path)
 
 
 -- | Run a process in its own process group, terminating the /whole group/ — the

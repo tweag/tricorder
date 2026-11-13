@@ -11,21 +11,20 @@ import Atelier.Effects.Chan (Chan)
 import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Debounce (Debounce)
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.FileWatcher (FileWatcher)
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
+import Atelier.FileSystem.Path ((</>))
 import Effectful (Effect, Limit (..), Persistence (..), UnliftStrategy (..), inject)
 import Effectful.Concurrent.STM (Concurrent, TVar)
 import Effectful.Dispatch.Dynamic (interpretWith, localUnlift)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 import Effectful.TH (makeEffect)
-import System.FilePath ((</>))
 
 import Atelier.Effects.Conc qualified as Conc
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
 import Atelier.Effects.Input qualified as Input
@@ -33,12 +32,13 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
-import Data.List qualified as List
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 import Effectful.Concurrent.STM qualified as STM
 import Effectful.Reader.Static qualified as Reader
 
-import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
+import Tricorder.Runtime.ProjectRoot (ProjectRoot (..), findFileUpwards)
 import Tricorder.Session.CabalFile (CabalFile)
 import Tricorder.Session.State.Invalid (Invalid (..))
 import Tricorder.Session.State.Result (Result)
@@ -137,7 +137,7 @@ watchConfigFile
 watchConfigFile = do
     root <- Reader.ask
     FileWatcher.watchFilePathsDebounced
-        [Watch.dirWhere root.getProjectRoot (LoadedConfig.configFileName `List.isSuffixOf`)]
+        [Watch.dirWhere root.getProjectRoot (LoadedConfig.configFileName `Path.isSuffixOf`)]
         \_ _ -> Pub.publish Reload
 
 
@@ -152,10 +152,13 @@ conditionallyWatchStackYaml
     => Eff es ()
 conditionallyWatchStackYaml = do
     root <- Reader.ask
-    exists <- FileSystem.doesFileExist $ root.getProjectRoot </> "stack.yaml"
-    when exists do
+    stackDir <- findFileUpwards (Path.rel @"stack.yaml") root.getProjectRoot
+    for_ stackDir \dir ->
         Conc.fork_ $ FileWatcher.watchFilePathsDebounced
-            [Watch.dirWhere root.getProjectRoot ("stack.yaml" `List.isSuffixOf`)]
+            [ Watch.dirWhere dir (Path.rel @"stack.yaml" `Path.isSuffixOf`)
+                `Watch.excluding` Watch.containing ".stack-work"
+                `Watch.excluding` Watch.containing "dist-newstyle"
+            ]
             \_ _ -> Pub.publish Reload
 
 

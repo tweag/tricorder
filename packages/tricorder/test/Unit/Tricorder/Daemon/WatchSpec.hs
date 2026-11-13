@@ -9,8 +9,9 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Text.Regex.TDFA.ReadRegex (parseRegex)
 
 import Atelier.Effects.PubSub.Pub qualified as Pub
+import Atelier.FileSystem.Path qualified as Path
 
-import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
@@ -33,14 +34,14 @@ testPublishChange =
     [ testGroup
         "with non-cabal file change"
         [ testCase "should publish SourceChangeDetected" do
-            (_, sourceChanges) <- runTest "foo"
-            sourceChanges @?= [SourceChangeDetected "foo" Modified]
+            (_, sourceChanges) <- runTest (Path.Relative $ Path.rel @"foo")
+            sourceChanges @?= [SourceChangeDetected (Path.Relative $ Path.rel @"foo") Modified]
         ]
     , testGroup
         "with cabal file change"
         [ testCase "should publish CabalChangeDetected" do
-            (cabalChanges, _) <- runTest "foo.cabal"
-            cabalChanges @?= [CabalChangeDetected "foo.cabal" Modified]
+            (cabalChanges, _) <- runTest $ Path.Relative $ Path.rel @"foo.cabal"
+            cabalChanges @?= [ProjectChangeDetected (Path.Relative $ Path.rel @"foo.cabal") Modified]
         ]
     ]
   where
@@ -49,7 +50,7 @@ testPublishChange =
             . runWriter
             . Pub.toWriter @SourceChangeDetected
             . execWriter
-            . Pub.toWriter @CabalChangeDetected
+            . Pub.toWriter @ProjectChangeDetected
             . Watch.publishChange
             . (`WatchedFile` Modified)
 
@@ -61,41 +62,41 @@ testSpecs =
         [ testCase "matches .hs files in configured watch dirs" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
-                        (WatchDirs ["/proj/src"])
-            matchesAny watches "/proj/src/Foo.hs" @?= True
+                        (WatchDirs [Path.absolute @"/proj/src"])
+            matchesAny watches (Path.absolute @"/proj/src/Foo.hs") @?= True
         , testCase "does not match non-.hs files" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
-                        (WatchDirs ["/proj/src"])
-            matchesAny watches "/proj/src/Foo.txt" @?= False
+                        (WatchDirs [Path.absolute @"/proj/src"])
+            matchesAny watches (Path.absolute @"/proj/src/Foo.txt") @?= False
         , testCase "excludes paths containing dist-newstyle" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
-                        (WatchDirs ["/proj/src"])
-            matchesAny watches "/proj/src/dist-newstyle/Foo.hs" @?= False
+                        (WatchDirs [Path.absolute @"/proj/src"])
+            matchesAny watches (Path.absolute @"/proj/src/dist-newstyle/Foo.hs") @?= False
         , testCase "excludes paths matching an exclusion pattern" do
             let pat = parsePattern "vendor"
                 watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [pat])
-                        (WatchDirs ["/proj/src"])
-            matchesAny watches "/proj/src/vendor/Foo.hs" @?= False
-            matchesAny watches "/proj/src/Foo.hs" @?= True
+                        (WatchDirs [Path.absolute @"/proj/src"])
+            matchesAny watches (Path.absolute @"/proj/src/vendor/Foo.hs") @?= False
+            matchesAny watches (Path.absolute @"/proj/src/Foo.hs") @?= True
         , testCase "matches .hs files across multiple watch dirs" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
-                        (WatchDirs ["/proj/src", "/proj/test"])
-            matchesAny watches "/proj/src/Foo.hs" @?= True
-            matchesAny watches "/proj/test/FooSpec.hs" @?= True
+                        (WatchDirs [Path.absolute @"/proj/src", Path.absolute @"/proj/test"])
+            matchesAny watches (Path.absolute @"/proj/src/Foo.hs") @?= True
+            matchesAny watches (Path.absolute @"/proj/test/FooSpec.hs") @?= True
         , -- Second line of defense: 'cabalWatches' registers the whole project
           -- root, and 'deduplicateDirs' collapses the narrow source dirs into it,
           -- so the OS watches the entire repo recursively. 'matchesAny' is what
@@ -104,49 +105,49 @@ testSpecs =
           testCase "does not match a .hs file in a sibling package outside the watch dirs" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
-                        (WatchDirs ["/proj/pkg-a/src"])
-            matchesAny watches "/proj/pkg-a/src/Foo.hs" @?= True
-            matchesAny watches "/proj/pkg-b/src/Foo.hs" @?= False
+                        (WatchDirs [Path.absolute @"/proj/pkg-a/src"])
+            matchesAny watches (Path.absolute @"/proj/pkg-a/src/Foo.hs") @?= True
+            matchesAny watches (Path.absolute @"/proj/pkg-b/src/Foo.hs") @?= False
         ]
     , testGroup
         "cabal watches"
         [ testCase "matches .cabal files under project root" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches "/proj/foo.cabal" @?= True
+            matchesAny watches (Path.absolute @"/proj/foo.cabal") @?= True
         , testCase "matches cabal.project under project root" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches "/proj/cabal.project" @?= True
-        , testCase "matches package.yaml under project root" do
+            matchesAny watches (Path.absolute @"/proj/cabal.project") @?= True
+        , testCase "does not match package.yaml (its .cabal file is watched instead)" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches "/proj/package.yaml" @?= True
+            matchesAny watches (Path.absolute @"/proj/package.yaml") @?= False
         , testCase "does not match non-cabal files" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches "/proj/README.md" @?= False
+            matchesAny watches (Path.absolute @"/proj/README.md") @?= False
         , testCase "excludes cabal files under dist-newstyle" do
             let watches =
                     Watch.specs
-                        (ProjectRoot "/proj")
+                        (ProjectRoot (Path.absolute @"/proj"))
                         (WatchExclusionPatterns [])
                         (WatchDirs [])
-            matchesAny watches "/proj/dist-newstyle/foo.cabal" @?= False
+            matchesAny watches (Path.absolute @"/proj/dist-newstyle/foo.cabal") @?= False
         ]
     ]
   where

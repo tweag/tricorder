@@ -9,7 +9,7 @@ import Atelier.Effects.FileWatcher.Event qualified as FileWatcher
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher.Event
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub.Sub qualified as Sub
-import System.FilePath qualified as Path
+import Atelier.FileSystem.Path qualified as Path
 
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot)

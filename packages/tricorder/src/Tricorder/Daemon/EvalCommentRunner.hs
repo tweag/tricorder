@@ -10,7 +10,6 @@ module Tricorder.Daemon.EvalCommentRunner
 where
 
 import Atelier.Effects.Conc (Conc)
-import Atelier.Effects.FileSystem (FileSystem, readFileBs)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
@@ -21,10 +20,13 @@ import Effectful (Effect)
 import Effectful.Concurrent (Concurrent)
 import Effectful.Dispatch.Dynamic (interpretWith_)
 import Effectful.Exception (trySync)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.TH (makeEffect)
 
 import Atelier.Effects.Log qualified as Log
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
@@ -49,7 +51,7 @@ data EvalCommentRunner :: Effect where
     -- | Extract eval comments from provided source files. Returns a map of all
     -- files that have at least 1 eval comment.
     FindEvalCommentsInModules
-        :: Map FilePath Ghci.LoadedModule
+        :: Map Path.Any Ghci.LoadedModule
         -> EvalCommentRunner m [(Ghci.LoadedModule, NonEmpty Eval.Comment)]
 
 
@@ -74,7 +76,7 @@ run act = do
     interpretWith_ act \case
         FindEvalCommentsInModules loadedModules -> do
             concat <$> for (Map.toList loadedModules) \(absPath, lm) -> do
-                fileResult <- trySync $ readFileBs absPath
+                fileResult <- trySync $ File.read absPath
                 pure $ case fileResult of
                     Left _ -> []
                     Right bs ->
@@ -106,7 +108,7 @@ runFileEvals
        , Timeout :> es
        )
     => Session
-    -> FilePath
+    -> Path.Relative
     -- ^ Relative path to the source file (stored in results).
     -> Text
     -> NonEmpty Eval.Comment

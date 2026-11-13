@@ -16,9 +16,24 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   in one package of a multi-package repo), and use that as the root of the
   project. Defaults to the current working directory (the old behavior) if no
   Cabal or Stack files are found.
+- When the project root is a package inside a larger project, Tricorder now
+  also looks in ancestor directories for `stack.yaml` (to decide whether to use
+  Stack, and to reload when it changes) and `cabal.project` (to decide whether
+  to use multi-repl), as `stack` and `cabal` do. Tricorder still only works on
+  the package it was started in.
+- Changes to `cabal.project.local` and `cabal.project.freeze` now trigger a
+  reload, and `~/.config/cabal/config` is now consulted in addition to
+  `~/.cabal/config`.
 - Failed hooks now output a message to the log file.
 - `tricorder daemon info` now outputs the full session instead of just the
   build targets and watch directories.
+- Moved Tricorder's default log file location from `XDG_RUNTIME_DIR` to
+  `XDG_CACHE_HOME`. This is more sensible for users, since `XDG_RUNTIME_DIR`
+  can sometimes be mounted as a `tmpfs` system, meaning Tricorder is filling up
+  developers' RAM unnecessarily.
+- Tricorder will now truncate the log file on daemon startup, if it exists. To
+  prevent this from happening, set the environment variable
+  `TRICORDER_NO_LOG_TRUNCATE=1`.
 
 ### Fixed
 

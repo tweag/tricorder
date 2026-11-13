@@ -3,6 +3,7 @@ module Unit.Tricorder.Daemon.Ghci.LoadResultSpec (test_LoadResult) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
@@ -28,8 +29,8 @@ testResolveKnownTargets =
                     { loadedModules =
                         Map.fromList
                             [
-                                ( "/abs/src/Foo.hs"
-                                , LoadedModule {relPath = "./src/Foo.hs", moduleName = "Foo"}
+                                ( Path.Absolute (Path.abs @"/abs/src/Foo.hs")
+                                , LoadedModule {relPath = Path.rel @"./src/Foo.hs", moduleName = "Foo"}
                                 )
                             ]
                     , targetNames = ["Foo"]
@@ -37,8 +38,8 @@ testResolveKnownTargets =
         LoadResult.resolveKnownTargets Map.empty result
             @?= Map.fromList
                 [
-                    ( "/abs/src/Foo.hs"
-                    , LoadedModule {relPath = "./src/Foo.hs", moduleName = "Foo"}
+                    ( Path.Absolute (Path.abs @"/abs/src/Foo.hs")
+                    , LoadedModule {relPath = Path.rel @"./src/Foo.hs", moduleName = "Foo"}
                     )
                 ]
     , -- Regression test for the stale-results bug. After a failed compile, the
@@ -50,8 +51,8 @@ testResolveKnownTargets =
         let prev =
                 Map.fromList
                     [
-                        ( "/abs/src/Foo.hs"
-                        , LoadedModule {relPath = "./src/Foo.hs", moduleName = "Foo"}
+                        ( Path.Absolute (Path.abs @"/abs/src/Foo.hs")
+                        , LoadedModule {relPath = Path.rel @"./src/Foo.hs", moduleName = "Foo"}
                         )
                     ]
             result =
@@ -64,8 +65,8 @@ testResolveKnownTargets =
         let prev =
                 Map.fromList
                     [
-                        ( "/abs/src/Foo.hs"
-                        , LoadedModule {relPath = "./src/Foo.hs", moduleName = "Foo"}
+                        ( Path.Absolute (Path.abs @"/abs/src/Foo.hs")
+                        , LoadedModule {relPath = Path.rel @"./src/Foo.hs", moduleName = "Foo"}
                         )
                     ]
             result = emptyLr {loadedModules = Map.empty, targetNames = []}
