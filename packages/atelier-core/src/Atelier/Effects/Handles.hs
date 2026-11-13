@@ -5,9 +5,11 @@ module Atelier.Effects.Handles
     , Handle
     , BufferMode (..)
     , IOMode (..)
+    , SeekMode (..)
     , with
     , hClose
     , hFlush
+    , hSeek
     , hGetLine
     , hPutText
     , hPutTextLn
@@ -27,7 +29,7 @@ import Effectful.Dispatch.Static
     , unsafeEff_
     , unsafeSeqUnliftIO
     )
-import System.IO (BufferMode (..), Handle)
+import System.IO (BufferMode (..), Handle, SeekMode (..))
 import Prelude
 
 import Data.ByteString.Lazy.Char8 qualified as LB8
@@ -58,6 +60,11 @@ hClose = unsafeEff_ . IO.hClose
 -- | Lifted `System.IO.hFlush`.
 hFlush :: (Handles :> es, HasCallStack) => Handle -> Eff es ()
 hFlush = unsafeEff_ . IO.hFlush
+
+
+-- | Lifted `System.IO.hSeek`.
+hSeek :: (Handles :> es, HasCallStack) => Handle -> SeekMode -> Integer -> Eff es ()
+hSeek h sm i = unsafeEff_ $ IO.hSeek h sm i
 
 
 -- | Lifted `System.IO.hGetLine`.
