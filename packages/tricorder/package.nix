@@ -112,6 +112,20 @@ in
       ++ [ "tricorder-internal" ]
       ++ depList [ "atelier-prelude" ];
     };
+    help = {
+      main = "Main.hs";
+      source-dirs = "help";
+      ghc-options = [ "\"-with-rtsopts=-N -T\"" ];
+      dependencies = [
+        {
+          name = "base";
+          version = constraints.base;
+          mixin = [ "hiding (Prelude)" ];
+        }
+      ]
+      ++ [ "tricorder-internal" ]
+      ++ depList [ "atelier-prelude" ];
+    };
   };
   tests = {
     tricorder-test = {

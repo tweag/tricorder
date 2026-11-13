@@ -9,6 +9,7 @@ let
 in
 {
   imports = [
+    inputs.flake-root.flakeModule
     ./apps.nix
     ./shell.nix
     ./checks.nix
@@ -123,6 +124,10 @@ in
         tricorder-mcp = self'.packages."tricorder-mcp:exe:tricorder-mcp";
         tricorder-static = staticFlake.packages."tricorder:exe:tricorder";
         tricorder-mcp-static = staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";
+
+        skill-docs = pkgs.runCommand "skill-docs" { LANG = "C.UTF-8"; } ''
+          '${lib.getExe self'.packages."tricorder:exe:help"}' >"$out"
+        '';
       };
 
       checks = flake.checks;

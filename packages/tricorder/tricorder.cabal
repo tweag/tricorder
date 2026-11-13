@@ -49,6 +49,7 @@ library tricorder-internal
       Tricorder.CLI.App.Test.Text
       Tricorder.CLI.Arguments
       Tricorder.CLI.Daemon
+      Tricorder.CLI.Docs
       Tricorder.CLI.Main
       Tricorder.CLI.Operations
       Tricorder.CLI.Render
@@ -210,6 +211,44 @@ library tricorder-internal
     , vty-crossplatform ==0.5.*
     , yaml ==0.11.*
     , zlib ==0.7.*
+  mixins:
+      base hiding (Prelude)
+  default-language: GHC2021
+  if impl(GHC >= 9.8)
+    ghc-options: -Wno-missing-poly-kind-signatures -Wno-missing-role-annotations
+
+executable help
+  main-is: Main.hs
+  other-modules:
+      Paths_tricorder
+  autogen-modules:
+      Paths_tricorder
+  hs-source-dirs:
+      help
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveAnyClass
+      DerivingStrategies
+      DerivingVia
+      DuplicateRecordFields
+      FlexibleContexts
+      GADTs
+      LambdaCase
+      MultiWayIf
+      OverloadedLabels
+      OverloadedRecordDot
+      OverloadedStrings
+      StrictData
+      TemplateHaskell
+      TypeFamilies
+  ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations -fplugin=Effectful.Plugin -threaded "-with-rtsopts=-N -T"
+  build-depends:
+      atelier-prelude ==0.4.*
+    , base >=4.18 && <4.23
+    , effectful-core ==2.7.*
+    , effectful-plugin ==2.2.*
+    , tricorder-internal
   mixins:
       base hiding (Prelude)
   default-language: GHC2021
