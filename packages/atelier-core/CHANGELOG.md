@@ -21,6 +21,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `Atelier.FileSystem.Path` paths.
 - `Atelier.FileSystem.Permissions`: permissions operations on
   `Atelier.FileSystem.Path` paths.
+- `Atelier.Effects.Exit` now re-exports `ExitCode` and its constructors.
+- `Atelier.Effects.Handles.hSeek`: lifted `System.IO.hSeek`.
+- `Atelier.Effects.Handles.SeekMode`: reexport from `System.IO`.
 
 ### Changed
 
