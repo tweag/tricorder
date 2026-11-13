@@ -5,6 +5,7 @@ module Atelier.Effects.Exit
     , with
     , success
     , failure
+    , ExitCode (..)
 
       -- * Interpreters
     , runIO

@@ -4,6 +4,7 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
+import Effectful.FileSystem (runFileSystem)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
@@ -46,8 +47,10 @@ import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
 import Tricorder.Logging qualified as Logging
+import Tricorder.Runtime.Cache qualified as Runtime.Cache
 import Tricorder.Runtime.Directory qualified as Runtime.Directory
 import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
+import Tricorder.Runtime.ProjectHash qualified as Runtime.ProjectHash
 import Tricorder.Runtime.ProjectRoot qualified as Runtime.ProjectRoot
 import Tricorder.Runtime.SocketPath qualified as Runtime.SocketPath
 import Tricorder.Session qualified as Session
@@ -70,16 +73,19 @@ main =
         . Delay.runIO
         . Timeout.run
         . Debounce.run @FilePath
+        . runFileSystem
         . FileSystem.runIO
         . FSNotify.run
         . FileWatcher.runIO
         . Glob.runIO
         . Env.runIO
+        . Exit.runIO
         . Runtime.ProjectRoot.asReader
+        . Runtime.ProjectHash.asReader
+        . Runtime.Cache.asReader
         . Runtime.Directory.asReader
         . Runtime.SocketPath.asReader
         . Runtime.LogPath.asReader
-        . Exit.runIO
         . Handles.run
         . LoadedConfig.asInput
         . Logging.run

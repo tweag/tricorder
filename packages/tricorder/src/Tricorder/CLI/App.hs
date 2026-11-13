@@ -25,6 +25,7 @@ import Tricorder.API.Command
 import Prelude hiding (force)
 
 import Atelier.Effects.Console qualified as Console
+import Atelier.FileSystem.Path qualified as Path
 import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 
@@ -95,7 +96,7 @@ run =
         Log logMode -> do
             Runtime.LogPath logFile <- Reader.ask
             case logMode of
-                ShowLog -> showLog logFile
+                ShowLog -> showLog $ Path.toFilePath logFile
                 ShowLogPath -> Console.putTextLn (toText logFile)
         UI -> do
             running <- isDaemonRunning
