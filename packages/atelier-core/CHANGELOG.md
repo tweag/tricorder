@@ -19,6 +19,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `Atelier.FileSystem.Path` paths.
 - `Atelier.FileSystem.SymbolicLink`: symbolic link operations on
   `Atelier.FileSystem.Path` paths.
+- `Atelier.FileSystem.Permissions`: permissions operations on
+  `Atelier.FileSystem.Path` paths.
 
 ### Changed
 

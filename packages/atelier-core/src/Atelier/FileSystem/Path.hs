@@ -9,8 +9,8 @@
 -- Maintainer  : <victor.bakke@tweag.io>
 -- Portability : non-portable (requires POSIX)
 --
--- Functions from 'System.FilePath' tailed for use with 'Relative' and
--- 'Absolute'.
+-- Functions from "Effectful.FileSystem" tailored for use with
+-- "Atelier.FileSystem.Path" paths.
 --
 -- As of this writing in 2026-11-06, @atelier-core@ only supports POSIX
 -- systems, so we only include the POSIX examples from "System.FilePath".
