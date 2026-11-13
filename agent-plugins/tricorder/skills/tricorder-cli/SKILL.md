@@ -1,48 +1,52 @@
 ---
 name: tricorder-cli
-description: Full CLI reference for the tricorder daemon (build diagnostics, test results, source lookup, eval comments, logs). This is the fallback invoked by the `tricorder` skill when the tricorder-mcp MCP tools aren't available or aren't working — invoke `tricorder` first; it decides whether this is needed.
+description: Full CLI reference for the tricorder daemon (build diagnostics, test results, source lookup, eval comments, logs). This is the fallback invoked by the `tricorder` skill when the tricorder-mcp MCP tools aren't available or aren't working. Invoke `tricorder` first; it decides whether this is needed.
 user-invocable: true
 allowed-tools: Bash(tricorder *)
 ---
 
-# Using tricorder to Check Build Status
+# Using the tricorder CLI
 
-tricorder is a daemon-based GHCi build monitor. It exposes build state over a Unix socket and outputs human-readable text by default, or JSON with `--json` for tool integration.
+tricorder is a daemon-based GHCi build monitor. The daemon is per-project,
+scoped by the current working directory, and every query command starts it if
+it isn't running. Output is human-readable text by default, or JSON with
+`--json`.
+
+Run `tricorder <command> --help` for exact flags. [CLI.md](./CLI.md) holds the
+`--help` output of every command.
+
+## Workflow
+
+1. Edit source files.
+2. Run `tricorder status`. It blocks until the daemon finishes the pending build.
+3. Fix any errors and repeat.
+4. On `All good.`, the daemon runs the configured test suites. Run `tricorder test suites --failed-only` to see failures.
+
+Never run `cabal build` or `cabal test` yourself. The daemon builds after every edit and runs tests after each clean build.
 
 ## Commands
 
-- `tricorder start` — start the daemon (no-op if already running)
-- `tricorder stop` — stop the daemon, waiting for pending queries before quitting
-- `tricorder stop --force` -- stop the daemon, ignoring pending queries
-- `tricorder status` — print current build state as text
-- `tricorder restart` -- restart the daemon, waiting for pending queries before shutting down
-- `tricorder restart --force` -- restart the daemon, ignoring pending queries
-- `tricorder status --wait` — same, but blocks until the current build cycle finishes
-- `tricorder status --json` — output full build state as JSON
-- `tricorder status --wait --json` — wait then output JSON
-- `tricorder status --verbose` / `-v` — print full GHC message body under each diagnostic
-- `tricorder status --expand <N>` — print the summary line and full GHC message body for diagnostic #N
-- `tricorder test-results` — show full output from the latest test run
-- `tricorder test-results --failed` — show output only from failed test suites
-- `tricorder test-results --wait` — block until the current build cycle completes, then show results
-- `tricorder source MODULE...` — print Haskell source for one or more project or installed modules (e.g. `tricorder source Data.Map.Strict`)
-- `tricorder eval-comments` — print eval comments and their evaluated results from the current build result.
-- `tricorder eval-comments --wait` — print eval comments and their evaluated results, waiting for the current build to finish if it is in-progress
-- `tricorder eval-comments --json` — print eval comments and their evaluated results as JSON
-- `tricorder eval-comments --wait --json` — print eval comments and their evaluated results as JSON, waiting for the current build to finish if it is in-progress
-- `tricorder log` — print the daemon log output
-- `tricorder log --print-path` — print the path to the log file instead of its contents
-- `tricorder ui` — auto-refreshing terminal display (for humans)
+| Command | Use |
+| --- | --- |
+| `status` | Build diagnostics and test summary |
+| `test suites` | Test suites, cases, failures, output |
+| `source` | Haskell source of project or installed modules |
+| `eval-comments` | Results of eval comments in watched sources |
+| `daemon info\|start\|stop\|restart` | Manage the daemon |
+| `log` | Daemon log |
+| `ui` | Interactive auto-refreshing display, for humans |
 
-## Checking Build Status
+### Flags shared by the query commands
 
-Run `tricorder status --wait` after making edits. The `--wait` flag ensures you get the result of the build triggered by your changes, not a stale one.
+`status`, `test suites` and `eval-comments` accept:
 
-If `tricorder status` returns `Stopped.`, start the daemon with `tricorder start`.
+- `-j, --json` for machine-readable output.
+- `-c, --use-current` to skip waiting for the pending build and read the current, possibly incomplete, state.
+- `--prevent-daemon` to fail instead of starting the daemon when it isn't running.
 
-### Text output (default)
+## status
 
-One line per diagnostic (prefixed with a 1-based index), followed by a summary:
+One line per diagnostic with a 1-based index, then a summary:
 
 ```
 [1] E src/Foo/Bar.hs:42 `something` not in scope
@@ -50,15 +54,13 @@ One line per diagnostic (prefixed with a 1-based index), followed by a summary:
 2 error(s), 1 warning(s) (71 modules, 1.2s)
 ```
 
-Format: `[N] <E|W> <file>:<line> <title>`
-
-A clean build prints:
+Format: `[N] <E|W> <file>:<line> <title>`. A clean build prints:
 
 ```
 All good. (71 modules, 17.3s)
 ```
 
-If test suites are configured, their results follow the build summary:
+Test suite results follow the summary when suites are configured:
 
 ```
 All good. (71 modules, 17.3s)
@@ -66,100 +68,64 @@ test:my-test  passed
 test:other-test  failed
 ```
 
-With `--wait`, if a build is in progress `Building...` is printed immediately before blocking.
+- `-v, --verbose` prints the full GHC message under each diagnostic, and full test suite error messages.
+- `--expand N` prints only diagnostic #N in full. Use it to read one error without the rest.
 
-With `--verbose`, the full GHC message body is printed under each diagnostic:
+Exit code is 1 when any error is present or any test suite fails. Warnings alone give 0.
 
-```
-[1] E src/Foo/Bar.hs:42 `something` not in scope
-Variable not in scope: something
-    suggested fix: ...
-1 error(s), 0 warning(s) (71 modules, 1.2s)
-```
-
-With `--expand <N>`, only diagnostic #N is expanded (summary line + full body):
-
-```
-[1] E src/Foo/Bar.hs:42 `something` not in scope
-Variable not in scope: something
-    suggested fix: ...
-```
-
-**Exit code**: 1 when any errors are present or any test suite fails, 0 otherwise (warnings alone → 0).
-
-### JSON output (`--json`)
-
-Use `--json` when you need structured data for further processing:
+`--json` returns the full build state:
 
 ```json
 {
   "buildId": 3,
   "phase": {
-    "tag": "Done",
+    "tag": "Finished",
     "contents": {
       "completedAt": "2026-03-30T12:00:00Z",
       "durationMs": 420,
       "moduleCount": 42,
-      "diagnostics": [...]
+      "testSuites": [...]
     }
-  },
-  "daemonInfo": { "targets": [], "watchDirs": [...], "sockPath": "...", "logFile": null }
+  }
 }
 ```
 
-Each diagnostic in `diagnostics`:
+Prefer the text output. Reach for `--json` only when parsing the whole state.
 
-```json
-{
-  "severity": "error",
-  "file": "src/Foo.hs",
-  "line": 42,
-  "col": 5,
-  "endLine": 42,
-  "endCol": 20,
-  "title": "Variable not in scope: foo",
-  "text": "Variable not in scope: foo\n    ...\n"
-}
+## test suites
+
+`tricorder test suites [TEST-TARGET...]` prints a YAML list, one entry per suite:
+
+```yaml
+- name: tricorder:test:tricorder-test
+  status: failed
+  passed_cases: 479
+  total_cases: 480
+  duration_ms: 250
 ```
 
-- `title` is the short summary (first line of the GHC message)
-- `text` contains the full GHC message body
+- Name one or more `TEST-TARGET`s to show only those suites.
+- `-f, --failed-only` shows only failed suites and, within them, only failed cases. When nothing failed it prints `no failed test suites`.
+- `--fields` picks the fields. Available: `name`, `status`, `error`, `passed_cases`, `total_cases`, `duration_ms`, `output`, `cases(description, outcome, failure)`. Nest with parentheses.
+- `--help-json` prints the JSON schema of the `--json` output.
 
-### Test results (`test-results`)
-
-The daemon runs configured test suites automatically after each clean build — **never run `cabal test` manually**. Use `tricorder test-results` to inspect what happened.
-
-Default output lists each suite with its outcome followed by full captured output:
+To read why a case failed:
 
 ```
-test:my-tests  failed
-  <full test runner output>
-test:other-tests  passed
-  <full test runner output>
+tricorder test suites --failed-only --fields 'name,cases(description,failure)'
 ```
 
-With `--failed`, only failing suites are shown. If all suites passed:
+Exit code is 1 when any shown suite failed or errored.
 
-```
-All passed.
-  test:my-tests
-  test:other-tests
-```
+## source
 
-With `--wait`, blocks until the current build and test cycle completes before printing results. Combine with `--failed` to get a compact failure report after editing:
+`tricorder source Module[#function]` prints the Haskell source of a project or installed module, or of one function in it. Use it to read library code instead of hunting through the Nix store or `~/.cabal`.
 
-```
-tricorder test-results --wait --failed
-```
+- When the symbol isn't defined in the queried module, tricorder follows re-exports. `--max-depth N` (default 5) caps the hops, `--max-modules N` (default 24) caps the modules read.
 
-**Exit code**: 1 when any shown test suite failed or errored, 0 otherwise.
+## eval-comments
 
-### Eval comments (`eval-comments`)
-
-The daemon evaluates eval comments in the watched source files it finds. These
-could be useful to you to run quick tests or for checking things.
-
-Default output lists each eval comment with its evaluated result:
+The daemon evaluates eval comments in the watched source files. Use them for quick type checks and experiments.
 
 ```
 ./src/Source/Module.hs (line 123)
@@ -169,9 +135,9 @@ Output:
 someFunc :: Int -> Int
 ```
 
-With `--json`, the output is formatted as a JSON object:
+With `--json`:
 
-```
+```json
 {
   "state": "done",
   "comments": [
@@ -179,31 +145,17 @@ With `--json`, the output is formatted as a JSON object:
       "expression": ":t someFunc",
       "file": "./src/Source/Module.hs",
       "line": 123,
-      "state": {
-        "output": "someFunc :: Int -> Int\n\n",
-        "state": "completed"
-      }
+      "state": { "output": "someFunc :: Int -> Int\n\n", "state": "completed" }
     }
   ]
 }
 ```
 
-The `state` property on the top-level object represents the current build
-state. If a build is currently in-progress, the `state` will show which stage
-of the build the daemon is at. Only `done` will be accompanied by a `comments`
-array with the evaluated comments.
+The top-level `state` is `done` once the build finishes. Only then does `comments` appear. Before that, `state` names the build stage the daemon is in.
 
-## Workflow
+## daemon and log
 
-1. Edit source files
-2. Run `tricorder status --wait` — blocks until tricorder finishes recompiling
-3. If errors are shown, fix them and repeat
-4. `All good.` means the build is clean; test suites run automatically if configured
-5. Run `tricorder test-results --wait --failed` to see any test failures
-
-## Notes
-
-- The daemon is per-project, scoped by the current working directory
-- `tricorder status` auto-starts the daemon if it isn't running
-- Do not run `cabal test` manually — the daemon manages test execution after each clean build
-- Use `--json` only when you need to parse the full build state; the default text output is sufficient for most workflows
+- `tricorder daemon info` shows daemon information (`--json` available).
+- `tricorder daemon start` is a no-op when the daemon already runs.
+- `tricorder daemon restart` and `stop` wait for clients with pending requests. `--ignore-pending-queries` skips the wait.
+- `tricorder log` prints the daemon log. `--print-path` prints the log file path instead, for grepping or tailing.
