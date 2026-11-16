@@ -27,6 +27,7 @@ newtype Hook = Hook {getHook :: Text}
 run :: (Log :> es, Process :> es, Reader ProjectRoot :> es) => Hook -> Eff es ()
 run (Hook hook) = do
     ProjectRoot root <- Reader.ask
+    Log.debug $ "Running hook: " <> hook
     res <-
         trySync
             $ Process.readProcess

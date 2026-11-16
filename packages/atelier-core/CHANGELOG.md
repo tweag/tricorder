@@ -28,6 +28,9 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 ### Changed
 
 - `Atelier.Effects.File`: renamed to `Atelier.Effects.Handles`.
+- `Atelier.Effects.FileWatcher.Event`: `Removed` and `Added` events merged
+  together is now considered a `Modified` event. This catches atomic writes by
+  editors that support writing file in that way.
 
 ### Deprecated
 

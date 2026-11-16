@@ -74,7 +74,6 @@ main =
         . Timeout.run
         . Debounce.run @FilePath
         . FSNotify.run
-        . FileWatcher.runIO
         . Glob.runIO
         . Env.runIO
         . Exit.runIO
@@ -85,6 +84,7 @@ main =
         . LoadedConfig.asInput
         . Handles.run
         . Logging.run
+        . FileWatcher.runIO
         . Runtime.Directory.asReader
         . Runtime.SocketPath.asReader
         . Chan.run

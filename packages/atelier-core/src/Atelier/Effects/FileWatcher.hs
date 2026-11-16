@@ -72,12 +72,14 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.FSNotify (FSNotify)
 import Atelier.Effects.FileWatcher.Event (Event)
 import Atelier.Effects.FileWatcher.Watch (Watch)
+import Atelier.Effects.Log (Log)
 
 import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.FSNotify qualified as FSNotify
 import Atelier.Effects.FileWatcher.Event qualified as Event
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
+import Atelier.Effects.Log qualified as Log
 import Atelier.FileSystem.Path qualified as Path
 import Atelier.Time qualified as Time
 
@@ -108,14 +110,15 @@ watchFilePathsDebounced watches callback =
 
 
 -- | Production interpreter backed by fsnotify.
-runIO :: (Delay :> es, FSNotify :> es) => Eff (FileWatcher : es) a -> Eff es a
+runIO :: (Delay :> es, FSNotify :> es, Log :> es) => Eff (FileWatcher : es) a -> Eff es a
 runIO = interpret \env -> \case
     WatchFilePaths absWatches callback -> do
         FSNotify.withManager \mgr -> do
             let dedupedDirs = deduplicateDirs $ Watch.path <$> absWatches
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift ->
                 for_ dedupedDirs \d ->
-                    FSNotify.watchTree mgr d (matchesAny absWatches . FSNotify.eventPath) \fsEvent ->
+                    FSNotify.watchTree mgr d (matchesAny absWatches . FSNotify.eventPath) \fsEvent -> do
+                        Log.debug $ "File event: " <> show fsEvent
                         void $ unlift $ callback (eventPath fsEvent) (Event.fromFS fsEvent)
             -- Park indefinitely to hold the manager open. fsnotify delivers
             -- events on its own threads, so there is nothing to do here, and

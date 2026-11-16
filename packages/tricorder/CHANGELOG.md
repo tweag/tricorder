@@ -26,6 +26,20 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Tricorder will now truncate the log file on daemon startup, if it exists. To
   prevent this from happening, set the environment variable
   `TRICORDER_NO_LOG_TRUNCATE=1`.
+- Atomic writes, which is the default for many editors like Neovim and Emacs,
+  no longer trigger the `haskell.file_added` hook instead of the
+  `haskell.file_modified` hook. This was caused by how atomic writes work: when
+  a file is modified in Neovim or Emacs or any editor using atomic writing,
+  they first save the file with the changed content in a separate location,
+  remove the existing, old version of the file, and move the file with the
+  changes from the temporary location into the location of the old one. To
+  Tricorder, this looked like you first removed the existing file, and then
+  re-added it, which was debounced and merged into a single "added" event. Now
+  a "remove" immediately followed by an "added" is considered a "modified"
+  event. Granted, there are some edge-cases here where there might be
+  legitimate "remove, added" events in the same debounce window for a single
+  file that should be treated as separate calls to `haskell.file_removed` and
+  `haskell.file_added` hooks, but we'll leave this for later.
 
 ### Fixed
 
