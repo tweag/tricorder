@@ -166,6 +166,7 @@ in
         "typed-process"
         "unagi-chan"
         "unix"
+        "yaml"
         "zlib"
       ];
     };
