@@ -90,6 +90,13 @@ in
             packages.tricorder.components.exes.tricorder-daemon = staticExeConfig;
             packages.tricorder-mcp.components.exes.tricorder-mcp = staticExeConfig;
           }
+          # On darwin the zlib Haskell package resolves libz through its own
+          # pkgconfig dependency, which is the dynamic nixpkgs zlib; adding a
+          # static zlib to the exes' `libs` is not enough.  Point the library
+          # itself at the static build.
+          (lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+            packages.zlib.components.library.pkgconfig = lib.mkForce [ [ pkgs.pkgsStatic.zlib ] ];
+          })
         ];
       };
       staticFlake = staticProject.flake { };
