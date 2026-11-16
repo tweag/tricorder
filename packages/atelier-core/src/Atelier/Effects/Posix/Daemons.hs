@@ -26,6 +26,8 @@ import Effectful.Exception (trySync)
 
 import System.Posix.Daemon qualified as Daemons
 
+import Atelier.FileSystem.Path qualified as Path
+
 
 -- | Effect for managing detached daemon processes.
 data Daemons :: Effect
@@ -38,7 +40,7 @@ data instance StaticRep Daemons = Daemons
 
 
 -- | The path to a daemon's PID file, used to track and control it.
-newtype PidFile = PidFile {getPidFile :: FilePath}
+newtype PidFile = PidFile {getPidFile :: Path.Absolute}
 
 
 -- | Daemonize the given program, ensuring it is cleanly separated from the
@@ -48,7 +50,7 @@ daemonize (PidFile pidFile) program = do
     Daemons <- getStaticRep
     unsafeEff \env ->
         concUnliftIO env Persistent Unlimited \unlift -> do
-            Daemons.runDetached (Just pidFile) def
+            Daemons.runDetached (Just $ Path.toFilePath pidFile) def
                 $ unlift program
 
 
@@ -56,14 +58,14 @@ daemonize (PidFile pidFile) program = do
 isRunning :: (Daemons :> es) => PidFile -> Eff es Bool
 isRunning (PidFile pidFile) = do
     Daemons <- getStaticRep
-    unsafeEff_ $ Daemons.isRunning pidFile
+    unsafeEff_ $ Daemons.isRunning $ Path.toFilePath pidFile
 
 
 -- | Kill the daemon associated with the provided PID file using `SIGKILL`.
 forceKillAndWait :: (Daemons :> es) => PidFile -> Eff es (Either SomeException ())
 forceKillAndWait (PidFile pidFile) = do
     Daemons <- getStaticRep
-    trySync $ unsafeEff_ $ Daemons.brutalKill pidFile
+    trySync $ unsafeEff_ $ Daemons.brutalKill $ Path.toFilePath pidFile
 
 
 run :: (IOE :> es) => Eff (Daemons : es) a -> Eff es a

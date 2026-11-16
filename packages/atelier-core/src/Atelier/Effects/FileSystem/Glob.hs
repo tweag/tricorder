@@ -25,16 +25,19 @@ import System.FilePath.Glob (GlobOptions, Pattern)
 import System.FilePath.Glob qualified as Glob
 import System.FilePath.Glob qualified as GlobExports hiding (glob, globDir, globDir1, globDirWith)
 
+import Atelier.FileSystem.Path qualified as Path
+
 
 data Glob :: Effect where
     -- | Lifted 'Glob.globDir'.
-    GlobDir :: [Pattern] -> FilePath -> Glob m [[FilePath]]
+    GlobDir :: [Pattern] -> Path.Absolute -> Glob m [[Path.Absolute]]
     -- | Lifted 'Glob.globDir1'.
-    GlobDir1 :: Pattern -> FilePath -> Glob m [FilePath]
+    GlobDir1 :: Pattern -> Path.Absolute -> Glob m [Path.Absolute]
     -- | Lifted 'Glob.glob'.
-    Glob :: String -> Glob m [FilePath]
+    Glob :: String -> Glob m [Path.Absolute]
     -- | Lifted 'Glob.globDirWith'.
-    GlobDirWith :: GlobOptions -> [Pattern] -> FilePath -> Glob m ([[FilePath]], Maybe [FilePath])
+    GlobDirWith
+        :: GlobOptions -> [Pattern] -> Path.Absolute -> Glob m ([[Path.Absolute]], Maybe [Path.Absolute])
 
 
 makeEffect ''Glob
@@ -42,22 +45,45 @@ makeEffect ''Glob
 
 runIO :: (IOE :> es) => Eff (Glob : es) a -> Eff es a
 runIO = interpret_ \case
-    GlobDir patterns filePath -> liftIO $ Glob.globDir patterns filePath
-    GlobDir1 pattern filePath -> liftIO $ Glob.globDir1 pattern filePath
-    Glob pattern -> liftIO $ Glob.glob pattern
-    GlobDirWith opts patterns filePath -> liftIO $ Glob.globDirWith opts patterns filePath
+    GlobDir patterns filePath ->
+        -- Should be safe to use `rights` here, unless `glob` does not behave
+        -- the way they describe. The only instance this is unsafe is if you
+        -- pass a `Path.relative @""`, an empty relative path, which causes
+        -- `glob` to use the current working directory as the prefix for the
+        -- resulting matches, which makes them in actuality _absolute_ paths.
+        -- Because of this gotcha, we restrict ourselves to 'Path.Absolute'
+        -- here.
+        fmap (fmap (rights . fmap Path.fromFilePath))
+            $ liftIO
+            $ Glob.globDir patterns
+            $ Path.toFilePath filePath
+    GlobDir1 pattern filePath ->
+        fmap (rights . fmap Path.fromFilePath)
+            $ liftIO
+            $ Glob.globDir1 pattern
+            $ Path.toFilePath filePath
+    Glob pattern -> fmap (rights . fmap Path.fromFilePath) $ liftIO $ Glob.glob pattern
+    GlobDirWith opts patterns filePath ->
+        fmap
+            ( bimap
+                (fmap (rights . fmap Path.fromFilePath))
+                (fmap (rights . fmap Path.fromFilePath))
+            )
+            $ liftIO
+            $ Glob.globDirWith opts patterns
+            $ Path.toFilePath filePath
 
 
 -- | Script element for the test interpreter.
 data GlobScript
     = -- | Return this result for the next 'globDir' call.
-      NextGlobDir [[FilePath]]
+      NextGlobDir [[Path.Absolute]]
     | -- | Return this result for the next 'globDir1' call.
-      NextGlobDir1 [FilePath]
+      NextGlobDir1 [Path.Absolute]
     | -- | Return this result for the next 'glob' call.
-      NextGlob [FilePath]
+      NextGlob [Path.Absolute]
     | -- | Return this result for the next 'globDirWith' call.
-      NextGlobDirWith ([[FilePath]], Maybe [FilePath])
+      NextGlobDirWith ([[Path.Absolute]], Maybe [Path.Absolute])
 
 
 -- | Scripted interpreter for testing. Pops the next matching entry off the

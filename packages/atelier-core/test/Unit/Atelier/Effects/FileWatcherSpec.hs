@@ -24,6 +24,8 @@ import Atelier.Effects.FileWatcher.Watch (Watch)
 
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.FileWatcher.Watch qualified as Watch
+import Atelier.FileSystem.Path qualified as Path
+import Atelier.FileSystem.Path.Internal qualified as Path.Internal
 
 
 test_FileWatcher :: TestTree
@@ -48,23 +50,32 @@ test_FileWatcher =
                 [ testCase "returns empty list unchanged" do
                     deduplicateDirs [] @?= []
                 , testCase "does not treat a dir as an ancestor of a similarly named dir" do
-                    deduplicateDirs ["/src", "/srcover"] @?= ["/src", "/srcover"]
+                    deduplicateDirs (mkAbs <$> ["/src", "/srcover"])
+                        @?= (mkAbs <$> ["/src", "/srcover"])
                 ]
             ]
         , testGroup
             "matchesAny"
             [ testCase "matches a file under a watched directory" do
-                matchesAny [Watch.dir "/proj/src"] "/proj/src/Foo.hs"
+                matchesAny
+                    [Watch.dir $ mkAbs "/proj/src"]
+                    (mkAbs "/proj/src/Foo.hs")
                     @?= True
             , testCase "does not match a relative watch dir against an absolute event path" do
                 -- runFileWatcherIO must canonicalize Watch paths to absolute before
                 -- calling matchesAny, because fsnotify always reports absolute paths.
-                matchesAny [Watch.dir "src"] "/proj/src/Foo.hs"
+                matchesAny
+                    [Watch.dir $ mkAbs "src"]
+                    (mkAbs "/proj/src/Foo.hs")
                     @?= False
             , testCase "applies the file predicate" do
-                matchesAny [Watch.dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.hs"
+                matchesAny
+                    [Watch.dirWhere (mkAbs "/proj/src") (\f -> ".hs" `isSuffixOf` Path.toFilePath f)]
+                    (mkAbs "/proj/src/Foo.hs")
                     @?= True
-                matchesAny [Watch.dirWhere "/proj/src" (\f -> ".hs" `isSuffixOf` f)] "/proj/src/Foo.js"
+                matchesAny
+                    [Watch.dirWhere (mkAbs "/proj/src") (\f -> ".hs" `isSuffixOf` Path.toFilePath f)]
+                    (mkAbs "/proj/src/Foo.js")
                     @?= False
             ]
         , testGroup "runFileWatcherScripted" testScripted
@@ -86,7 +97,7 @@ testScripted =
             paths <- collectPaths ["/src/Foo.hs", "/src/Bar.hs"]
             paths @?= ["/src/Foo.hs", "/src/Bar.hs"]
         , testCase "ignores the watch specification" do
-            paths <- collectPathsWith [Watch.dir "/any"] ["/src/Foo.hs"]
+            paths <- collectPathsWith [Watch.dir $ mkAbs "/any"] ["/src/Foo.hs"]
             paths @?= ["/src/Foo.hs"]
         , testCase "passes the full path to the callback unchanged" do
             let path = "/home/user/project/src/Some/Deep/Module.hs"
@@ -131,7 +142,7 @@ propAntichain = do
     dirs <- forAll genDirs
     let result = deduplicateDirs dirs
     let pairs = [(a, b) | a <- result, b <- result, a /= b]
-    all (\(a, b) -> not (isStrictAncestor a b)) pairs === True
+    all (\(a, b) -> not (Path.isPrefixOf a b)) pairs === True
 
 
 propCoverage :: PropertyT IO ()
@@ -158,16 +169,16 @@ propSubset = do
 -- Generators
 --------------------------------------------------------------------------------
 
-genDirs :: Gen [FilePath]
+genDirs :: Gen [Path.Absolute]
 genDirs = Gen.list (Range.linear 0 10) genAbsDir
 
 
 -- Generates absolute paths like /a/b/c using short segments to encourage
 -- overlaps between generated paths.
-genAbsDir :: Gen FilePath
+genAbsDir :: Gen Path.Absolute
 genAbsDir = do
     segments <- Gen.list (Range.linear 1 4) genSegment
-    pure $ "/" <> intercalate "/" segments
+    pure $ Path.Internal.UnsafeMkAbsolute $ "/" <> intercalate "/" segments
 
 
 genSegment :: Gen String
@@ -178,9 +189,9 @@ genSegment = Gen.string (Range.linear 1 3) (Gen.element ['a', 'b', 'c', 'd'])
 -- Helpers (mirror of FileWatcher internals)
 --------------------------------------------------------------------------------
 
-isStrictAncestor :: FilePath -> FilePath -> Bool
-isStrictAncestor parent child = (parent <> "/") `isPrefixOf` child
+isCoveredBy :: [Path.Absolute] -> Path.Absolute -> Bool
+isCoveredBy result d = any (\r -> r == d || Path.isPrefixOf r d) result
 
 
-isCoveredBy :: [FilePath] -> FilePath -> Bool
-isCoveredBy result d = any (\r -> r == d || isStrictAncestor r d) result
+mkAbs :: FilePath -> Path.Absolute
+mkAbs = Path.Internal.UnsafeMkAbsolute

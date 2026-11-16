@@ -4,6 +4,8 @@ import Data.Default (def)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
+
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..))
@@ -28,50 +30,63 @@ testResolveWatchDirs =
     [ testGroup
         "when watch_dirs is set in config"
         [ testCase "uses config dirs relative to project root" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve pr [] def {watchDirs = ["src", "test"]} []
-            actual @?= ["/src", "/test"]
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
         ]
     , testGroup
         "when watch_dirs is not set"
         [ testCase "falls back to [\".\"] when targets list is empty" do
-            let WatchDirs actual = WatchDirs.resolve pr [] def []
-            actual @?= ["."]
+            let actual = WatchDirs.resolve pr [] def []
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/"])
         , testCase "infers source dirs from resolved targets" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve pr singleCabalFile def (mkTargets ["lib:myapp", "test:myapp-test"])
-            actual @?= ["/src", "/test"]
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
         , testCase "falls back to [\".\"] when there are no cabal files" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
-            actual @?= ["."]
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/"])
         , -- Sharp edge: an unparseable .cabal yields no source dirs, so resolution
           -- falls back to watching the whole project root. This pins the current
           -- behavior; if it ever changes to something narrower, update this test.
           testCase "falls back to [\".\"] when no cabal files are found or parsed" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
-            actual @?= ["."]
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/"])
         ]
     , testGroup
         "when the project is a multi-package cabal.project"
         [ testCase "infers per-package source dirs, scoped to each package's directory" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve
                         pr
                         multiCabalFiles
                         def
                         (mkTargets ["lib:pkg-a", "test:pkg-a-test", "lib:pkg-b", "test:pkg-b-test"])
             actual
-                @?= ["/pkg-a/src", "/pkg-a/test", "/pkg-b/src", "/pkg-b/test"]
+                @?= Right
+                    ( WatchDirs
+                        [ Path.absolute @"/pkg-a/src"
+                        , Path.absolute @"/pkg-a/test"
+                        , Path.absolute @"/pkg-b/src"
+                        , Path.absolute @"/pkg-b/test"
+                        ]
+                    )
         , testCase "scopes a bare package-name target to that package, ignoring siblings" do
-            let WatchDirs actual =
+            let actual =
                     WatchDirs.resolve pr multiCabalFiles def (mkTargets ["pkg-a"])
-            actual @?= ["/pkg-a/src", "/pkg-a/test"]
+            actual
+                @?= Right (WatchDirs [Path.absolute @"/pkg-a/src", Path.absolute @"/pkg-a/test"])
         ]
     ]
   where
-    pr = ProjectRoot "/"
+    pr = ProjectRoot (Path.absolute @"/")
 
 
 -- | These exercise the 'Target' -> dirs resolution directly with constructed
@@ -83,82 +98,93 @@ testSourceDirsForTarget =
         [ testGroup
             "when the name is empty"
             [ testCase "returns the main library source dirs" do
-                sourceDirsForTarget gpd (Qualified Lib "") @?= ["src"]
+                sourceDirsForTarget gpd (Qualified Lib "") @?= Right [Path.Relative (Path.rel @"src")]
             ]
         , testGroup
             "when the name matches the package name"
             [ testCase "returns the main library source dirs" do
-                sourceDirsForTarget gpd (Qualified Lib "myapp") @?= ["src"]
+                sourceDirsForTarget gpd (Qualified Lib "myapp") @?= Right [Path.Relative (Path.rel @"src")]
             ]
         , testGroup
             "when the name matches a sub-library"
             [ testCase "returns the sub-library source dirs" do
-                sourceDirsForTarget gpd (Qualified Lib "myapp-utils") @?= ["utils"]
+                sourceDirsForTarget gpd (Qualified Lib "myapp-utils") @?= Right [Path.Relative (Path.rel @"utils")]
             ]
         , testGroup
             "when the sub-library is unknown"
             [ testCase "returns an empty list" do
-                sourceDirsForTarget gpd (Qualified Lib "nonexistent") @?= []
+                sourceDirsForTarget gpd (Qualified Lib "nonexistent") @?= Right []
             ]
         ]
     , testGroup
         "Qualified FLib"
         [ testCase "returns the foreign-library source dirs" do
-            sourceDirsForTarget gpd (Qualified FLib "myapp-flib") @?= ["flib"]
+            sourceDirsForTarget gpd (Qualified FLib "myapp-flib") @?= Right [Path.Relative (Path.rel @"flib")]
         ]
     , testGroup
         "Qualified Exe"
         [ testCase "returns the executable source dirs" do
-            sourceDirsForTarget gpd (Qualified Exe "myapp-exe") @?= ["app"]
+            sourceDirsForTarget gpd (Qualified Exe "myapp-exe") @?= Right [Path.Relative (Path.rel @"app")]
         ]
     , testGroup
         "Qualified Test"
         [ testCase "returns the test suite source dirs" do
-            sourceDirsForTarget gpd (Qualified Test "myapp-test") @?= ["test"]
+            sourceDirsForTarget gpd (Qualified Test "myapp-test") @?= Right [Path.Relative (Path.rel @"test")]
         ]
     , testGroup
         "Qualified Bench"
         [ testCase "returns the benchmark source dirs" do
-            sourceDirsForTarget gpd (Qualified Bench "myapp-bench") @?= ["bench"]
+            sourceDirsForTarget gpd (Qualified Bench "myapp-bench")
+                @?= Right [Path.Relative (Path.rel @"bench")]
         ]
     , testGroup
         "Bare (package name)"
         [ testCase "returns every component's source dirs" do
-            sourceDirsForTarget gpd (Bare "myapp") @?= ["src", "utils", "flib", "app", "test", "bench"]
+            sourceDirsForTarget gpd (Bare "myapp")
+                @?= Right
+                    [ Path.Relative (Path.rel @"src")
+                    , Path.Relative (Path.rel @"utils")
+                    , Path.Relative (Path.rel @"flib")
+                    , Path.Relative (Path.rel @"app")
+                    , Path.Relative (Path.rel @"test")
+                    , Path.Relative (Path.rel @"bench")
+                    ]
         ]
     , testGroup
         "Bare (component name)"
         [ testGroup
             "when it names a sub-library"
             [ testCase "returns the sub-library source dirs" do
-                sourceDirsForTarget gpd (Bare "myapp-utils") @?= ["utils"]
+                sourceDirsForTarget gpd (Bare "myapp-utils") @?= Right [Path.Relative (Path.rel @"utils")]
             ]
         , testGroup
             "when it names an executable"
             [ testCase "returns the executable source dirs" do
-                sourceDirsForTarget gpd (Bare "myapp-exe") @?= ["app"]
+                sourceDirsForTarget gpd (Bare "myapp-exe") @?= Right [Path.Relative (Path.rel @"app")]
             ]
         , testGroup
             "when it names a test suite"
             [ testCase "returns the test suite source dirs" do
-                sourceDirsForTarget gpd (Bare "myapp-test") @?= ["test"]
+                sourceDirsForTarget gpd (Bare "myapp-test") @?= Right [Path.Relative (Path.rel @"test")]
             ]
         , testGroup
             "when it matches no component"
             [ testCase "returns an empty list" do
-                sourceDirsForTarget gpd (Bare "unknown") @?= []
+                sourceDirsForTarget gpd (Bare "unknown") @?= Right []
             ]
         ]
     , testGroup
         "Unrecognized"
         [ testCase "matches an aliased kind prefix by trailing name" do
-            sourceDirsForTarget gpd (Unrecognized "executable:myapp-exe") @?= ["app"]
+            sourceDirsForTarget gpd (Unrecognized "executable:myapp-exe")
+                @?= Right [Path.Relative (Path.rel @"app")]
         , testCase "matches a case-variant kind prefix by trailing name" do
-            sourceDirsForTarget gpd (Unrecognized "Test-Suite:myapp-test") @?= ["test"]
+            sourceDirsForTarget gpd (Unrecognized "Test-Suite:myapp-test")
+                @?= Right [Path.Relative (Path.rel @"test")]
         , testCase "matches the main library when the trailing name is the package name" do
-            sourceDirsForTarget gpd (Unrecognized "library:myapp") @?= ["src"]
+            sourceDirsForTarget gpd (Unrecognized "library:myapp") @?= Right [Path.Relative (Path.rel @"src")]
         , testCase "returns an empty list when the trailing name matches no component" do
-            sourceDirsForTarget gpd (Unrecognized "bogus:x") @?= []
+            sourceDirsForTarget gpd (Unrecognized "bogus:x") @?= Right []
         ]
     ]
 

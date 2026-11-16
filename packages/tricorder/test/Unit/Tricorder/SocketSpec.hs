@@ -1,15 +1,16 @@
 module Unit.Tricorder.SocketSpec (test_Socket) where
 
-import Atelier.Effects.FileSystem (FileSystem)
 import Atelier.Effects.Handles (Handles)
 import Effectful (IOE, runEff)
 import Effectful.Exception (trySync)
+import Effectful.FileSystem (FileSystem, runFileSystem)
 import System.IO (hClose, hGetLine, openFile, writeFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.Handles qualified as Handles
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
 
 import Tricorder.Socket.Client (isDaemonReady)
 import Tricorder.Socket.UnixSocket (SocketScript (..), UnixSocket)
@@ -39,7 +40,7 @@ testScripted =
             writeFile tmpPath "hello from test\n"
             h <- liftIO $ openFile tmpPath ReadMode
             line <- runScripted [NextAccept h] $ do
-                sock <- UnixSocket.bind "/"
+                sock <- UnixSocket.bind (Path.absolute @"/")
                 h' <- UnixSocket.accept sock
                 liftIO $ hGetLine h'
             liftIO $ hClose h
@@ -57,15 +58,15 @@ testReady =
     [ testCase "returns False when nothing is listening on the path" do
         -- A connect to a non-existent socket must be caught, not thrown: this is
         -- the race the start/status path hit before the socket was bound.
-        result <- runIO' $ isDaemonReady "/tmp/tricorder-isdaemonready-absent.sock"
+        result <- runIO' $ isDaemonReady (Path.absolute @"/tmp/tricorder-isdaemonready-absent.sock")
         result @?= False
     , testCase "returns True once a socket is bound and listening" do
-        let path = "/tmp/tricorder-isdaemonready-bound.sock"
+        let path = Path.absolute @"/tmp/tricorder-isdaemonready-bound.sock"
         result <- runIO' do
-            void $ trySync $ FileSystem.removeFile path
+            void $ trySync $ File.remove path
             _ <- UnixSocket.bind path
             isDaemonReady path
-        runIO' $ void $ trySync $ FileSystem.removeFile path
+        runIO' $ void $ trySync $ File.remove path
         result @?= True
     ]
 
@@ -81,4 +82,4 @@ runScripted script = runEff . Handles.run . UnixSocket.runScripted script
 
 -- | Run socket operations against the real IO interpreter.
 runIO' :: Eff '[UnixSocket, Handles, FileSystem, IOE] a -> IO a
-runIO' = runEff . FileSystem.runIO . Handles.run . UnixSocket.runIO
+runIO' = runEff . runFileSystem . Handles.run . UnixSocket.runIO

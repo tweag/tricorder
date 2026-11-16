@@ -3,10 +3,12 @@ module Unit.Tricorder.Daemon.DispatchSpec (test_Dispatch) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Dispatch
     ( KnownTargetNames (..)
     , fileMatchesAnyTarget
@@ -40,44 +42,44 @@ testFileMatchesAnyTarget =
     [ testCase "matches when the path's uppercase-suffix equals a target" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "Tricorder.Version"))
-            "./tricorder/src/Tricorder/Version.hs"
+            (Path.rel @"./tricorder/src/Tricorder/Version.hs")
             @?= True
     , testCase "matches a single-segment module" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "Main"))
-            "./app/Main.hs"
+            (Path.rel @"./app/Main.hs")
             @?= True
     , testCase "does not match when no uppercase-suffix equals a target" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "Other.Module"))
-            "./tricorder/src/Tricorder/Version.hs"
+            (Path.rel @"./tricorder/src/Tricorder/Version.hs")
             @?= False
     , testCase "does not match a lowercase-prefix even if textually contained" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "src.Tricorder.Version"))
-            "./tricorder/src/Tricorder/Version.hs"
+            (Path.rel @"./tricorder/src/Tricorder/Version.hs")
             @?= False
     , testCase "handles .lhs extension" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "Foo.Bar"))
-            "./src/Foo/Bar.lhs"
+            (Path.rel @"./src/Foo/Bar.lhs")
             @?= True
     , -- GHCi renders a target whose module name is ambiguous across home units
       -- (every executable/test 'Main') as its source path, e.g. "app/Main.hs".
       testCase "matches a path-shaped target on directory-segment boundaries" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "app/Main.hs"))
-            "./tricorder/app/Main.hs"
+            (Path.rel @"./tricorder/app/Main.hs")
             @?= True
     , testCase "does not match a path-shaped target on a partial segment" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "pp/Main.hs"))
-            "./tricorder/app/Main.hs"
+            (Path.rel @"./tricorder/app/Main.hs")
             @?= False
     , testCase "does not match a path-shaped target for a different file" do
         fileMatchesAnyTarget
             (KnownTargetNames (Set.singleton "daemon/Main.hs"))
-            "./tricorder/app/Main.hs"
+            (Path.rel @"./tricorder/app/Main.hs")
             @?= False
     ]
 
@@ -92,22 +94,22 @@ testMergeDiagnostics =
         -- Foo has an error, Bar has a warning.
         -- Only Foo is recompiled (and fixed). Bar is unchanged, so Bar's
         -- warning must survive.
-        let prev = Map.fromList [(errMsg.file, [errMsg]), (warnMsg.file, [warnMsg])]
+        let prev = Map.fromList [(Location errPath, [errMsg]), (Location warnPath, [warnMsg])]
             result =
                 LoadResult
                     { moduleCount = 2
-                    , compiledFiles = Set.singleton errMsg.file
+                    , compiledFiles = Set.singleton errPath
                     , loadedModules = Map.empty
                     , targetNames = []
                     , diagnostics = []
                     }
         let merged = mergeDiagnostics prev result
-        Map.lookup warnMsg.file merged @?= Just [warnMsg]
+        Map.lookup (Location warnPath) merged @?= Just [warnMsg]
     , testCase "drops retained errors for files not in compiledFiles" do
         -- Foo's error is stale if Foo was skipped (e.g. blocked behind a failing
         -- upstream module): GHC re-emits errors for every module it attempts.
         -- Warnings in the same file are kept.
-        let prev = Map.fromList [(errMsg.file, [errMsg, errMsg {severity = Severity.Warning}])]
+        let prev = Map.fromList [(Location errPath, [errMsg, errMsg {severity = Severity.Warning}])]
             result =
                 LoadResult
                     { moduleCount = 1
@@ -117,55 +119,55 @@ testMergeDiagnostics =
                     , diagnostics = []
                     }
         let merged = mergeDiagnostics prev result
-        Map.lookup errMsg.file merged @?= Just [errMsg {severity = Severity.Warning}]
+        Map.lookup (Location errPath) merged @?= Just [errMsg {severity = Severity.Warning}]
     , testCase "clears diagnostics when a recompiled file now has no issues" do
-        let prev = Map.fromList [(errMsg.file, [errMsg])]
+        let prev = Map.fromList [(Location errPath, [errMsg])]
             result =
                 LoadResult
                     { moduleCount = 1
-                    , compiledFiles = Set.singleton errMsg.file
+                    , compiledFiles = Set.singleton errPath
                     , loadedModules = Map.empty
                     , targetNames = []
                     , diagnostics = []
                     }
         let merged = mergeDiagnostics prev result
-        Map.lookup errMsg.file merged @?= Nothing
+        Map.lookup (Location errPath) merged @?= Nothing
     , testCase "replaces diagnostics for recompiled files" do
         let newErr = errMsg {title = "new error", text = "new error\n"}
-            prev = Map.fromList [(errMsg.file, [errMsg])]
+            prev = Map.fromList [(Location errPath, [errMsg])]
             result =
                 LoadResult
                     { moduleCount = 1
-                    , compiledFiles = Set.singleton errMsg.file
+                    , compiledFiles = Set.singleton errPath
                     , loadedModules = Map.empty
                     , targetNames = []
                     , diagnostics = [newErr]
                     }
         let merged = mergeDiagnostics prev result
-        Map.lookup errMsg.file merged @?= Just [newErr]
+        Map.lookup (Location errPath) merged @?= Just [newErr]
     , testCase "accumulates diagnostics for newly seen files" do
         let result =
                 LoadResult
                     { moduleCount = 1
-                    , compiledFiles = Set.singleton warnMsg.file
+                    , compiledFiles = Set.singleton warnPath
                     , loadedModules = Map.empty
                     , targetNames = []
                     , diagnostics = [warnMsg]
                     }
         let merged = mergeDiagnostics Map.empty result
-        Map.lookup warnMsg.file merged @?= Just [warnMsg]
+        Map.lookup (Location warnPath) merged @?= Just [warnMsg]
     , testGroup
         "when the cycle reports none"
         [ testCase "clears a stale location-less diagnostic" do
             -- <no location info> is never in compiledFiles, so without special
             -- handling it would persist forever. A cycle with no location-less
             -- diagnostic must evict it.
-            let noLoc = errMsg {file = "<no location info>"}
+            let noLoc = errMsg {file = Locationless}
                 prev = Map.fromList [(noLoc.file, [noLoc])]
                 result =
                     LoadResult
                         { moduleCount = 1
-                        , compiledFiles = Set.singleton errMsg.file
+                        , compiledFiles = Set.singleton errPath
                         , loadedModules = Map.empty
                         , targetNames = []
                         , diagnostics = []
@@ -174,7 +176,7 @@ testMergeDiagnostics =
             Map.lookup noLoc.file merged @?= Nothing
         ]
     , testCase "refreshes a location-less diagnostic that is still present" do
-        let noLoc = errMsg {file = "<no location info>"}
+        let noLoc = errMsg {file = Locationless}
             prev = Map.fromList [(noLoc.file, [noLoc])]
             result =
                 LoadResult
@@ -197,46 +199,46 @@ testFilterToWatchDirs :: [TestTree]
 testFilterToWatchDirs =
     [ testCase "keeps diagnostics under a watched directory" do
         -- ./src/Foo.hs is what toRelative produces for an absolute project file
-        let d = errMsg {file = "./src/Foo.hs"}
+        let d = errMsg {file = Location errPath}
         filterToWatchDirs root watchDirs [d] @?= [d]
     , testCase "keeps diagnostics under \".\" watched directory" do
-        let d = errMsg {file = "src/Foo.hs"}
-        filterToWatchDirs root (WatchDirs ["."]) [d] @?= [d]
+        let d = errMsg {file = Location (Path.Relative (Path.rel @"src/Foo.hs"))}
+        filterToWatchDirs root (WatchDirs [root]) [d] @?= [d]
     , testCase "drops diagnostics from outside the project (e.g. Nix store .h files)" do
-        let d = errMsg {file = "/nix/store/abc123/ghcautoconf.h"}
+        let d = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
         filterToWatchDirs root watchDirs [d] @?= []
     , testCase "drops diagnostics with mangled CPP filenames" do
         -- The ghcid parser produces "In file included from <path>" as the file
         -- field for GCC-style CPP include-chain messages.
-        let d = errMsg {file = "In file included from src/Foo.hs"}
+        let d = errMsg {file = Location (Path.Relative (Path.rel @"In file included from src/Foo.hs"))}
         filterToWatchDirs root watchDirs [d] @?= []
     , testCase "drops mangled CPP filenames when watchDirs is [\".\"] (project root)" do
         -- With watchDirs=["."], the watch dir resolves to projectRoot itself.
         -- A mangled path joined onto projectRoot would incorrectly start with
         -- projectRoot+"/", so this case requires an explicit guard.
-        let d = errMsg {file = "In file included from src/Foo.hs"}
-        filterToWatchDirs root (WatchDirs ["."]) [d] @?= []
+        let d = errMsg {file = Location (Path.Relative (Path.rel @"In file included from src/Foo.hs"))}
+        filterToWatchDirs root (WatchDirs [root]) [d] @?= []
     , testCase "passes everything through when watchDirs is empty" do
-        let d = errMsg {file = "/nix/store/abc123/ghcautoconf.h"}
+        let d = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
         filterToWatchDirs root (WatchDirs []) [d] @?= [d]
     , testCase "works with the '.' fallback watch dir (whole project root)" do
-        let d = errMsg {file = "./src/Foo.hs"}
-            nixD = errMsg {file = "/nix/store/abc123/ghcautoconf.h"}
-        filterToWatchDirs root (WatchDirs ["."]) [d, nixD] @?= [d]
+        let d = errMsg {file = Location errPath}
+            nixD = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
+        filterToWatchDirs root (WatchDirs [root]) [d, nixD] @?= [d]
     , testGroup
         "when diagnostic has no path it"
         [ testCase "keeps location-less <no location info> errors" do
             -- A home-unit GHC plugin that can't load under --enable-multi-repl
             -- produces a <no location info> error. It has no path to test against a
             -- watch dir, but must survive or the failed build reads as clean.
-            let d = errMsg {file = "<no location info>"}
+            let d = errMsg {file = Locationless}
             filterToWatchDirs root watchDirs [d] @?= [d]
         ]
     , testCase "does not treat a real <-prefixed path as a location-less marker" do
         -- isLocationLess requires a closing '>'. A real (if exotic) path that
         -- merely starts with '<' is an ordinary out-of-watch file and must be
         -- dropped, not kept as a build-level marker.
-        let d = errMsg {file = "<generated>/Foo.hs"}
+        let d = errMsg {file = Location (Path.Relative (Path.rel @"<generated>/Foo.hs"))}
         filterToWatchDirs root watchDirs [d] @?= []
     , testGroup
         "when its only error is out of watch dirs"
@@ -259,19 +261,27 @@ testFilterToWatchDirs =
         ]
     ]
   where
-    root = "/project"
-    watchDirs = WatchDirs ["/project/src"]
+    root = Path.absolute @"/project"
+    watchDirs = WatchDirs [Path.absolute @"/project/src"]
 
 
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
 
+errPath :: Path.Any
+errPath = Path.Relative (Path.rel @"./src/Foo.hs")
+
+
+warnPath :: Path.Any
+warnPath = Path.Relative (Path.rel @"./src/Bar.hs")
+
+
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
         { severity = Severity.Error
-        , file = "./src/Foo.hs"
+        , file = Location errPath
         , line = 1
         , col = 1
         , endLine = 1
@@ -285,7 +295,7 @@ warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
         { severity = Severity.Warning
-        , file = "./src/Bar.hs"
+        , file = Location warnPath
         , line = 10
         , col = 3
         , endLine = 10

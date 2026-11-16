@@ -4,7 +4,6 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
-import Effectful.FileSystem (runFileSystem)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
@@ -14,7 +13,6 @@ import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Exit qualified as Exit
 import Atelier.Effects.FSNotify qualified as FSNotify
-import Atelier.Effects.FileSystem qualified as FileSystem
 import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.FileWatcher qualified as FileWatcher
 import Atelier.Effects.Handles qualified as Handles
@@ -25,6 +23,7 @@ import Atelier.Effects.PubSub qualified as PubSub
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.Effects.PubSub.Sub qualified as Sub
 import Atelier.Effects.Timeout qualified as Timeout
+import Effectful.FileSystem qualified as FileSystem
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
@@ -68,13 +67,12 @@ main :: IO ()
 main =
     runEff
         . runConcurrent
+        . FileSystem.runFileSystem
         . Conc.runIO
         . Clock.runIO
         . Delay.runIO
         . Timeout.run
         . Debounce.run @FilePath
-        . runFileSystem
-        . FileSystem.runIO
         . FSNotify.run
         . FileWatcher.runIO
         . Glob.runIO
@@ -83,12 +81,12 @@ main =
         . Runtime.ProjectRoot.asReader
         . Runtime.ProjectHash.asReader
         . Runtime.Cache.asReader
+        . Runtime.LogPath.asReader
+        . LoadedConfig.asInput
+        . Handles.run
+        . Logging.run
         . Runtime.Directory.asReader
         . Runtime.SocketPath.asReader
-        . Runtime.LogPath.asReader
-        . Handles.run
-        . LoadedConfig.asInput
-        . Logging.run
         . Chan.run
         . StackProject.inputWithCache
         . inputCabalFiles

@@ -12,15 +12,18 @@ module Tricorder.Daemon.Dispatch
     )
 where
 
-import System.FilePath (isAbsolute, normalise, splitDirectories, takeExtension, (</>))
+import Atelier.FileSystem.Path (Path, (</>))
 
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher.Event
+import Atelier.FileSystem.Path qualified as Path
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import System.FilePath qualified as FP
 
 import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
 import Tricorder.Build.Severity qualified as Severity
@@ -36,7 +39,7 @@ import Tricorder.Daemon.Ghci.Path qualified as Ghci.Path
 -- @buildWithGhciOnChange@; 'BuildId' is intentionally /not/ here because it
 -- counts across restarts.
 data BuilderState = BuilderState
-    { loadedModules :: Map FilePath Ghci.LoadedModule
+    { loadedModules :: Map Path.Any Ghci.LoadedModule
     , knownTargets :: KnownTargetNames
     , diagnosticMap :: DiagnosticMap
     }
@@ -52,7 +55,7 @@ emptyBuilderState =
         }
 
 
-type DiagnosticMap = Map FilePath [Diagnostic]
+type DiagnosticMap = Map DiagnosticLocation [Diagnostic]
 
 
 -- | Merge a new 'LoadResult' into the accumulated per-file diagnostic map.
@@ -70,8 +73,8 @@ type DiagnosticMap = Map FilePath [Diagnostic]
 -- error keeps the build failing, and the blocked module's errors reappear once
 -- it is compiled again.
 --
--- Location-less diagnostics (see 'isLocationLess') are never keyed to a real
--- source file, so they would never appear in 'compiledFiles' and would persist
+-- 'Locationless' diagnostics are never keyed to a real source file, so they
+-- would never appear in 'compiledFiles' and would persist
 -- forever once raised. They describe the current load's outcome, so we clear
 -- them every cycle and let this cycle's 'diagnostics' re-add them if the
 -- failure is still present.
@@ -80,11 +83,11 @@ mergeDiagnostics prev Ghci.LoadResult {compiledFiles, diagnostics} =
     let retained =
             Map.mapMaybeWithKey
                 ( \f ds -> case filter ((== Severity.Warning) . (.severity)) ds of
-                    ws | not (Ghci.Path.isLocationLess f), not (null ws) -> Just ws
+                    ws | f /= Locationless, not (null ws) -> Just ws
                     _ -> Nothing
                 )
                 prev
-        cleared = foldr Map.delete retained compiledFiles
+        cleared = foldr (Map.delete . Location) retained compiledFiles
         newByFile = Map.fromListWith (++) [(d.file, [d]) | d <- diagnostics]
     in  Map.union newByFile cleared
 
@@ -108,7 +111,7 @@ newtype KnownTargetNames = KnownTargetNames {unKnownTargetNames :: Set Text}
 -- @:show modules@ but survives in @:show targets@ as its path. Without matching
 -- it, fixing the executable would dispatch a no-op 'Add' instead of a 'Reload',
 -- leaving the diagnostic stale.
-fileMatchesAnyTarget :: KnownTargetNames -> FilePath -> Bool
+fileMatchesAnyTarget :: (Path path) => KnownTargetNames -> path -> Bool
 fileMatchesAnyTarget (KnownTargetNames targets) fp =
     any (`Set.member` targets) (Ghci.Path.pathSuffixesAsModuleName fp)
         || any (pathTargetMatches fp . toString) (Set.toList targets)
@@ -116,18 +119,21 @@ fileMatchesAnyTarget (KnownTargetNames targets) fp =
 
 -- | Whether a path-shaped @:show targets@ entry refers to the given file,
 -- compared on directory-segment boundaries (so @app/Main.hs@ matches
--- @./tricorder/app/Main.hs@ but @pp/Main.hs@ does not). Module-name targets
+-- @.\/tricorder\/app/Main.hs@ but @pp/Main.hs@ does not). Module-name targets
 -- (no @.hs@ extension) are left to the module-name branch above.
-pathTargetMatches :: FilePath -> FilePath -> Bool
+pathTargetMatches :: (Path path) => path -> FilePath -> Bool
 pathTargetMatches file target =
-    takeExtension target == ".hs"
-        && splitDirectories (normalise target) `List.isSuffixOf` splitDirectories (normalise file)
+    FP.takeExtension target == ".hs"
+        && (FP.splitDirectories $ FP.normalise target)
+            `List.isSuffixOf` merge (Path.splitDirectories $ Path.normalise file)
+  where
+    merge (a, rest) = Path.toFilePath a : (Path.toFilePath <$> rest)
 
 
 -- | A GHCi command to issue in response to a source file change.
 data DispatchAction
     = Reload
-    | Add FilePath
+    | Add Path.Any
     | Unadd Text
     deriving stock (Eq, Show)
 
@@ -141,7 +147,7 @@ data DispatchAction
 dispatch
     :: KnownTargetNames
     -> Maybe Ghci.LoadedModule
-    -> FilePath
+    -> Path.Any
     -> FileWatcher.Event
     -> Maybe DispatchAction
 dispatch knownTargets known fp event = case known of
@@ -167,35 +173,26 @@ dispatch knownTargets known fp event = case known of
 -- @"In file included from ..."@) are dropped here, before they can enter the
 -- accumulation map where they would be impossible to evict.
 --
--- Location-less diagnostics (see 'isLocationLess') are always kept: they carry
--- no path to test against a watch dir, but they represent genuine build-level
--- failures (e.g. a home-unit GHC plugin that can't load under
--- @--enable-multi-repl@) that must not be dropped, or the build would silently
--- read as clean.
-filterToWatchDirs :: FilePath -> WatchDirs -> [Diagnostic] -> [Diagnostic]
+-- Location-less diagnostics are always kept: they carry no path to test
+-- against a watch dir, but they represent genuine build-level failures (e.g. a
+-- home-unit GHC plugin that can't load under @--enable-multi-repl@) that must
+-- not be dropped, or the build would silently read as clean.
+filterToWatchDirs :: Path.Absolute -> WatchDirs -> [Diagnostic] -> [Diagnostic]
 filterToWatchDirs _ (WatchDirs []) diags = diags
 filterToWatchDirs projectRoot (WatchDirs watchDirs) diags =
-    filter (\d -> Ghci.Path.isLocationLess d.file || isUnderAnyWatchDir d.file) diags
+    filter
+        ( \d -> case d.file of
+            Locationless -> True
+            Location file -> isUnderAnyWatchDir file
+        )
+        diags
   where
-    absWatchDirs = map toAbsWd watchDirs
-    toAbsWd wd
-        | wd == "." = projectRoot
-        | isAbsolute wd = wd
-        | otherwise = projectRoot </> wd
-    isUnderAnyWatchDir file
-        | isCPPMangledFile file = False
-        | isAbsolute file =
-            any (\wd -> (wd ++ "/") `isPrefixOf` file || wd == file) absWatchDirs
-        | otherwise =
-            let absFile = projectRoot </> normalizeRelativePath file
-            in  any (\wd -> (wd ++ "/") `isPrefixOf` absFile || wd == absFile) absWatchDirs
-    isCPPMangledFile = ("In file included from" `isPrefixOf`)
-    normalizeRelativePath file
-        -- GHCi reports filenames relative to the project root for
-        -- single-package repos. E.g. "src/Foo/Bar.hs", instead of
-        -- an absolute path or a "./" prefixed path.
-        | "./" `isPrefixOf` file = drop 2 file
-        | otherwise = file
+    isUnderAnyWatchDir = \case
+        file | isCPPMangledFile file -> False
+        Path.Absolute file -> isInWatchDirs file
+        Path.Relative file -> isInWatchDirs $ projectRoot </> Path.normalise file
+    isInWatchDirs file = any (\wd -> wd `Path.isPrefixOf` file || wd == file) watchDirs
+    isCPPMangledFile = ("In file included from" `isPrefixOf`) . Path.toFilePath
 
 
 -- | Keep a failed build from ever reading as clean after watch-dir filtering.

@@ -28,7 +28,7 @@ asReader
     => Eff (Reader ProjectHash : es) a -> Eff es a
 asReader act = do
     ProjectRoot projectRoot <- Reader.ask
-    canonProjectRoot <- Path.canonicalize $ Path.Internal.UnsafeMkAbsolute projectRoot
+    canonProjectRoot <- Path.canonicalize projectRoot
     let hash = Path.Internal.UnsafeMkRelative $ hashPath $ Path.toFilePath canonProjectRoot
     Reader.runReader (ProjectHash hash) act
 

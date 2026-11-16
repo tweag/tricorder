@@ -32,6 +32,7 @@ import Text.Megaparsec
     )
 import Text.Megaparsec.Char (char, hspace, space, string)
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Aeson.KeyMap qualified as KM
 import Data.Text qualified as T
 
@@ -61,7 +62,7 @@ anyRunningComments = any ((== Pending) . (.state)) . (.getComments)
 
 
 data Evaluation = Evaluation
-    { file :: FilePath
+    { file :: Path.Relative
     , comment :: Comment
     , state :: State
     }

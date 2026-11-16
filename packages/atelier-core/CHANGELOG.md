@@ -29,6 +29,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 - `Atelier.Effects.File`: renamed to `Atelier.Effects.Handles`.
 
+### Deprecated
+
+- `Atelier.Effects.FileSystem`: replaced by `Effectful.FileSystem` and the
+  `Atelier.Effects.FileSystem.*` family of modules.
+
 ## [1.0.0.0] - 2026-10-29
 
 ### Added

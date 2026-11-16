@@ -1,17 +1,16 @@
 module Unit.Tricorder.SourceLookupSpec (test_SourceLookup) where
 
 import Atelier.Effects.Env (Env)
-import Atelier.Effects.FileSystem (FileSystem (..))
 import Atelier.Effects.Input (Input)
 import Atelier.Effects.Log (Log)
+import Atelier.FileSystem.Path ((</>))
 import Data.Default (def)
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
-import Effectful (IOE, runEff)
+import Effectful (IOE)
 import Effectful.Concurrent (Concurrent, runConcurrent)
 import Effectful.Dispatch.Dynamic (interpret_)
-import Effectful.State.Static.Shared (State, evalState, gets, modify)
-import System.FilePath ((</>))
-import Test.Tasty (TestTree, testGroup)
+import Effectful.FileSystem (FileSystem)
+import Test.Tasty (DependencyType (AllFinish), TestTree, dependentTestGroup, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 import Tricorder.SourceLookup.ModuleSourceResult (ModuleSourceResult (..))
 import Tricorder.SourceLookup.ReexportLimits (ReexportLimits (..), defaultReexportLimits)
@@ -20,11 +19,11 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName, SourceQuery (..))
 import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.FileSystem.Path qualified as Path
 import Codec.Archive.Tar qualified as Tar
 import Codec.Archive.Tar.Entry qualified as Tar
 import Codec.Compression.GZip qualified as GZip
 import Data.ByteString.Lazy qualified as BSL
-import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 
@@ -37,6 +36,7 @@ import Tricorder.SourceLookup
 import Tricorder.SourceLookup.GhcPkg (GhcPkg, GhcPkgScript (..), runGhcPkgScripted)
 import Tricorder.SourceLookup.Hackage (Hackage (..), Result (..))
 import Tricorder.SourceLookup.PackageStore (PackageStore)
+import Unit.Tricorder.Session.Helpers (withHome, withProjectFiles)
 
 import Tricorder.Session.Stage.Build.Session qualified as Build
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
@@ -44,8 +44,11 @@ import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 test_SourceLookup :: TestTree
 test_SourceLookup =
-    testGroup
+    -- The package store resolves its cache dir from $HOME, which is
+    -- process-global, so these must not run concurrently.
+    dependentTestGroup
         "SourceLookup"
+        AllFinish
         [ testGroup
             "lookupModuleSource"
             [ testCase "reads the whole module from a cached tarball" do
@@ -158,29 +161,30 @@ test_SourceLookup =
         , testGroup
             "project modules"
             [ testCase "resolves every component's source dirs against the package dir" do
-                projectDirs @?= ProjectSourceDirs ["/p/src", "/p/test"]
+                projectSourceDirs [projectCabalFile (Path.absolute @"/")]
+                    @?= ProjectSourceDirs [Path.absolute @"/p/src", Path.absolute @"/p/test"]
             , testCase "reads a module from the project's source dirs" do
                 result <-
-                    runTest [] projectFiles noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Proj.Types")
+                    runTestAt [] projectFiles noFetch
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (wholeModule "Proj.Types")
                 result @?= SourceFound (wholeModule "Proj.Types") projectTypesSource
             , testCase "reads a module from a non-library component's source dirs" do
                 result <-
-                    runTest [] projectFiles noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Proj.Helpers")
+                    runTestAt [] projectFiles noFetch
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (wholeModule "Proj.Helpers")
                 result @?= SourceFound (wholeModule "Proj.Helpers") projectHelpersSource
             , testCase "slices a symbol from a project module" do
                 result <-
-                    runTest [] projectFiles noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj.Types" "greeting")
+                    runTestAt [] projectFiles noFetch
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (symbol "Proj.Types" "greeting")
                 result
                     @?= SourceFound
                         (symbol "Proj.Types" "greeting")
                         "-- | A greeting.\ngreeting :: Text\ngreeting = \"hi\""
             , testCase "follows a re-export to another project module" do
                 result <-
-                    runTest [] projectFiles noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj" "greeting")
+                    runTestAt [] projectFiles noFetch
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (symbol "Proj" "greeting")
                 result
                     @?= SourceReexported
                         (symbol "Proj" "greeting")
@@ -188,11 +192,11 @@ test_SourceLookup =
                         "-- | A greeting.\ngreeting :: Text\ngreeting = \"hi\""
             , testCase "follows a re-export from a project module into a package" do
                 result <-
-                    runTest
+                    runTestAt
                         [NextFindModule (Just "aeson-2.2.5.0")]
                         (projectFiles <> withTarball)
                         noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (symbol "Proj" "encode")
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (symbol "Proj" "encode")
                 result
                     @?= SourceReexported
                         (symbol "Proj" "encode")
@@ -200,11 +204,11 @@ test_SourceLookup =
                         "-- | Encode a value as JSON.\nencode :: Value -> ByteString\nencode = undefined"
             , testCase "falls back to installed packages for a module not in the project" do
                 result <-
-                    runTest
+                    runTestAt
                         [NextFindModule (Just "aeson-2.2.5.0")]
                         (projectFiles <> withTarball)
                         noFetch
-                        $ lookupModuleSource projectDirs defaultReexportLimits (wholeModule "Data.Aeson")
+                        $ \root -> lookupModuleSource (projectDirs root) defaultReexportLimits (wholeModule "Data.Aeson")
                 result @?= SourceFound (wholeModule "Data.Aeson") moduleSource
             ]
         ]
@@ -227,9 +231,10 @@ moduleSource =
 
 
 -- | The cabal cache path the fixture package resolves to under @HOME=\/h@.
-tarballPath :: FilePath
+tarballPath :: Path.Relative
 tarballPath =
-    "/h/.cache/cabal/packages" </> "hackage.haskell.org/aeson/2.2.5.0/aeson-2.2.5.0.tar.gz"
+    Path.rel @"h/.cache/cabal/packages"
+        </> Path.rel @"hackage.haskell.org/aeson/2.2.5.0/aeson-2.2.5.0.tar.gz"
 
 
 -- | A gzipped tar holding the fixture module under a @src\/@ layout.
@@ -238,25 +243,25 @@ tarballBytes = mkTarball "aeson-2.2.5.0/src/Data/Aeson.hs" moduleSource
 
 
 -- | A filesystem in which the fixture tarball is already cached.
-withTarball :: Map FilePath LByteString
+withTarball :: Map Path.Relative LByteString
 withTarball = Map.singleton tarballPath tarballBytes
 
 
 -- | The legacy (pre-XDG) cabal cache path under @HOME=\/h@.
-legacyTarballPath :: FilePath
+legacyTarballPath :: Path.Relative
 legacyTarballPath =
-    "/h/.cabal/packages" </> "hackage.haskell.org/aeson/2.2.5.0/aeson-2.2.5.0.tar.gz"
+    Path.rel @"h/.cabal/packages" </> Path.rel @"hackage.haskell.org/aeson/2.2.5.0/aeson-2.2.5.0.tar.gz"
 
 
 -- | A filesystem in which the fixture tarball lives only in the legacy cache.
-withLegacyTarball :: Map FilePath LByteString
+withLegacyTarball :: Map Path.Relative LByteString
 withLegacyTarball = Map.singleton legacyTarballPath tarballBytes
 
 
 -- | A project package with a library under @src@ and a test suite under @test@.
-projectCabalFile :: CabalFile
-projectCabalFile =
-    CabalFile "/p/proj.cabal"
+projectCabalFile :: Path.Absolute -> CabalFile
+projectCabalFile root =
+    CabalFile (root </> Path.rel @"p/proj.cabal")
         . fromMaybe (error "projectCabalFile: unparseable")
         . parseGenericPackageDescriptionMaybe
         . encodeUtf8
@@ -275,8 +280,8 @@ projectCabalFile =
             ]
 
 
-projectDirs :: ProjectSourceDirs
-projectDirs = projectSourceDirs [projectCabalFile]
+projectDirs :: Path.Absolute -> ProjectSourceDirs
+projectDirs root = projectSourceDirs [projectCabalFile root]
 
 
 noProjectDirs :: ProjectSourceDirs
@@ -300,25 +305,25 @@ projectHelpersSource = T.unlines ["module Proj.Helpers where", "", "helper :: In
 
 -- | The source files of 'projectCabalFile': @Proj@ re-exports @greeting@ from
 -- @Proj.Types@ and @encode@ from the installed @Data.Aeson@.
-projectFiles :: Map FilePath LByteString
+projectFiles :: Map Path.Relative LByteString
 projectFiles =
     Map.fromList
         [
-            ( "/p/src/Proj.hs"
+            ( Path.rel @"p/src/Proj.hs"
             , encodeUtf8 @Text
                 "module Proj (greeting, encode) where\n\nimport Proj.Types (greeting)\nimport Data.Aeson (encode)\n"
             )
-        , ("/p/src/Proj/Types.hs", encodeUtf8 projectTypesSource)
-        , ("/p/test/Proj/Helpers.hs", encodeUtf8 projectHelpersSource)
+        , (Path.rel @"p/src/Proj/Types.hs", encodeUtf8 projectTypesSource)
+        , (Path.rel @"p/test/Proj/Helpers.hs", encodeUtf8 projectHelpersSource)
         ]
 
 
 -- | A package in which @A@ re-exports @foo@ from @B@, which re-exports it from
 -- @C@, which defines it.
-withChainTarball :: Map FilePath LByteString
+withChainTarball :: Map Path.Relative LByteString
 withChainTarball =
     Map.singleton
-        ("/h/.cache/cabal/packages" </> "hackage.haskell.org/chain/1.0/chain-1.0.tar.gz")
+        (Path.rel @"h/.cache/cabal/packages" </> Path.rel @"hackage.haskell.org/chain/1.0/chain-1.0.tar.gz")
         $ mkTarballWith
             [ ("chain-1.0/src/A.hs", T.unlines ["module A (foo) where", "", "import B (foo)"])
             , ("chain-1.0/src/B.hs", T.unlines ["module B (foo) where", "", "import C"])
@@ -338,10 +343,10 @@ lookupChain limits =
 
 -- | A package whose @Data.Reex@ re-exports @pack@ (and claims to re-export
 -- @unpack@) from @Data.Reex.Internal@, which only defines @pack@.
-withReexportTarball :: Map FilePath LByteString
+withReexportTarball :: Map Path.Relative LByteString
 withReexportTarball =
     Map.singleton
-        ("/h/.cache/cabal/packages" </> "hackage.haskell.org/reex/1.0/reex-1.0.tar.gz")
+        (Path.rel @"h/.cache/cabal/packages" </> Path.rel @"hackage.haskell.org/reex/1.0/reex-1.0.tar.gz")
         $ mkTarballWith
             [
                 ( "reex-1.0/src/Data/Reex.hs"
@@ -400,11 +405,10 @@ noFetch = pure NotFound
 type FetchEffects =
     '[ PackageStore
      , Env
-     , FileSystem
-     , State (Map FilePath LByteString)
      , Input Build.Session
      , Log
      , Concurrent
+     , FileSystem
      , IOE
      ]
 
@@ -414,22 +418,39 @@ type TestEffects = GhcPkg : Hackage : FetchEffects
 
 runTest
     :: [GhcPkgScript]
-    -> Map FilePath LByteString
+    -> Map Path.Relative LByteString
     -> Eff FetchEffects Result
     -> Eff TestEffects a
     -> IO a
 runTest pkgScript initialFs onFetch action =
-    runEff
-        . runConcurrent
-        . Log.runNoOp
-        . Input.withConst (def :: Build.Session)
-        . evalState initialFs
-        . runFileSystemFake
-        . Env.runConst [("HOME", "/h")]
-        . PackageStore.run
-        . runHackageWith onFetch
-        . runGhcPkgScripted pkgScript
-        $ action
+    runTestAt pkgScript initialFs onFetch (const action)
+
+
+-- | Run against a real temporary directory seeded with @initialFs@ (paths
+-- relative to it), which doubles as the test's @$HOME@ (at @h/@) and, for
+-- project modules, the parent of the project package (at @p/@). The action
+-- receives the directory's path.
+--
+-- 'Effectful.FileSystem' only has a real-IO interpreter, so the package cache
+-- and project sources have to exist on disk. @$HOME@ is process-global; see
+-- 'test_SourceLookup'.
+runTestAt
+    :: [GhcPkgScript]
+    -> Map Path.Relative LByteString
+    -> Eff FetchEffects Result
+    -> (Path.Absolute -> Eff TestEffects a)
+    -> IO a
+runTestAt pkgScript initialFs onFetch action =
+    withProjectFiles (BSL.toStrict <$> initialFs) \root ->
+        withHome (root </> Path.rel @"h")
+            . runConcurrent
+            . Log.runNoOp
+            . Input.withConst (def :: Build.Session)
+            . Env.runConst []
+            . PackageStore.run
+            . runHackageWith onFetch
+            . runGhcPkgScripted pkgScript
+            $ action root
 
 
 -- | A scripted 'Hackage' interpreter: every 'fetchPackage' yields the given
@@ -437,28 +458,3 @@ runTest pkgScript initialFs onFetch action =
 runHackageWith :: Eff es Result -> Eff (Hackage : es) a -> Eff es a
 runHackageWith onFetch = interpret_ \case
     FetchPackage _ -> onFetch
-
-
--- | A 'FileSystem' backed by an in-memory map, with directory semantics good
--- enough for the cabal-cache layout: 'doesPathExist' treats a key as living
--- under any of its path prefixes (or being one), 'doesDirectoryExist' requires
--- something strictly under it, and 'listDirectory' returns immediate child
--- names (so a repo subdir like @hackage.haskell.org@ is discoverable).
-runFileSystemFake
-    :: (State (Map FilePath LByteString) :> es)
-    => Eff (FileSystem : es) a -> Eff es a
-runFileSystemFake = interpret_ \case
-    DoesFileExist p -> gets (Map.member p)
-    DoesPathExist p -> gets (any (isUnder p) . Map.keys)
-    DoesDirectoryExist p -> gets (any (isStrictlyUnder p) . Map.keys)
-    ListDirectory p -> gets (ordNub . mapMaybe (childName p) . Map.keys)
-    ReadFileLbsFrom p _ -> gets (fromMaybe "" . Map.lookup p)
-    CreateDirectoryIfMissing _ _ -> pure ()
-    WriteFileBS p bytes -> modify (Map.insert p (BSL.fromStrict bytes))
-    _ -> error "runFileSystemFake: unexpected operation"
-  where
-    isUnder p k = p == k || isStrictlyUnder p k
-    isStrictlyUnder p k = (p <> "/") `List.isPrefixOf` k
-    childName p k = case List.stripPrefix (p <> "/") k of
-        Just rest | not (null rest) -> Just (takeWhile (/= '/') rest)
-        _ -> Nothing

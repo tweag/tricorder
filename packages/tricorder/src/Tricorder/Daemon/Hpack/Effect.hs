@@ -14,13 +14,13 @@ import Effectful.Exception (trySync)
 import Effectful.TH (makeEffect)
 import System.Exit (ExitCode (..))
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.ByteString.Char8 qualified as B8
-import System.FilePath qualified as Path
 
 
 data Hpack :: Effect where
     HpackIsInPath :: Hpack m Bool
-    Hpack :: FilePath -> Hpack m (Either Text Result)
+    Hpack :: Path.Absolute -> Hpack m (Either Text Result)
 
 
 data Result

@@ -4,10 +4,12 @@ import Data.Time (UTCTime (..), addUTCTime, fromGregorian)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
 import Tricorder.Build (BuildResult (..), Diagnostic (..))
+import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Build.Duration (Duration (..))
 import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
@@ -43,7 +45,7 @@ testCompileBuildResults =
                         , loadResult =
                             LoadResult
                                 { moduleCount = 2
-                                , compiledFiles = Set.singleton errMsg.file
+                                , compiledFiles = Set.singleton errPath
                                 , loadedModules = Map.empty
                                 , targetNames = []
                                 , diagnostics = []
@@ -60,7 +62,7 @@ testCompileBuildResults =
                         , loadResult =
                             LoadResult
                                 { moduleCount = 2
-                                , compiledFiles = Set.singleton warnMsg.file
+                                , compiledFiles = Set.singleton warnPath
                                 , loadedModules = Map.empty
                                 , targetNames = []
                                 , diagnostics = [warnMsg]
@@ -80,7 +82,7 @@ testCompileBuildResults =
                         , loadResult =
                             LoadResult
                                 { moduleCount = 2
-                                , compiledFiles = Set.singleton warnMsg.file
+                                , compiledFiles = Set.singleton warnPath
                                 , loadedModules = Map.empty
                                 , targetNames = []
                                 , diagnostics = [warnMsg]
@@ -96,19 +98,27 @@ testCompileBuildResults =
         r @?= expected
     ]
   where
-    root = ProjectRoot "/"
-    watchDirs = WatchDirs ["/src"]
+    root = ProjectRoot (Path.absolute @"/")
+    watchDirs = WatchDirs [Path.absolute @"/src"]
 
 
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
 
+errPath :: Path.Any
+errPath = Path.Relative (Path.rel @"./src/Foo.hs")
+
+
+warnPath :: Path.Any
+warnPath = Path.Relative (Path.rel @"./src/Bar.hs")
+
+
 errMsg :: Diagnostic
 errMsg =
     Diagnostic
         { severity = Severity.Error
-        , file = "./src/Foo.hs"
+        , file = Location errPath
         , line = 1
         , col = 1
         , endLine = 1
@@ -122,7 +132,7 @@ warnMsg :: Diagnostic
 warnMsg =
     Diagnostic
         { severity = Severity.Warning
-        , file = "./src/Bar.hs"
+        , file = Location warnPath
         , line = 10
         , col = 3
         , endLine = 10
