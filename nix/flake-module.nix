@@ -50,6 +50,7 @@ in
               "--disable-shared"
               "--ghc-option=-optl=-pthread"
               "--ghc-option=-optl=-static"
+              "--ghc-option=-Wno-missed-extra-shared-lib"
               "--ghc-option=-optl=-L${staticPkgs.gmp6.override { withStatic = true; }}/lib"
               # haskell.nix's musl overlay keeps libz.a in zlib's main output.
               "--ghc-option=-optl=-L${staticPkgs.zlib}/lib"
