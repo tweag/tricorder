@@ -62,6 +62,9 @@ in
               pkgs.pkgsStatic.libffi
               pkgs.pkgsStatic.gmp
               pkgs.pkgsStatic.ncurses
+              # Without this, the zlib Haskell package links the dynamic
+              # libz.dylib from the Nix store, breaking portability.
+              pkgs.pkgsStatic.zlib
             ];
             # libiconv is always present at /usr/lib/libiconv.2.dylib on every
             # Mac, but GHC links against the Nix store copy.  Retarget it to the
