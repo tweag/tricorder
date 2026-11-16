@@ -19,6 +19,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - Failed hooks now output a message to the log file.
 - `tricorder daemon info` now outputs the full session instead of just the
   build targets and watch directories.
+- Moved Tricorder's default log file location from `XDG_RUNTIME_DIR` to
+  `XDG_CACHE_HOME`. This is more sensible for users, since `XDG_RUNTIME_DIR`
+  can sometimes be mounted as a `tmpfs` system, meaning Tricorder is filling up
+  developers' RAM unnecessarily.
+- Tricorder will now truncate the log file on daemon startup, if it exists. To
+  prevent this from happening, set the environment variable
+  `TRICORDER_NO_LOG_TRUNCATE=1`.
 
 ### Fixed
 
