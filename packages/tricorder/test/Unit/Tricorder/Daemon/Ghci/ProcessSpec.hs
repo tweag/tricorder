@@ -40,6 +40,7 @@ import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.Process qualified as AProc
 import Atelier.Effects.Process qualified as Atelier.Process
 import Atelier.Effects.Timeout qualified as Timeout
+import Atelier.Types.Semaphore qualified as Sem
 import Data.Text qualified as T
 import System.Process qualified as Process
 import System.Timeout qualified
@@ -541,14 +542,16 @@ testExecGhciScope =
                     -- regresses, the drain exception will tear this scope
                     -- down and the sibling will be cancelled before it can
                     -- flip the ref.
+                    execDone <- Sem.new
                     sibling <- Conc.fork do
-                        Delay.wait (50 :: Millisecond)
+                        Sem.wait execDone
                         liftIO (writeIORef siblingDoneRef True)
                     -- Drive 'execGhci' on a dead process; the drains should
                     -- raise 'UnexpectedExit', which 'trySync' must catch
                     -- here rather than letting Ki tear down the scope.
                     execResult <- trySync (Process.exec gp "cmd" (\_ -> pure ()))
-                    -- Wait for the sibling to run.
+                    -- Release the sibling, then wait for it to run.
+                    Sem.signal execDone
                     Conc.await sibling
                     pure execResult
         -- stopProcess flushes the buffered command+marker to a pipe whose
