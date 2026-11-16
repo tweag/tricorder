@@ -33,7 +33,7 @@ instance Semigroup Event where
 -- * Otherwise → the newer event.
 merge :: Event -> Event -> Event
 merge _ Removed = Removed
-merge Removed Added = Added
+merge Removed Added = Modified
 merge Added _ = Added
 merge _ event = event
 

@@ -41,11 +41,11 @@ runHsHook
     => HaskellHooks -> FileWatcher.Event -> Eff es ()
 runHsHook hooks = \case
     FileWatcher.Event.Added -> whenJust hooks.fileAdded \hook -> do
+        Log.debug "Running Haskell file added hook"
         Hook.run hook
-        Log.debug "Haskell file added hook ran"
     FileWatcher.Event.Modified -> whenJust hooks.fileModified \hook -> do
+        Log.debug "Running Haskell file modified hook"
         Hook.run hook
-        Log.debug "Haskell file modified hook ran"
     FileWatcher.Event.Removed -> whenJust hooks.fileRemoved \hook -> do
+        Log.debug "Running Haskell file removed hook"
         Hook.run hook
-        Log.debug "Haskell file removed hook ran"
