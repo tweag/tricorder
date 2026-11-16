@@ -16,7 +16,6 @@ import Atelier.Effects.Cache.Singleflight
     )
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Delay (Delay)
-import Atelier.Time (Millisecond)
 import Atelier.Types.Semaphore (Semaphore)
 
 import Atelier.Effects.Conc qualified as Conc
@@ -108,9 +107,10 @@ test_Singleflight =
                 , testCase "all concurrent waiters receive the same result" $ do
                     (results, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
-                        -- Launch concurrent requests with different delays
-                        a1 <- Conc.fork $ with 1 (slowCompute sem 99)
-                        Delay.wait (1 :: Millisecond) -- Ensure first request starts
+                        started <- Sem.new
+                        -- Launch concurrent requests once the first is in-flight
+                        a1 <- Conc.fork $ with 1 (Sem.signal started >> slowCompute sem 99)
+                        Sem.wait started
                         a2 <- Conc.fork $ with 1 (compute 99)
                         a3 <- Conc.fork $ with 1 (compute 99)
                         Sem.signal sem -- Let first request continue
@@ -203,7 +203,7 @@ test_Singleflight =
                     (result, execCount) <- runSingleflightTest $ do
                         -- First request throws
                         _ <-
-                            (with @Int @Int 1 (throwIO $ TestException "boom"))
+                            with @Int @Int 1 (throwIO $ TestException "boom")
                                 `catch` \(_ :: TestException) -> pure 0
                         -- Second request should re-execute
                         with 1 (compute 42)
@@ -212,9 +212,14 @@ test_Singleflight =
                 , testCase "propagates exception to all concurrent waiters" $ do
                     let action = runSingleflightTest $ do
                             sem <- Sem.new
+                            started <- Sem.new
                             a1 <-
-                                Conc.fork $ with @Int @Int 1 (slowCompute sem 42 >> throwIO (TestException "concurrent-boom"))
-                            Delay.wait (1 :: Millisecond)
+                                Conc.fork
+                                    $ with @Int @Int 1
+                                    $ Sem.signal started
+                                        >> slowCompute sem 42
+                                        >> throwIO (TestException "concurrent-boom")
+                            Sem.wait started
                             a2 <- Conc.fork $ with @Int @Int 1 (compute 99)
                             Sem.signal sem
                             _ <- Conc.await a1
@@ -227,9 +232,10 @@ test_Singleflight =
                 [ testCase "overrides result of in-flight computation" $ do
                     (result, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
+                        started <- Sem.new
                         -- Start slow computation
-                        a1 <- Conc.fork $ with 1 (slowCompute sem 42)
-                        Delay.wait (1 :: Millisecond) -- Let it start
+                        a1 <- Conc.fork $ with 1 (Sem.signal started >> slowCompute sem 42)
+                        Sem.wait started -- Let it start
                         -- Update cache while computation is running
                         update [(1, 999)]
                         -- Both should get the updated value
@@ -240,12 +246,14 @@ test_Singleflight =
                 , testCase "waiting requests receive updated value" $ do
                     (results, execCount) <- runSingleflightTest $ do
                         sem <- Sem.new
-                        -- Start slow computation and waiters
-                        a1 <- Conc.fork $ with 1 (slowCompute sem 42)
-                        Delay.wait (1 :: Millisecond)
+                        started <- Sem.new
+                        -- Start slow computation; it signals once it is in-flight
+                        a1 <- Conc.fork $ with 1 (Sem.signal started >> slowCompute sem 42)
+                        Sem.wait started
+                        -- a2 either waits on the in-flight computation or reads
+                        -- the updated value; in both cases it never computes
                         a2 <- Conc.fork $ with 1 (compute 42)
-                        Delay.wait (1 :: Millisecond)
-                        -- Update while they're all waiting/running
+                        -- Update while a1 is still in-flight
                         update [(1, 888)]
                         Sem.signal sem
                         r1 <- Conc.await a1
