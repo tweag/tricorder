@@ -38,8 +38,11 @@ import Data.Map.Strict qualified as Map
 import Data.Text qualified as T
 import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 
-import Tricorder.Build (BuildState (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.PostBuild (PostBuild (..))
+import Tricorder.Build.Result (Result (..))
+import Tricorder.Build.State (State (..))
 import Tricorder.Build.Test (Suites (..))
 import Tricorder.CLI.Render (diagnosticLineIndexed, formatDuration, renderSourceResults)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo (..))
@@ -55,9 +58,10 @@ import Tricorder.SourceLookup.Hackage (Hackage)
 import Tricorder.SourceLookup.PackageStore (PackageStore)
 import Tricorder.TestOutput (stripGhciNoise)
 
-import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Phase qualified as Build.Phase
 import Tricorder.Build.Severity qualified as Severity
+import Tricorder.Build.State qualified as Build (State (..))
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Build.Test qualified as Tests
 import Tricorder.Session qualified as Session
@@ -98,10 +102,10 @@ showStatus opts = do
                     renderText opts.verbosity opts.expand state
   where
     renderText verbosity expand state = case state.phase of
-        Build.Starting -> Console.putStrLn "Building..."
-        Build.Building _ _ -> Console.putStrLn "Building..."
-        Build.Failed msg -> reportBuildFailed msg
-        Build.PostBuilding _ postBuild ->
+        Build.Phase.Starting -> Console.putStrLn "Building..."
+        Build.Phase.Building _ _ -> Console.putStrLn "Building..."
+        Build.Phase.Failed msg -> reportBuildFailed msg
+        Build.Phase.PostBuilding _ postBuild ->
             let
                 testsRunning = Test.anyRunningTests postBuild.testSuites
                 commentsEvaluating = Eval.phasePending postBuild.evalComments
@@ -115,7 +119,7 @@ showStatus opts = do
                         Console.putStrLn "Evaluating comments..."
                     | otherwise ->
                         Console.putStrLn "Post-procesing..."
-        Build.Finished result postBuild -> do
+        Build.Phase.Finished result postBuild -> do
             tz <- currentTimeZone
             case expand of
                 Just n ->
@@ -259,17 +263,17 @@ displayTextOutput
     :: ( Console :> es
        , Exit :> es
        )
-    => Either Text BuildState -> Eff es ()
+    => Either Text Build.State -> Eff es ()
 displayTextOutput = \case
     Left err -> do
         Console.putTextLn $ "Error: " <> err
         Exit.failure
-    Right (BuildState phase _) -> case phase of
-        Build.Starting -> Console.putStrLn "Starting..."
-        Build.Building _ _ -> Console.putStrLn "Building..."
-        Build.PostBuilding _ postBuild -> txtEvalComments postBuild
-        Build.Finished _ postBuild -> txtEvalComments postBuild
-        Build.Failed err -> do
+    Right (Build.State phase _) -> case phase of
+        Build.Phase.Starting -> Console.putStrLn "Starting..."
+        Build.Phase.Building _ _ -> Console.putStrLn "Building..."
+        Build.Phase.PostBuilding _ postBuild -> txtEvalComments postBuild
+        Build.Phase.Finished _ postBuild -> txtEvalComments postBuild
+        Build.Phase.Failed err -> do
             Console.putTextLn $ "Error: " <> err
             Exit.failure
   where
@@ -314,19 +318,19 @@ displayTextOutput = \case
                     ]
 
 
-displayJsonOutput :: (Console :> es, Exit :> es) => Either Text BuildState -> Eff es ()
+displayJsonOutput :: (Console :> es, Exit :> es) => Either Text Build.State -> Eff es ()
 displayJsonOutput = \case
     Left err -> do
         putJson $ Eval.Failed err
         Exit.failure
-    Right (BuildState phase _) -> case phase of
-        Build.Starting -> putJson Eval.Starting
-        Build.Building _ _ -> putJson Eval.Building
-        Build.Failed msg -> do
+    Right (Build.State phase _) -> case phase of
+        Build.Phase.Starting -> putJson Eval.Starting
+        Build.Phase.Building _ _ -> putJson Eval.Building
+        Build.Phase.Failed msg -> do
             putJson $ Eval.Failed msg
             Exit.failure
-        Build.PostBuilding _ postBuild -> jsonEvalComments postBuild
-        Build.Finished _ postBuild -> jsonEvalComments postBuild
+        Build.Phase.PostBuilding _ postBuild -> jsonEvalComments postBuild
+        Build.Phase.Finished _ postBuild -> jsonEvalComments postBuild
   where
     jsonEvalComments postBuild = case postBuild.evalComments of
         Eval.Looking -> putJson Eval.Evaluating
@@ -351,11 +355,11 @@ displayPendingBuildStatus = do
     SocketPath sockPath <- ask
     current <- queryStatus sockPath
     case current of
-        Right BuildState {phase = Build.Starting} -> Console.putStrLn "Starting..."
-        Right BuildState {phase = Build.Building _ _} -> Console.putStrLn "Building..."
-        Right BuildState {phase = Build.Finished _ postBuild} -> displayPostBuildStatus postBuild
-        Right BuildState {phase = Build.PostBuilding _ postBuild} -> displayPostBuildStatus postBuild
-        Right BuildState {phase = Build.Failed _} -> pure ()
+        Right Build.State {phase = Build.Phase.Starting} -> Console.putStrLn "Starting..."
+        Right Build.State {phase = Build.Phase.Building _ _} -> Console.putStrLn "Building..."
+        Right Build.State {phase = Build.Phase.Finished _ postBuild} -> displayPostBuildStatus postBuild
+        Right Build.State {phase = Build.Phase.PostBuilding _ postBuild} -> displayPostBuildStatus postBuild
+        Right Build.State {phase = Build.Phase.Failed _} -> pure ()
         Left _ -> pure ()
   where
     displayPostBuildStatus postBuild
@@ -375,7 +379,7 @@ awaitBuildStatus
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
-    => IfBuildIsPending -> Eff es (Either Text BuildState)
+    => IfBuildIsPending -> Eff es (Either Text Build.State)
 awaitBuildStatus wait = do
     SocketPath sockPath <- ask
     case wait of

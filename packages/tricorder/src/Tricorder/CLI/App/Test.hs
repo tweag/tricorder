@@ -20,11 +20,11 @@ import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 
-import Tricorder.Build (BuildState (..))
 import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 
+import Tricorder.Build.State qualified as Build (State)
 import Tricorder.CLI.App.Test.Json qualified as Json
 import Tricorder.CLI.App.Test.Text qualified as Text
 import Tricorder.CLI.Daemon qualified as Daemons
@@ -108,7 +108,7 @@ awaitBuildStatus
        , Reader SocketPath :> es
        , UnixSocket :> es
        )
-    => IfBuildIsPending -> Eff es (Either Text BuildState)
+    => IfBuildIsPending -> Eff es (Either Text Build.State)
 awaitBuildStatus wait = do
     SocketPath sockPath <- Reader.ask
     case wait of

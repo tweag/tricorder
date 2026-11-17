@@ -22,7 +22,8 @@ import Atelier.FileSystem.File qualified as File
 import Data.ByteString.Lazy qualified as BSL
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.Build (BuildId, BuildPhase, BuildState (..), Diagnostic)
+import Tricorder.Build.PostBuild (PostBuild (..))
+import Tricorder.Build.Result (Result (..))
 import Tricorder.Daemon.IdleTimer (IdleTimer)
 import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Protocol
@@ -36,8 +37,12 @@ import Tricorder.Socket.UnixSocket (UnixSocket)
 import Tricorder.Version (VersionMismatch (..), checkVersion)
 import Tricorder.Waiters (Waiters)
 
-import Tricorder.Build qualified as Build
+import Tricorder.Build.Diagnostic qualified as Build (Diagnostic)
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Id qualified as Build (Id)
+import Tricorder.Build.Phase qualified as Build (Phase)
+import Tricorder.Build.Phase qualified as Build.Phase
+import Tricorder.Build.State qualified as Build (State (..))
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Socket.Protocol qualified as Protocol
@@ -55,16 +60,16 @@ main
        , FileSystem :> es
        , Handles :> es
        , IdleTimer :> es
-       , Input BuildId :> es
+       , Input Build.Id :> es
        , Log :> es
        , Reader SocketPath :> es
-       , Sub BuildPhase :> es
+       , Sub Build.Phase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
     => Eff es Void
-main = State.evalState Build.Starting do
-    Conc.fork_ $ Sub.listen_ @BuildPhase State.put
+main = State.evalState Build.Phase.Starting do
+    Conc.fork_ $ Sub.listen_ @Build.Phase State.put
 
     SocketPath sockPath <- ask
     void $ trySync $ File.remove sockPath
@@ -76,11 +81,11 @@ acceptTrigger
        , Exit :> es
        , Handles :> es
        , IdleTimer :> es
-       , Input BuildId :> es
+       , Input Build.Id :> es
        , Log :> es
        , Reader SocketPath :> es
-       , State BuildPhase :> es
-       , Sub BuildPhase :> es
+       , State Build.Phase :> es
+       , Sub Build.Phase :> es
        , UnixSocket :> es
        , Waiters :> es
        )
@@ -99,10 +104,10 @@ handleConnection
        , Exit :> es
        , Handles :> es
        , IdleTimer :> es
-       , Input BuildId :> es
+       , Input Build.Id :> es
        , Log :> es
-       , State BuildPhase :> es
-       , Sub BuildPhase :> es
+       , State Build.Phase :> es
+       , Sub Build.Phase :> es
        , Waiters :> es
        )
     => Handle
@@ -124,10 +129,10 @@ dispatch
     :: ( Conc :> es
        , Exit :> es
        , Handles :> es
-       , Input BuildId :> es
+       , Input Build.Id :> es
        , Log :> es
-       , State BuildPhase :> es
-       , Sub BuildPhase :> es
+       , State Build.Phase :> es
+       , Sub Build.Phase :> es
        , Waiters :> es
        )
     => Query
@@ -160,8 +165,8 @@ quit h = \case
 
 respondOnce
     :: ( Handles :> es
-       , Input BuildId :> es
-       , State BuildPhase :> es
+       , Input Build.Id :> es
+       , State Build.Phase :> es
        )
     => Handle -> Eff es ()
 respondOnce h = do
@@ -172,33 +177,33 @@ respondOnce h = do
 respondWhenDone
     :: ( Conc :> es
        , Handles :> es
-       , Input BuildId :> es
-       , State BuildPhase :> es
-       , Sub BuildPhase :> es
+       , Input Build.Id :> es
+       , State Build.Phase :> es
+       , Sub Build.Phase :> es
        )
     => Handle -> Eff es ()
 respondWhenDone h = awaitResult >>= mkBuildState >>= sendJson h
   where
     awaitResult = Conc.scoped do
         progressP <- Conc.fork $ Sub.listenUntil_ \case
-            failed@(Build.Failed _) -> Just failed
-            finished@(Build.Finished _ _) -> Just finished
+            failed@(Build.Phase.Failed _) -> Just failed
+            finished@(Build.Phase.Finished _ _) -> Just finished
             _ -> Nothing
         s <- State.get
         waitOrStart progressP s
 
     waitOrStart p = \case
-        finished@(Build.Finished _ _) -> pure finished
-        failed@(Build.Failed _) -> pure failed
+        finished@(Build.Phase.Finished _ _) -> pure finished
+        failed@(Build.Phase.Failed _) -> pure failed
         _ -> Conc.await p
 
 
 -- | Stream a JSON object after each state change event.
 watchStream
     :: ( Handles :> es
-       , Input BuildId :> es
-       , State BuildPhase :> es
-       , Sub BuildPhase :> es
+       , Input Build.Id :> es
+       , State Build.Phase :> es
+       , Sub Build.Phase :> es
        )
     => Handle -> Eff es ()
 watchStream h = do
@@ -208,11 +213,11 @@ watchStream h = do
         mkBuildState progress >>= sendJson h
 
 
-respondDiagnostic :: (Handles :> es, State BuildPhase :> es) => Int -> Handle -> Eff es ()
+respondDiagnostic :: (Handles :> es, State Build.Phase :> es) => Int -> Handle -> Eff es ()
 respondDiagnostic idx h = do
     progress <- State.get
     case progress of
-        Build.Finished result postBuild
+        Build.Phase.Finished result postBuild
             | not $ Test.anyRunningTests postBuild.testSuites && Eval.phasePending postBuild.evalComments ->
                 case result.diagnostics !!? (idx - 1) of
                     Nothing ->
@@ -223,9 +228,9 @@ respondDiagnostic idx h = do
                                 <> " (current build has "
                                 <> show (length result.diagnostics)
                                 <> ")"
-                    Just d -> sendJson h (d :: Diagnostic)
+                    Just d -> sendJson h (d :: Build.Diagnostic)
             | otherwise -> sendJson h $ ErrorResponse "Build in progress"
-        Build.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
+        Build.Phase.Failed msg -> sendJson h $ ErrorResponse $ "Build command failed:\n" <> msg
         _ -> sendJson h $ ErrorResponse "Build in progress"
 
 
@@ -233,7 +238,7 @@ sendJson :: (Handles :> es, ToJSON a) => Handle -> a -> Eff es ()
 sendJson h val = Handles.hPutTextLn h (decodeUtf8 (BSL.toStrict (encode val))) >> Handles.hFlush h
 
 
-mkBuildState :: (Input BuildId :> es) => BuildPhase -> Eff es BuildState
+mkBuildState :: (Input Build.Id :> es) => Build.Phase -> Eff es Build.State
 mkBuildState phase = do
     buildId <- input
-    pure $ BuildState {buildId, phase}
+    pure $ Build.State {buildId, phase}

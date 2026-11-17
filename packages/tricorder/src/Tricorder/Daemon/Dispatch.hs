@@ -22,7 +22,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import System.FilePath qualified as FP
 
-import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 

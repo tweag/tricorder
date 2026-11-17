@@ -30,7 +30,6 @@ import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Data.ByteString.Lazy qualified as BSL
 import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
-import Tricorder.Build (BuildState, Diagnostic)
 import Tricorder.Runtime.PidFile (PidFile)
 import Tricorder.Socket.Protocol
     ( ClientMessage (..)
@@ -41,6 +40,8 @@ import Tricorder.Socket.Protocol
     )
 import Tricorder.Socket.UnixSocket (UnixSocket, withConnection)
 
+import Tricorder.Build.Diagnostic qualified as Build (Diagnostic)
+import Tricorder.Build.State qualified as Build (State)
 import Tricorder.Version qualified as Version
 
 
@@ -48,7 +49,7 @@ import Tricorder.Version qualified as Version
 queryStatus
     :: (Handles :> es, Path path, UnixSocket :> es)
     => path
-    -> Eff es (Either Text BuildState)
+    -> Eff es (Either Text Build.State)
 queryStatus sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = False}))
     receiveState h
@@ -58,7 +59,7 @@ queryStatus sockPath = withConnection sockPath \h -> do
 queryStatusWait
     :: (Handles :> es, Path path, UnixSocket :> es)
     => path
-    -> Eff es (Either Text BuildState)
+    -> Eff es (Either Text Build.State)
 queryStatusWait sockPath = withConnection sockPath \h -> do
     sendQuery h (Status (StatusQuery {awaitDone = True}))
     receiveState h
@@ -81,7 +82,7 @@ queryWatch
     => path
     -> Eff es Bool
     -- ^ Whether a restart is currently in progress.
-    -> (Either Restarting BuildState -> Eff es ())
+    -> (Either Restarting Build.State -> Eff es ())
     -> Eff es ()
 queryWatch sockPath isRestarting handler = evalState retryLimit retryLoop
   where
@@ -116,7 +117,7 @@ queryDiagnostic
     :: (Handles :> es, Path path, UnixSocket :> es)
     => path
     -> Int
-    -> Eff es (Either Text Diagnostic)
+    -> Eff es (Either Text Build.Diagnostic)
 queryDiagnostic sockPath idx = withConnection sockPath \h -> do
     sendQuery h (DiagnosticAt (DiagnosticQuery {index = idx}))
     line <- Handles.hGetLine h
@@ -166,7 +167,7 @@ sendQuery :: (Handles :> es) => Handle -> Query -> Eff es ()
 sendQuery h q = Handles.hPutLBsLn h $ encode ClientMessage {clientVersion = Version.gitHash, payload = q}
 
 
-receiveState :: (Handles :> es) => Handle -> Eff es (Either Text BuildState)
+receiveState :: (Handles :> es) => Handle -> Eff es (Either Text Build.State)
 receiveState h = do
     line <- Handles.hGetLine h
     case eitherDecode (BSL.fromStrict (encodeUtf8 (toText line))) of

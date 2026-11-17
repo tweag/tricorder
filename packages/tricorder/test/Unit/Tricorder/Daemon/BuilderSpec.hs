@@ -8,9 +8,10 @@ import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (BuildResult (..), Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.Result (Result (..))
 import Tricorder.Daemon.Builder (NewLoadResult (..), compileBuildResults)
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
@@ -89,7 +90,7 @@ testCompileBuildResults =
                                 }
                         }
             expected =
-                BuildResult
+                Result
                     { completedAt = addUTCTime 10 epoch
                     , duration = Duration 10_000
                     , moduleCount = 2

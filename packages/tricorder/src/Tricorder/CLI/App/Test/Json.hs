@@ -20,17 +20,16 @@ import Tricorder.API.FieldMask.Schema qualified as FieldMask (Schema)
 import Tricorder.API.Response qualified as Responses
 import Tricorder.API.Test.SuitesResponse qualified as SuitesResponse
 
-import Tricorder.Build
-    ( BuildPhase (..)
-    , BuildResult (..)
-    , BuildState (..)
-    , Diagnostic (..)
-    , PostBuild (..)
-    )
 import Tricorder.CLI.App.Test.SuiteView (selectSuites)
 import Tricorder.Session.TestTarget (TestTarget)
 
-import Tricorder.Build.Severity qualified as Severity
+import Tricorder.Build.Diagnostic qualified as Build.Diagnostic
+import Tricorder.Build.Phase qualified as Build.Phase
+import Tricorder.Build.PostBuild qualified as Build.PostBuild
+import Tricorder.Build.Result qualified as Build.Result
+import Tricorder.Build.Severity qualified as Build.Severity
+import Tricorder.Build.State qualified as Build (State)
+import Tricorder.Build.State qualified as Build.State
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Session.TestTarget qualified as TestTarget
 
@@ -68,21 +67,24 @@ argumentError :: Text -> Either Text Text
 argumentError err = wrapResponse nullCodec $ Responses.Error $ MessageWithLoc "arguments" err
 
 
-showBasePhase :: Either Text BuildState -> (Test.Suites -> Response a) -> Response a
+showBasePhase :: Either Text Build.State -> (Test.Suites -> Response a) -> Response a
 showBasePhase result mkResponse = case result of
     Left err -> Responses.Error $ MessageWithLoc "build" err
-    Right build -> case build.phase of
-        Starting -> Responses.Pending $ MessageWithLoc "build" "starting"
-        Building _ _ -> Responses.Pending $ MessageWithLoc "build" "building"
-        PostBuilding _ postBuild
+    Right build -> case Build.State.phase build of
+        Build.Phase.Starting -> Responses.Pending $ MessageWithLoc "build" "starting"
+        Build.Phase.Building _ _ -> Responses.Pending $ MessageWithLoc "build" "building"
+        Build.Phase.PostBuilding _ postBuild
             | Test.anyRunningTests postBuild.testSuites ->
                 Responses.Pending $ MessageWithLoc "postBuild" "testing"
             | otherwise -> mkResponse postBuild.testSuites
-        Finished buildResult postBuild
+        Build.Phase.Finished buildResult postBuild
             | buildFailed buildResult postBuild ->
                 Responses.Error $ MessageWithLoc "finished" "build failed before tests ran"
             | otherwise -> mkResponse postBuild.testSuites
-        Failed reason -> Responses.Error $ MessageWithLoc "build" $ "build failed: " <> reason
+        Build.Phase.Failed reason -> Responses.Error $ MessageWithLoc "build" $ "build failed: " <> reason
   where
     buildFailed buildResult postBuild =
-        postBuild.testSuites == mempty && any (\d -> d.severity >= Severity.Error) buildResult.diagnostics
+        Build.PostBuild.testSuites postBuild == mempty
+            && any
+                (\d -> Build.Diagnostic.severity d >= Build.Severity.Error)
+                (Build.Result.diagnostics buildResult)
