@@ -19,7 +19,7 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.LineParser (LineStream (..))
 import Tricorder.Daemon.Ghci.Load (Load)

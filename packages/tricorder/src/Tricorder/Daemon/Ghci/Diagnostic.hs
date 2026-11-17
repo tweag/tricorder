@@ -12,7 +12,7 @@ import Prelude hiding (many)
 import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Ghci.Position (Position)
 import Tricorder.Daemon.Ghci.TextParser (TextParser)

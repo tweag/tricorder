@@ -27,14 +27,15 @@ import Effectful.FileSystem qualified as FileSystem
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.Build (BuildId (..), BuildPhase)
 import Tricorder.Build.Changes (ProjectChangeDetected, SourceChangeDetected)
 import Tricorder.Config (asInput)
 import Tricorder.Daemon.Watch (WatchedFile)
 import Tricorder.Session.CabalFile (inputCabalFiles)
 import Tricorder.SourceLookup.GhcPkg (runGhcPkgIO)
 
-import Tricorder.Build qualified as BuildPhase
+import Tricorder.Build.Id qualified as Build (Id (..))
+import Tricorder.Build.Phase qualified as Build (Phase)
+import Tricorder.Build.Phase qualified as Build.Phase
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
@@ -94,13 +95,13 @@ main =
         . runGhcPkgIO
         . UnixSocket.runIO
         . Ghci.Session.run
-        . State.evalState (BuildId 1)
-        . Input.fromState @BuildId
+        . State.evalState (Build.Id 1)
+        . Input.fromState @Build.Id
         . Hpack.run
         . EvalCommentRunner.run
         . TestRunner.run
         . Waiters.run
-        . PubSub.run @BuildPhase
+        . PubSub.run @Build.Phase
         . PubSub.run @ProjectChangeDetected
         . PubSub.run @SourceChangeDetected
         . PubSub.run @WatchedFile
@@ -125,7 +126,7 @@ main =
                                 "Unable to start builder due to invalid session: "
                                     <> Session.State.Result.Invalid.reason invalid
                         Log.err msg
-                        Pub.publish $ BuildPhase.Failed msg
+                        Pub.publish $ Build.Phase.Failed msg
                     Session.State.Result.Ok session -> do
                         void $ Conc.fork $ Hpack.main session
                         Conc.fork_ $ HookDispatch.main session

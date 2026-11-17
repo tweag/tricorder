@@ -35,9 +35,13 @@ import Graphics.Vty.Attributes qualified as Attr
 import Graphics.Vty.Attributes.Color qualified as Color
 import Tricorder.API.TestFilter qualified as TestFilter
 
-import Tricorder.Build (BuildPhase, BuildResult, BuildState, Diagnostic)
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.PostBuild (PostBuild (..))
+import Tricorder.Build.Progress (Progress (..))
+import Tricorder.Build.Result (Result (..))
 import Tricorder.Build.Severity (Severity)
+import Tricorder.Build.State (State (..))
 import Tricorder.CLI.UI.Keys (KeyEvent, viewKeybindings)
 import Tricorder.CLI.UI.Misc (emphasis, err, hBoxSpaced, ok, subtle, vBoxSpaced, warn)
 import Tricorder.CLI.UI.Route (Route)
@@ -50,16 +54,21 @@ import Tricorder.CLI.UI.State
 import Tricorder.Session.TestTarget (TestTarget)
 import Tricorder.TestOutput (stripGhciNoise)
 
-import Tricorder.Build qualified as Build
+import Tricorder.Build.Diagnostic qualified as Build (Diagnostic)
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Phase qualified as Build (Phase)
+import Tricorder.Build.Phase qualified as Build.Phase
+import Tricorder.Build.Result qualified as Build (Result)
 import Tricorder.Build.Severity qualified as Severity
+import Tricorder.Build.State qualified as Build (State)
 import Tricorder.Build.Test qualified as Test
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.CLI.UI.Route qualified as Route
+import Tricorder.CLI.UI.State qualified as UI (State)
 import Tricorder.Session.TestTarget qualified as TestTarget
 
 
-mkAttrMap :: State -> AttrMap
+mkAttrMap :: UI.State -> AttrMap
 mkAttrMap =
     const
         ( attrMap
@@ -73,7 +82,7 @@ mkAttrMap =
         )
 
 
-view :: KeyConfig KeyEvent -> KeyDispatcher KeyEvent m -> State -> [Widget Viewports]
+view :: KeyConfig KeyEvent -> KeyDispatcher KeyEvent m -> UI.State -> [Widget Viewports]
 view kc dispatcher ws =
     [ vBoxSpaced
         1
@@ -91,12 +100,12 @@ view kc dispatcher ws =
     ]
 
 
-viewTabs :: State -> Widget n
+viewTabs :: UI.State -> Widget n
 viewTabs ws =
     hBoxSpaced 1 $ viewRouteTab ws <$> universe @Route
 
 
-viewRouteTab :: State -> Route -> Widget n
+viewRouteTab :: UI.State -> Route -> Widget n
 viewRouteTab ws route =
     style $ txt $ brackets $ Route.name route
   where
@@ -104,15 +113,15 @@ viewRouteTab ws route =
     style = if route == currentRoute ws then id else subtle
 
 
-viewTests :: State -> Widget Viewports
+viewTests :: UI.State -> Widget Viewports
 viewTests ws = withBuildState ws (viewTestResultsPanel ws)
 
 
-viewEvals :: State -> Widget Viewports
+viewEvals :: UI.State -> Widget Viewports
 viewEvals ws = withBuildState ws $ viewEvalCommentsPanel ws
 
 
-viewMain :: State -> Widget Viewports
+viewMain :: UI.State -> Widget Viewports
 viewMain ws = withBuildState ws (viewDefaultPanel ws.timeZone)
 
 
@@ -124,7 +133,7 @@ viewHelp kc dispatcher = viewKeybindings kc handlers
     handlers = (.khHandler) . snd <$> keyDispatcherToList dispatcher
 
 
-withBuildState :: State -> (BuildState -> Widget Viewports) -> Widget Viewports
+withBuildState :: UI.State -> (Build.State -> Widget Viewports) -> Widget Viewports
 withBuildState ws render =
     case ws.buildState of
         Waiting ->
@@ -135,7 +144,7 @@ withBuildState ws render =
             render bs
 
 
-viewAppHeader :: KeyConfig KeyEvent -> State -> Widget n
+viewAppHeader :: KeyConfig KeyEvent -> UI.State -> Widget n
 viewAppHeader kc ws =
     hBoxSpaced
         1
@@ -151,7 +160,7 @@ viewAppHeader kc ws =
         ]
 
 
-viewHelpHint :: KeyConfig KeyEvent -> State -> Widget n
+viewHelpHint :: KeyConfig KeyEvent -> UI.State -> Widget n
 viewHelpHint kc state
     | state.showHelp = subtle $ txt $ "Press " <> exitHelpStr <> " to go back"
     | state.route == Route.Tests =
@@ -169,7 +178,7 @@ viewHelpHint kc state
         (pre, post) -> T.intercalate ", " pre <> " " <> andOr <> " " <> T.intercalate ", " post
 
 
-viewHeading :: State -> Maybe Text
+viewHeading :: UI.State -> Maybe Text
 viewHeading ws
     | ws.showHelp = Just "Help"
     | otherwise = case currentRoute ws of
@@ -180,11 +189,11 @@ viewHeading ws
         Route.Evals -> Just "Eval comments"
 
 
-viewDefaultPanel :: TimeZone -> BuildState -> Widget Viewports
+viewDefaultPanel :: TimeZone -> Build.State -> Widget Viewports
 viewDefaultPanel tz bs = viewBuildPhase tz bs.phase
 
 
-viewTestResultsPanel :: State -> BuildState -> Widget Viewports
+viewTestResultsPanel :: UI.State -> Build.State -> Widget Viewports
 viewTestResultsPanel ws bs =
     vBoxSpaced
         1
@@ -193,14 +202,14 @@ viewTestResultsPanel ws bs =
         ]
 
 
-viewEvalCommentsPanel :: State -> BuildState -> Widget Viewports
+viewEvalCommentsPanel :: UI.State -> Build.State -> Widget Viewports
 viewEvalCommentsPanel ws bs =
     vBoxSpaced
         1
         [ viewBuildPhaseLine ws.timeZone bs.phase
         , case bs.phase of
-            Build.Finished _ postBuild -> viewEvalComments postBuild.evalComments
-            Build.PostBuilding _ postBuild -> viewEvalComments postBuild.evalComments
+            Build.Phase.Finished _ postBuild -> viewEvalComments postBuild.evalComments
+            Build.Phase.PostBuilding _ postBuild -> viewEvalComments postBuild.evalComments
             _ -> txt "Waiting for build..."
         ]
 
@@ -236,29 +245,29 @@ viewEvaluation evaluation =
                     ]
 
 
-viewBuildPhase :: TimeZone -> BuildPhase -> Widget Viewports
+viewBuildPhase :: TimeZone -> Build.Phase -> Widget Viewports
 viewBuildPhase tz = \case
-    Build.Starting ->
+    Build.Phase.Starting ->
         warn $ txt "Starting..."
-    Build.Building testTargets phase ->
+    Build.Phase.Building testTargets progress ->
         vBoxSpaced
             1
-            [ warn $ txt $ "Building (" <> show phase.compiled <> "/" <> show phase.total <> ")..."
+            [ warn $ txt $ "Building (" <> show progress.compiled <> "/" <> show progress.total <> ")..."
             , viewPendingTestTargets testTargets
             ]
-    Build.PostBuilding result postBuild ->
+    Build.Phase.PostBuilding result postBuild ->
         vBoxSpaced
             1
             [ viewBuildResult tz result
             , viewTestRuns postBuild.testSuites
             ]
-    Build.Finished result postBuild ->
+    Build.Phase.Finished result postBuild ->
         vBoxSpaced
             1
             [ viewBuildResult tz result
             , viewTestRuns postBuild.testSuites
             ]
-    Build.Failed msg ->
+    Build.Phase.Failed msg ->
         viewBuildFailed msg
 
 
@@ -288,7 +297,7 @@ vScrollViewport vp =
         . viewport vp Vertical
 
 
-viewBuildResult :: TimeZone -> BuildResult -> Widget Viewports
+viewBuildResult :: TimeZone -> Build.Result -> Widget Viewports
 viewBuildResult tz result
     | null result.diagnostics =
         hBoxSpaced
@@ -299,8 +308,8 @@ viewBuildResult tz result
             ]
     | otherwise =
         let msgs = result.diagnostics
-            errCount = length $ filter (\m -> m.severity == Severity.Error) msgs
-            warnCount = length $ filter (\m -> m.severity == Severity.Warning) msgs
+            errCount = length $ filter (\d -> d.severity == Severity.Error) msgs
+            warnCount = length $ filter (\d -> d.severity == Severity.Warning) msgs
             header =
                 if errCount > 0
                     then
@@ -319,7 +328,7 @@ viewBuildResult tz result
                 ]
 
 
-viewDiagnostic :: Diagnostic -> Widget n
+viewDiagnostic :: Build.Diagnostic -> Widget n
 viewDiagnostic m =
     vBox
         [ hBoxSpaced
@@ -407,21 +416,21 @@ formatDuration (Duration d) =
 
 -- | Single-line build status with no scrollable diagnostics list, used as a
 -- compact header when a secondary panel (test results) is open.
-viewBuildPhaseLine :: TimeZone -> BuildPhase -> Widget n
+viewBuildPhaseLine :: TimeZone -> Build.Phase -> Widget n
 viewBuildPhaseLine tz = \case
-    Build.Starting ->
+    Build.Phase.Starting ->
         warn $ txt "Starting..."
-    Build.Building _ phase ->
+    Build.Phase.Building _ phase ->
         warn $ txt $ "Building (" <> show phase.compiled <> "/" <> show phase.total <> ")..."
-    Build.PostBuilding result _ ->
+    Build.Phase.PostBuilding result _ ->
         viewBuildResultLine tz result
-    Build.Finished result _ ->
+    Build.Phase.Finished result _ ->
         viewBuildResultLine tz result
-    Build.Failed _ ->
+    Build.Phase.Failed _ ->
         err $ txt "Build command failed"
 
 
-viewBuildResultLine :: TimeZone -> BuildResult -> Widget n
+viewBuildResultLine :: TimeZone -> Build.Result -> Widget n
 viewBuildResultLine tz result
     | null result.diagnostics =
         hBoxSpaced
@@ -442,9 +451,9 @@ viewBuildResultLine tz result
         in  hBoxSpaced 1 [header, viewDuration result.duration, viewTimestamp tz result.completedAt]
 
 
-phaseTestRuns :: BuildPhase -> Test.Suites
-phaseTestRuns (Build.PostBuilding _ postBuild) = postBuild.testSuites
-phaseTestRuns (Build.Finished _ postBuild) = postBuild.testSuites
+phaseTestRuns :: Build.Phase -> Test.Suites
+phaseTestRuns (Build.Phase.PostBuilding _ postBuild) = postBuild.testSuites
+phaseTestRuns (Build.Phase.Finished _ postBuild) = postBuild.testSuites
 phaseTestRuns _ = Test.Suites mempty
 
 

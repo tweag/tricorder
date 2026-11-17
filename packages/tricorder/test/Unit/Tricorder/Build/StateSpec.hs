@@ -1,4 +1,4 @@
-module Unit.Tricorder.Daemon.BuildStateSpec (test_BuildState) where
+module Unit.Tricorder.Build.StateSpec (test_State) where
 
 import Data.Aeson (eitherDecode, encode)
 import Data.Time (UTCTime (..), fromGregorian)
@@ -7,25 +7,23 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Atelier.FileSystem.Path qualified as Path
 
-import Tricorder.Build
-    ( BuildId (..)
-    , BuildResult (..)
-    , BuildState (..)
-    , Diagnostic (..)
-    , PostBuild (..)
-    )
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.Id (Id (..))
+import Tricorder.Build.Phase (Phase (..))
+import Tricorder.Build.PostBuild (PostBuild (..))
+import Tricorder.Build.Result (Result (..))
+import Tricorder.Build.State (State (..))
 
-import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Severity qualified as Severity
 
 
-test_BuildState :: TestTree
-test_BuildState =
+test_State :: TestTree
+test_State =
     testGroup
-        "BuildState"
+        "Tricorder.Build.State"
         [ testGroup
             "JSON round-trip"
             [ testCase "survives Unicode smart quotes in message text" do
@@ -76,11 +74,11 @@ test_BuildState =
               -- the CLI/UI clients can render it.
               testCase "survives a BuildFailed phase with a multi-line message" do
                 let bs =
-                        mkBuildState [] :: BuildState
+                        mkBuildState [] :: State
                     failed =
                         bs
                             { phase =
-                                Build.Failed
+                                Failed
                                     "cabal: Could not resolve dependencies:\n[__0] trying: \8216base\8217\nrejecting: ..."
                             }
                 eitherDecode (encode failed) @?= Right failed
@@ -88,13 +86,13 @@ test_BuildState =
         ]
 
 
-mkBuildState :: [Diagnostic] -> BuildState
+mkBuildState :: [Diagnostic] -> State
 mkBuildState msgs =
-    BuildState
-        { buildId = BuildId 1
+    State
+        { buildId = Id 1
         , phase =
-            Build.Finished
-                ( BuildResult
+            Finished
+                ( Result
                     { completedAt = epoch
                     , duration = Duration 0
                     , moduleCount = 0

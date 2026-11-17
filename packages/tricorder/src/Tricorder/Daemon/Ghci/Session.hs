@@ -34,7 +34,6 @@ import Effectful.Exception (throwIO)
 import Effectful.State.Static.Shared (State, evalState, state)
 import Effectful.TH (makeEffect)
 
-import Tricorder.Build (BuildProgress (..))
 import Tricorder.Daemon.Ghci.Controls (Controls (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult)
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
@@ -42,6 +41,7 @@ import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.Stage (Stage (..))
 
+import Tricorder.Build.Progress qualified as Build (Progress (..))
 import Tricorder.Daemon.Ghci.Controls qualified as Controls
 import Tricorder.Daemon.Ghci.Process qualified as Ghci.Process
 import Tricorder.Daemon.Ghci.Process qualified as Process
@@ -53,7 +53,7 @@ data Session :: Effect where
     -- returning new messages with module counts. The GHCi session is closed
     -- when the handler returns.
     With
-        :: (BuildProgress -> m ())
+        :: (Build.Progress -> m ())
         -- ^ Action to run when reporting progress
         -> RenderedCommand 'Build
         -> ProjectRoot
@@ -114,7 +114,7 @@ run = interpret $ \env -> \case
                 let reportProgress loading =
                         unlift
                             $ onProgress
-                            $ BuildProgress
+                            $ Build.Progress
                                 { compiled = loading.index
                                 , total = loading.total
                                 }

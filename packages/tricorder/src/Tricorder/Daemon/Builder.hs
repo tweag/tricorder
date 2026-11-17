@@ -31,8 +31,9 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.Build (BuildId (..), BuildProgress, BuildResult (..), Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.Duration (Duration (..))
+import Tricorder.Build.Id (Id (..))
 import Tricorder.Daemon.Dispatch
     ( BuilderState (..)
     , DiagnosticMap
@@ -48,6 +49,9 @@ import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.Command.RenderedCommand (RenderedCommand)
 import Tricorder.Session.WatchDirs (WatchDirs)
 
+import Tricorder.Build.Id qualified as Build (Id)
+import Tricorder.Build.Progress qualified as Build (Progress)
+import Tricorder.Build.Result qualified as Build (Result (..))
 import Tricorder.Daemon.Ghci.Controls qualified as Controls
 import Tricorder.Daemon.Ghci.Controls qualified as Ghci (Controls)
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
@@ -87,10 +91,10 @@ with
     :: ( Clock :> es
        , Ghci.Session :> es
        , Log :> es
-       , Pub BuildProgress :> es
+       , Pub Build.Progress :> es
        , Reader ProjectRoot :> es
        )
-    => BuildId
+    => Build.Id
     -> RenderedCommand 'Stage.Build
     -> WatchDirs
     -> (BuilderState -> NewLoadResult -> Eff (Builder : es) a)
@@ -104,7 +108,7 @@ with buildId command watchDirs action = do
         Log.info
             $ mconcat
                 [ "GHCi started (session #"
-                , show buildId.getBuildId
+                , show buildId.getId
                 , "): "
                 , show (length filteredMsgs)
                 , " diagnostics"
@@ -169,7 +173,7 @@ compileBuildResults
     -> WatchDirs
     -> DiagnosticMap
     -> NewLoadResult
-    -> (DiagnosticMap, BuildResult)
+    -> (DiagnosticMap, Build.Result)
 compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadResult =
     (merged, buildResult)
   where
@@ -182,7 +186,7 @@ compileBuildResults (ProjectRoot projectRoot) watchDirs diagnosticMap newLoadRes
                     $ filterToWatchDirs projectRoot watchDirs loadResult.diagnostics
             }
     buildResult =
-        BuildResult
+        Build.Result
             { completedAt = endTime
             , duration = Duration $ nominalDiffTime (diffUTCTime endTime startTime)
             , moduleCount = loadResult.moduleCount

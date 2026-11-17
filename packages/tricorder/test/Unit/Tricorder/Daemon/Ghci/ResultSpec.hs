@@ -12,7 +12,7 @@ import Tricorder.Daemon.Ghci.Message (Message (..))
 import Tricorder.Daemon.Ghci.Position (Position (..))
 import Tricorder.Daemon.Ghci.Result (collectResult, collectResultCustom, extractTitle, parseReload)
 
-import Tricorder.Build qualified as Build.Diagnostic
+import Tricorder.Build.Diagnostic qualified as Build.Diagnostic
 import Tricorder.Build.Severity qualified as Build.Severity
 import Tricorder.Daemon.Ghci.Load qualified as Load
 import Tricorder.Daemon.Ghci.LoadOutcome qualified as LoadOutcome

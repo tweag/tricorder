@@ -32,13 +32,19 @@ source-repository head
 
 library tricorder-internal
   exposed-modules:
-      Tricorder.Build
       Tricorder.Build.ByteSize
       Tricorder.Build.Changes
+      Tricorder.Build.Diagnostic
       Tricorder.Build.DiagnosticLocation
       Tricorder.Build.Duration
       Tricorder.Build.EvalComment
+      Tricorder.Build.Id
+      Tricorder.Build.Phase
+      Tricorder.Build.PostBuild
+      Tricorder.Build.Progress
+      Tricorder.Build.Result
       Tricorder.Build.Severity
+      Tricorder.Build.State
       Tricorder.Build.Test
       Tricorder.CLI.App
       Tricorder.CLI.App.CLIResponse
@@ -340,10 +346,10 @@ test-suite tricorder-test
   other-modules:
       Unit.Tricorder.Build.ByteSizeSpec
       Unit.Tricorder.Build.EvalCommentSpec
+      Unit.Tricorder.Build.StateSpec
       Unit.Tricorder.CLI.App.Test.SuiteViewSpec
       Unit.Tricorder.CLI.RenderSpec
       Unit.Tricorder.Daemon.BuilderSpec
-      Unit.Tricorder.Daemon.BuildStateSpec
       Unit.Tricorder.Daemon.DispatchSpec
       Unit.Tricorder.Daemon.Ghci.LoadResultSpec
       Unit.Tricorder.Daemon.Ghci.OutputSpec

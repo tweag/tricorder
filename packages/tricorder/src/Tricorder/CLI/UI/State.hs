@@ -17,9 +17,9 @@ import Prelude hiding (init)
 import Atelier.Effects.Clock qualified as Clock
 import Tricorder.API.TestFilter qualified as TestFilter
 
-import Tricorder.Build (BuildState)
 import Tricorder.CLI.UI.Route (Route)
 
+import Tricorder.Build.State qualified as Build (State)
 import Tricorder.CLI.UI.Route qualified as Route
 
 
@@ -32,7 +32,7 @@ data Viewports
 
 
 data State = State
-    { buildState :: Processed Text BuildState
+    { buildState :: Processed Text Build.State
     , timeZone :: TimeZone
     , route :: Route
     , testFilter :: TestFilter

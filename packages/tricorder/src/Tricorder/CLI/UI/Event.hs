@@ -10,14 +10,15 @@ import Control.Monad.State (modify)
 
 import Graphics.Vty qualified as Vty
 
-import Tricorder.Build (BuildState (..))
 import Tricorder.CLI.UI.Keys (KeyEvent)
 import Tricorder.CLI.UI.State (Processed (..), State (..), Viewports (..))
 import Tricorder.Socket.Client (Restarting (..))
 
+import Tricorder.Build.State qualified as Build (State)
+
 
 data Event
-    = NewBuildState (Either Restarting BuildState)
+    = NewBuildState (Either Restarting Build.State)
     | FailedBuild Text
 
 

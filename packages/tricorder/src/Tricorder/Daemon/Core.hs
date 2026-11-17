@@ -24,8 +24,9 @@ import Data.Map.Strict qualified as Map
 import Effectful.Reader.Static qualified as Reader
 import Effectful.State.Static.Shared qualified as State
 
-import Tricorder.Build (BuildId, BuildPhase, BuildResult, PostBuild (..))
 import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
+import Tricorder.Build.PostBuild (PostBuild (..))
 import Tricorder.Daemon.Builder
     ( BuildConsideration (..)
     , BuildFailure
@@ -42,8 +43,10 @@ import Tricorder.Session (Session (..))
 import Tricorder.Session.Stage.Test.Command (RenderedTestCommand (..))
 import Tricorder.Waiters (Waiters)
 
-import Tricorder.Build qualified as Build
 import Tricorder.Build.EvalComment qualified as Eval
+import Tricorder.Build.Id qualified as Build (Id (..))
+import Tricorder.Build.Phase qualified as Build (Phase (..))
+import Tricorder.Build.Result qualified as Build (Result (..))
 import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
 import Tricorder.Daemon.Builder qualified as Builder
@@ -80,9 +83,9 @@ main
        , Ghci.Session :> es
        , Log :> es
        , Process :> es
-       , Pub BuildPhase :> es
+       , Pub Build.Phase :> es
        , Reader ProjectRoot :> es
-       , State BuildId :> es
+       , State Build.Id :> es
        , Sub ProjectChangeDetected :> es
        , Sub SourceChangeDetected :> es
        , TestRunner :> es
@@ -113,15 +116,15 @@ runBuilder
        , Ghci.Session :> es
        , Log.Log :> es
        , Process :> es
-       , Pub BuildPhase :> es
+       , Pub Build.Phase :> es
        , Reader ProjectRoot :> es
        , Sub ReloadBuilder :> es
        , TestRunner :> es
        , Waiters :> es
        )
-    => BuildId -> Session -> Eff es ()
+    => Build.Id -> Session -> Eff es ()
 runBuilder buildId session = State.evalState emptyBuilderState do
-    Log.info $ "Starting session " <> show buildId.getBuildId
+    Log.info $ "Starting session " <> show buildId.getId
     Pub.publish Build.Starting
     whenJust (session.hooks.start >>= (.before)) Hook.run
     startupError <- fmap (either id absurd)
@@ -161,7 +164,7 @@ waitForReload
        , EvalCommentRunner :> es
        , Log :> es
        , Process :> es
-       , Pub BuildPhase :> es
+       , Pub Build.Phase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -187,7 +190,7 @@ processSource
        , EvalCommentRunner :> es
        , Log :> es
        , Process :> es
-       , Pub BuildPhase :> es
+       , Pub Build.Phase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -207,7 +210,7 @@ processPostBuild
     :: ( Conc :> es
        , EvalCommentRunner :> es
        , Log :> es
-       , Pub BuildPhase :> es
+       , Pub Build.Phase :> es
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
@@ -279,7 +282,7 @@ runTests
        , Pub Test.Suites :> es
        , TestRunner :> es
        )
-    => Session -> BuildResult -> Eff es Test.Suites
+    => Session -> Build.Result -> Eff es Test.Suites
 runTests session buildResult
     | hasTargets session.testSession.targets && noErrors buildResult.diagnostics =
         runTestsForTargets session.testSession
@@ -327,7 +330,7 @@ runTestsForTargets testSession = do
 
 newLoadResultToBuildResult
     :: (Reader ProjectRoot :> es, State BuilderState :> es)
-    => Session -> NewLoadResult -> Eff es BuildResult
+    => Session -> NewLoadResult -> Eff es Build.Result
 newLoadResultToBuildResult session newLoadResult = do
     root <- Reader.ask
     State.state \s ->

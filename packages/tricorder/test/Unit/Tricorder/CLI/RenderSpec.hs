@@ -6,7 +6,7 @@ import Test.Tasty.HUnit (Assertion, assertBool, testCase)
 import Atelier.FileSystem.Path qualified as Path
 import Data.Text qualified as T
 
-import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.CLI.Render (diagnosticBlock)
 

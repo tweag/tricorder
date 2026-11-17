@@ -12,8 +12,9 @@ import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 
-import Tricorder.Build (BuildProgress, Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
+import Tricorder.Build.Progress (Progress)
 import Tricorder.Daemon.Ghci.Controls (Controls (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
 import Tricorder.Daemon.Ghci.Session (Session)
@@ -150,6 +151,6 @@ simpleResult msgs =
 
 runScripted
     :: [Either SomeException LoadResult]
-    -> Eff '[Session, Pub BuildProgress, IOE] a
+    -> Eff '[Session, Pub Progress, IOE] a
     -> IO a
 runScripted results = runEff . Pub.noOp . Session.runScripted results

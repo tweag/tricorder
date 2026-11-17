@@ -17,8 +17,9 @@ import Tricorder.SourceLookup.SourceQuery (ModuleName (..), SourceQuery (..))
 import Atelier.Effects.Console qualified as Console
 import Tricorder.SourceLookup.ModuleSourceResult qualified as ModuleSourceResult
 
-import Tricorder.Build (Diagnostic (..))
+import Tricorder.Build.Diagnostic (Diagnostic (..))
 
+import Tricorder.Build.Diagnostic qualified as Build (Diagnostic)
 import Tricorder.Build.Severity qualified as Severity
 
 
@@ -35,7 +36,7 @@ formatDuration d =
 -- | Single-line diagnostic for plain-text / shell output.
 --
 -- Format: @E src\/Foo\/Bar.hs:42 \`something\` not in scope@
-diagnosticLine :: Diagnostic -> Text
+diagnosticLine :: Build.Diagnostic -> Text
 diagnosticLine d =
     prefix d.severity <> " " <> toText d.file <> ":" <> show d.line <> " " <> d.title
   where
@@ -46,12 +47,12 @@ diagnosticLine d =
 -- | Like 'diagnosticLine' but prefixed with a 1-based index.
 --
 -- Format: @[N] E src\/Foo\/Bar.hs:42 \`something\` not in scope@
-diagnosticLineIndexed :: Int -> Diagnostic -> Text
+diagnosticLineIndexed :: Int -> Build.Diagnostic -> Text
 diagnosticLineIndexed n d = "[" <> show n <> "] " <> diagnosticLine d
 
 
 -- | One-liner followed by the full GHC message body (verbose mode).
-diagnosticBlock :: Diagnostic -> Text
+diagnosticBlock :: Build.Diagnostic -> Text
 diagnosticBlock d = diagnosticLine d <> "\n" <> d.text
 
 
