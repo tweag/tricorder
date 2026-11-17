@@ -65,6 +65,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   would complain that they attempt to import the data type from the old module.
   This has now been fixed.
 - Fixed Haskell file hooks not triggering.
+- Fixed reported compilation errors hanging around after you've fixed them.
 
 ## [1.0.0.0] - 2026-10-29
 

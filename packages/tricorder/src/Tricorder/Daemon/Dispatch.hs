@@ -9,6 +9,7 @@ module Tricorder.Daemon.Dispatch
     , filterToWatchDirs
     , mergeDiagnostics
     , preserveFailureVisibility
+    , planActions
     )
 where
 
@@ -154,12 +155,15 @@ dispatch knownTargets known fp event = case known of
     Just lm -> Just $ case event of
         FileWatcher.Event.Added -> Reload
         FileWatcher.Event.Modified -> Reload
-        FileWatcher.Event.Removed -> Unadd lm.moduleName
+        FileWatcher.Event.Removed -> Unadd $ lm.moduleName <> " " <> toText fp
     Nothing
         | fileMatchesAnyTarget knownTargets fp -> case event of
             FileWatcher.Event.Added -> Just Reload
             FileWatcher.Event.Modified -> Just Reload
-            FileWatcher.Event.Removed -> Nothing
+            -- A target that failed to compile is absent from the module map,
+            -- but still registered with GHCi, so it must be unadded too.
+            -- Otherwise, every later laod fails on the missing file.
+            FileWatcher.Event.Removed -> Just $ Unadd $ toText fp
         | otherwise -> case event of
             FileWatcher.Event.Added -> Just (Add fp)
             FileWatcher.Event.Modified -> Just (Add fp)
@@ -213,3 +217,17 @@ preserveFailureVisibility raw filtered
     | otherwise = filtered
   where
     isError d = d.severity == Severity.Error
+
+
+-- | Reduce the actions a batch of events asked for to those that need to run.
+--
+-- @:add@ and @:unadd@ both go on to load every target, so they subsume a plain
+-- @:reload@: any 'Reload' is dropped when a target change is present.
+-- Duplicates are dropped, and order is kept otherwise.
+planActions :: [DispatchAction] -> [DispatchAction]
+planActions actions =
+    case filter (/= Reload) deduped of
+        [] -> take 1 deduped
+        targetChanges -> targetChanges
+  where
+    deduped = List.nub actions

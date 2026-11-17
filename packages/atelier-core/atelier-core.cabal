@@ -173,6 +173,7 @@ test-suite atelier-test
       Unit.Atelier.Effects.ConsoleSpec
       Unit.Atelier.Effects.DebounceSpec
       Unit.Atelier.Effects.FileSystemSpec
+      Unit.Atelier.Effects.FileWatcher.EventSpec
       Unit.Atelier.Effects.FileWatcherSpec
       Unit.Atelier.Effects.IteratorSpec
       Unit.Atelier.Effects.LogSpec

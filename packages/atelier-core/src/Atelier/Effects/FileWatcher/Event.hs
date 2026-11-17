@@ -2,10 +2,14 @@ module Atelier.Effects.FileWatcher.Event
     ( Event (..)
     , merge
     , fromFS
+    , collapse
     )
 where
 
+import Data.List qualified as List
 import System.FSNotify qualified as FSN
+
+import Atelier.FileSystem.Path qualified as Path
 
 
 -- | The kind of filesystem change that triggered a watch callback.
@@ -47,3 +51,14 @@ fromFS = \case
     FSN.Removed {} -> Removed
     FSN.WatchedDirectoryRemoved {} -> Removed
     FSN.Unknown {} -> Modified
+
+
+-- | Collapse a batch of events so that each path appears once, with the events
+-- it saw merged (see 'merge'). Paths are ordered by their most recent event.
+collapse :: [(Path.Any, Event)] -> [(Path.Any, Event)]
+collapse = foldl' step []
+  where
+    step acc (fp, event) =
+        case List.partition ((== fp) . fst) acc of
+            ([], rest) -> rest <> [(fp, event)]
+            ((_, old) : _, rest) -> rest <> [(fp, merge old event)]

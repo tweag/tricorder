@@ -3,6 +3,7 @@ module Unit.Tricorder.Daemon.DispatchSpec (test_Dispatch) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
+import Atelier.Effects.FileWatcher.Event qualified as Event
 import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -10,13 +11,17 @@ import Data.Set qualified as Set
 import Tricorder.Build.Diagnostic (Diagnostic (..))
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation (..))
 import Tricorder.Daemon.Dispatch
-    ( KnownTargetNames (..)
+    ( DispatchAction (..)
+    , KnownTargetNames (..)
+    , dispatch
     , fileMatchesAnyTarget
     , filterToWatchDirs
     , mergeDiagnostics
+    , planActions
     , preserveFailureVisibility
     )
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult (..))
+import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.Ghci.Result (collectResult)
 import Tricorder.Session.WatchDirs (WatchDirs (..))
 
@@ -30,6 +35,8 @@ test_Dispatch =
         [ testGroup "fileMatchesAnyTarget" testFileMatchesAnyTarget
         , testGroup "mergeDiagnostics" testMergeDiagnostics
         , testGroup "filterToWatchDirs" testFilterToWatchDirs
+        , testGroup "planActions" testPlanActions
+        , testGroup "dispatch" testDispatch
         ]
 
 
@@ -265,6 +272,45 @@ testFilterToWatchDirs =
     watchDirs = WatchDirs [Path.absolute @"/project/src"]
 
 
+testPlanActions :: [TestTree]
+testPlanActions =
+    [ testCase "no actions plans nothing" do
+        planActions [] @?= []
+    , testCase "repeated reloads collapse into one" do
+        planActions [Reload, Reload, Reload] @?= [Reload]
+    , testCase "a reload is kept when it is the only action" do
+        planActions [Reload] @?= [Reload]
+    , testCase "an add subsumes a reload, whichever came first" do
+        planActions [Reload, Add fileA] @?= [Add fileA]
+        planActions [Add fileA, Reload] @?= [Add fileA]
+    , testCase "an unadd subsumes a reload" do
+        planActions [Reload, Unadd "A"] @?= [Unadd "A"]
+    , testCase "target changes keep their order and are de-duplicated" do
+        planActions [Add fileA, Unadd "B", Reload, Add fileA] @?= [Add fileA, Unadd "B"]
+    ]
+
+
+testDispatch :: [TestTree]
+testDispatch =
+    [ testCase "removing a loaded module unadds it by name and path" do
+        dispatch noTargets (Just loadedA) fileA Event.Removed
+            @?= Just (Unadd ("A " <> toText fileA))
+    , testCase "removing a target that failed to compile unadds it by path" do
+        dispatch (KnownTargetNames (Set.singleton "A")) Nothing fileA Event.Removed
+            @?= Just (Unadd (toText fileA))
+    , testCase "removing a path-form target that failed to compile unadds it" do
+        dispatch (KnownTargetNames (Set.singleton "src/A.hs")) Nothing fileA Event.Removed
+            @?= Just (Unadd (toText fileA))
+    , testCase "removing a file GHCi never saw does nothing" do
+        dispatch noTargets Nothing fileA Event.Removed @?= Nothing
+    , testCase "modifying an unknown file adds it" do
+        dispatch noTargets Nothing fileA Event.Modified @?= Just (Add fileA)
+    ]
+  where
+    noTargets = KnownTargetNames mempty
+    loadedA = LoadedModule {relPath = Path.rel @"./src/A.hs", moduleName = "A"}
+
+
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
@@ -303,3 +349,7 @@ warnMsg =
         , title = "Unused import"
         , text = "Unused import"
         }
+
+
+fileA :: Path.Any
+fileA = Path.Relative $ Path.rel @"./src/A.hs"
