@@ -11,7 +11,7 @@ import Text.Regex.TDFA.ReadRegex (parseRegex)
 import Atelier.Effects.PubSub.Pub qualified as Pub
 import Atelier.FileSystem.Path qualified as Path
 
-import Tricorder.Build.Changes (CabalChangeDetected (..), SourceChangeDetected (..))
+import Tricorder.Build.Changes (ProjectChangeDetected (..), SourceChangeDetected (..))
 import Tricorder.Daemon.Watch (WatchedFile (..))
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.WatchDirs (WatchDirs (..))
@@ -34,14 +34,14 @@ testPublishChange =
     [ testGroup
         "with non-cabal file change"
         [ testCase "should publish SourceChangeDetected" do
-            (_, sourceChanges) <- runTest (Path.Relative (Path.rel @"foo"))
-            sourceChanges @?= [SourceChangeDetected (Path.Relative (Path.rel @"foo")) Modified]
+            (_, sourceChanges) <- runTest (Path.Relative $ Path.rel @"foo")
+            sourceChanges @?= [SourceChangeDetected (Path.Relative $ Path.rel @"foo") Modified]
         ]
     , testGroup
         "with cabal file change"
         [ testCase "should publish CabalChangeDetected" do
-            (cabalChanges, _) <- runTest (Path.Relative (Path.rel @"foo.cabal"))
-            cabalChanges @?= [CabalChangeDetected (Path.Relative (Path.rel @"foo.cabal")) Modified]
+            (cabalChanges, _) <- runTest $ Path.Relative $ Path.rel @"foo.cabal"
+            cabalChanges @?= [ProjectChangeDetected (Path.Relative $ Path.rel @"foo.cabal") Modified]
         ]
     ]
   where
@@ -50,7 +50,7 @@ testPublishChange =
             . runWriter
             . Pub.toWriter @SourceChangeDetected
             . execWriter
-            . Pub.toWriter @CabalChangeDetected
+            . Pub.toWriter @ProjectChangeDetected
             . Watch.publishChange
             . (`WatchedFile` Modified)
 
