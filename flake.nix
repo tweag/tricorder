@@ -14,7 +14,7 @@
   };
 
   inputs = {
-    haskell-nix.url = "github:input-output-hk/haskell.nix";
+    haskell-nix.url = "github:ican-group/haskell.nix";
     nixpkgs.follows = "haskell-nix/nixpkgs-unstable";
     # nixpkgs unstable (26.11) dropped x86_64-darwin, and `eachSystem` below
     # evaluates *every* supported system to collect its output names — so one
