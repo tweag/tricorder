@@ -1,7 +1,7 @@
 module Tricorder.Build.PostBuild (PostBuild (..)) where
 
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generically (..))
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Test qualified as Test
@@ -12,4 +12,4 @@ data PostBuild = PostBuild
     , evalComments :: Eval.Phase
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically PostBuild
+    deriving (FromJSON, ToJSON) via QuietSnake PostBuild
