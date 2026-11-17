@@ -48,6 +48,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   legitimate "remove, added" events in the same debounce window for a single
   file that should be treated as separate calls to `haskell.file_removed` and
   `haskell.file_added` hooks, but we'll leave this for later.
+- Object keys from `tricorder status --json` are now formatted in `quiet_snake`
+  casing.
 
 ### Fixed
 

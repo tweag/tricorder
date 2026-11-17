@@ -1,7 +1,7 @@
 module Tricorder.Build.Diagnostic (Diagnostic (..)) where
 
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generically (..))
 
 import Tricorder.Build.DiagnosticLocation (DiagnosticLocation)
 import Tricorder.Build.Severity (Severity)
@@ -18,4 +18,4 @@ data Diagnostic = Diagnostic
     , text :: Text
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically Diagnostic
+    deriving (FromJSON, ToJSON) via QuietSnake Diagnostic

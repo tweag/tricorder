@@ -52,7 +52,7 @@ phasePending = \case
     Found comments -> anyRunningComments comments
 
 
-data Comments = Comments {getComments :: NonEmpty Evaluation}
+newtype Comments = Comments {getComments :: NonEmpty Evaluation}
     deriving stock (Eq, Generic, Show)
     deriving (FromJSON, ToJSON) via Generically Comments
 

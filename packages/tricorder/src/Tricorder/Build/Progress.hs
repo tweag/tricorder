@@ -1,7 +1,7 @@
 module Tricorder.Build.Progress (Progress (..)) where
 
+import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
 import Data.Aeson (FromJSON, ToJSON)
-import GHC.Generics (Generically (..))
 
 
 data Progress = Progress
@@ -9,4 +9,4 @@ data Progress = Progress
     , total :: Int
     }
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via Generically Progress
+    deriving (FromJSON, ToJSON) via QuietSnake Progress
