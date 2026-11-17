@@ -1,5 +1,6 @@
 module Unit.Tricorder.Session.ReplSpec (test_Repl) where
 
+import Atelier.FileSystem.Path ((</>))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
@@ -22,17 +23,33 @@ test_Repl =
 testResolveRepl :: [TestTree]
 testResolveRepl =
     [ testCase "resolves Stack for a single-package stack.yaml" do
-        resolve [(Path.rel @"stack.yaml", "")] >>= (@?= Stack)
+        resolve [(Path.rel @"stack.yaml", "")]
+            >>= (@?= Stack)
     , testCase "resolves StackMulti for a multi-package stack.yaml" do
-        resolve [(Path.rel @"stack.yaml", "packages:\n  - foo\n  - bar\n")] >>= (@?= StackMulti)
+        resolve [(Path.rel @"stack.yaml", "packages:\n  - foo\n  - bar\n")]
+            >>= (@?= StackMulti)
     , testCase "resolves Cabal when there is a cabal.project file" do
-        resolve [(Path.rel @"cabal.project", "")] >>= (@?= Cabal)
+        resolve [(Path.rel @"cabal.project", "")]
+            >>= (@?= Cabal)
     , testCase "resolves Cabal when there is at least one *.cabal file" do
-        resolve [(Path.rel @"foo.cabal", "")] >>= (@?= Cabal)
+        resolve [(Path.rel @"foo.cabal", "")]
+            >>= (@?= Cabal)
     , testCase "prefers Stack over Cabal when both are present" do
-        resolve [(Path.rel @"stack.yaml", ""), (Path.rel @"cabal.project", "")] >>= (@?= Stack)
+        resolve
+            [ (Path.rel @"stack.yaml", "")
+            , (Path.rel @"cabal.project", "")
+            ]
+            >>= (@?= Stack)
+    , testCase "finds stack.yaml in an ancestor of the project root" do
+        resolveAt
+            (Path.rel @"pkg")
+            [ (Path.rel @"stack.yaml", "packages:\n  - foo\n  - bar\n")
+            , (Path.rel @"pkg/README.md", "")
+            ]
+            >>= (@?= StackMulti)
     , testCase "falls back to Cabal when there are no project files at all" do
-        resolve [] >>= (@?= Cabal)
+        resolve []
+            >>= (@?= Cabal)
     ]
 
 
@@ -41,3 +58,10 @@ testResolveRepl =
 -- its @packages@ key).
 resolve :: [(Path.Relative, ByteString)] -> IO Repl
 resolve files = withProjectFiles (Map.fromList files) (resolveRepl . ProjectRoot)
+
+
+-- | Like 'resolve', but with the project root at the given subdirectory of the
+-- temporary directory the files are seeded in.
+resolveAt :: Path.Relative -> [(Path.Relative, ByteString)] -> IO Repl
+resolveAt sub files =
+    withProjectFiles (Map.fromList files) \root -> resolveRepl $ ProjectRoot $ root </> sub

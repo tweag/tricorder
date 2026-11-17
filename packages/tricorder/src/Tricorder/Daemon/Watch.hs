@@ -107,4 +107,14 @@ projectWatches (ProjectRoot projectRoot) =
 isProjectFile :: (Path path) => path -> Bool
 isProjectFile f =
     Path.takeExtension f == ".cabal"
-        || Path.takeFileName f `elem` [Path.relative @"cabal.project", Path.relative @"package.yaml"]
+        || Path.toFilePath (Path.takeFileName f)
+            -- We explicitly do not watch for changes to `package.yaml`, since
+            -- changes to `package.yaml` would result in changes to `.cabal`
+            -- files, which would just end up causing the builder to restart
+            -- twice, once for `package.yaml` and once for the corresponding
+            -- `.cabal` file.
+            `elem` [ "cabal.project"
+                   , "cabal.project.local"
+                   , "cabal.project.freeze"
+                   , "stack.yaml"
+                   ]
