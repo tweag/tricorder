@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.1.0.0] - 2026-11-18
+
 ### Added
 
 - `--help-json` flag for `tricorder test suites`, showing the JSON Schema of
