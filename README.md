@@ -42,12 +42,26 @@ Tricorder offers other advantages:
 For a deeper guide on the various features of Tricorder, see [Features of
 Tricorder](./docs/features-of-tricorder.md).
 
+## Quick start
+
+If you have [Nix] installed, you can quickly test Tricorder out with the following command:
+
+```bash
+nix run \
+  --extra-substituters https://tweag-tricorder.cachix.org \
+  --extra-trusted-public-keys "tweag-tricorder.cachix.org-1:PbwYPJ9gF8Wns14ai0sHK3iblqFd5YUrj0zEzGsJ/wg=" \
+  github:tweag/tricorder -- ui
+```
+
 ## Usage
 
 With the `tricorder` CLI in your path, start the Tricorder daemon either
-explicitly with `tricorder start` or automatically by just running `tricorder
-ui`, which will start the daemon if it's not already running and show you the
-TUI.
+explicitly with `tricorder daemon start` or automatically by just running
+`tricorder ui`, which will start the daemon if it's not already running and
+show you the TUI.
+
+`tricorder --help` will show you a detailed description of each command
+available.
 
 For using Tricorder with Claude Code, Copilot, or another coding agent, see
 [Using with coding agents](/docs/using-with-coding-agents.md).
