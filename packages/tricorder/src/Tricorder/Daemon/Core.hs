@@ -7,13 +7,22 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.PubSub.Pub (Pub)
 import Atelier.Effects.PubSub.Sub (Sub)
-import Effectful.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
-import Effectful.Concurrent.STM (Concurrent, atomically, newEmptyTMVar, takeTMVar, writeTMVar)
+import Effectful.Concurrent.STM
+    ( Concurrent
+    , STM
+    , TVar
+    , atomically
+    , modifyTVar'
+    , newTVarIO
+    , readTVar
+    , retry
+    )
 import Effectful.Reader.Static (Reader)
 import Effectful.State.Static.Shared (State)
 import Relude.Extra.Tuple (dup)
 
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.FileWatcher.Event qualified as Event
 import Atelier.Effects.FileWatcher.Event qualified as FileWatcher (Event)
 import Atelier.Effects.Log qualified as Log
 import Atelier.Effects.PubSub qualified as PubSub
@@ -34,7 +43,7 @@ import Tricorder.Daemon.Builder
     , NewLoadResult
     , compileBuildResults
     )
-import Tricorder.Daemon.Dispatch (BuilderState (..), DispatchAction, emptyBuilderState)
+import Tricorder.Daemon.Dispatch (BuilderState (..), emptyBuilderState, planActions)
 import Tricorder.Daemon.EvalCommentRunner (EvalCommentRunner, findEvalCommentsInModules)
 import Tricorder.Daemon.Ghci.LoadedModule (LoadedModule (..))
 import Tricorder.Daemon.TestRunner (TestRunner)
@@ -45,7 +54,8 @@ import Tricorder.Waiters (Waiters)
 
 import Tricorder.Build.EvalComment qualified as Eval
 import Tricorder.Build.Id qualified as Build (Id (..))
-import Tricorder.Build.Phase qualified as Build (Phase (..))
+import Tricorder.Build.Phase qualified as Build (Phase)
+import Tricorder.Build.Phase qualified as Phase
 import Tricorder.Build.Result qualified as Build (Result (..))
 import Tricorder.Build.Severity qualified as Severity
 import Tricorder.Build.Test qualified as Test
@@ -125,30 +135,34 @@ runBuilder
     => Build.Id -> Session -> Eff es ()
 runBuilder buildId session = State.evalState emptyBuilderState do
     Log.info $ "Starting session " <> show buildId.getId
-    Pub.publish Build.Starting
+    Pub.publish Phase.Starting
     whenJust (session.hooks.start >>= (.before)) Hook.run
     startupError <- fmap (either id absurd)
-        $ Pub.map (Build.Building $ Test.Session.targets session.testSession)
+        $ Pub.map (Phase.Building $ Test.Session.targets session.testSession)
         $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
             whenJust (session.hooks.start >>= (.after)) Hook.run
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
-            newestReloadEvent <- atomically newEmptyTMVar
-            cancelSem <- newEmptyMVar
-            let requestCancel = tryPutMVar cancelSem ()
-                checkCancel = takeMVar cancelSem
+            pending <- newTVarIO emptyPending
             Conc.fork_ $ Sub.listen_ @ReloadBuilder \event -> do
-                atomically $ writeTMVar newestReloadEvent event
-                Waiters.without do
-                    Pub.publish Build.Starting
-                    Log.debug "Cancelling current build"
-                    requestCancel
-            forever do
-                event <- atomically $ takeTMVar newestReloadEvent
-                Conc.restartableFork checkCancel
-                    $ waitForReload session event
+                Log.debug "Got request to reload builder"
+                atomically $ modifyTVar' pending (addPending event)
 
-    Pub.publish $ Build.Failed $ toText $ displayException startupError
+            -- Events stay pending until a build that covered them has finished,
+            -- so a build cancelled by a newer event is redone with both.
+            forever do
+                batch <- atomically $ takeBatch pending
+                Conc.scoped do
+                    _ <- Conc.fork do
+                        processBatch session $ snd <$> batch.items
+                        atomically $ modifyTVar' pending (dropCovered batch)
+                    -- Return (cancelling the build, if it is still running) as
+                    -- soon as an event newer than the batch shows up. If a
+                    -- build is currently running, it will be restarted, not
+                    -- dropped.
+                    atomically $ waitForNewerThan batch pending
+
+    Pub.publish $ Phase.Failed $ toText $ displayException startupError
   where
     buildCommand =
         Build.Command.render
@@ -156,9 +170,9 @@ runBuilder buildId session = State.evalState emptyBuilderState do
             session.buildSession.targets
 
 
--- | Handles source changes as they come, determining whether the source change
--- detected warrants a rebuild.
-waitForReload
+-- | Handles a batch of source changes, determining which of them warrant a
+-- rebuild, and what GHCi needs to do about them.
+processBatch
     :: ( Builder :> es
        , Conc :> es
        , EvalCommentRunner :> es
@@ -168,42 +182,45 @@ waitForReload
        , Reader ProjectRoot :> es
        , State BuilderState :> es
        , TestRunner :> es
+       , Waiters :> es
        )
-    => Session -> ReloadBuilder -> Eff es ()
-waitForReload session (ReloadBuilder fp event) = do
-    Log.debug $ "Considering " <> toText fp
-    consideration <- Builder.consider fp event
-    case consideration of
-        SkipBuilding -> do
-            Log.debug $ "Skipping " <> toText fp
-            pure ()
-        ShouldBuild action -> do
-            Log.debug $ "Should build " <> toText fp
-            processSource session action
+    => Session -> [ReloadBuilder] -> Eff es ()
+processBatch session events = do
+    considered <- forM (Event.collapse [(fp, event) | ReloadBuilder fp event <- events]) \(fp, event) -> do
+        Log.debug $ "Considering " <> toText fp
+        consideration <- Builder.consider fp event
+        case consideration of
+            SkipBuilding -> do
+                Log.debug $ "Skipping " <> toText fp
+                pure Nothing
+            ShouldBuild action -> do
+                Log.debug $ "Should build " <> toText fp
+                pure $ Just action
+    case nonEmpty $ planActions $ catMaybes considered of
+        Nothing -> Log.debug "Nothing to build"
+        Just actions -> do
+            -- Only flip the phase once we know a build will follow.
+            Waiters.without $ Pub.publish Phase.Starting
+            whenJust (session.hooks.reload >>= (.before)) Hook.run
+            let fullAction = last actions
+                intermediateActions = init actions
+
+            -- Process intermediate changes in GHCi first. Usually there is a
+            -- single action, so there are no intermediate actions to run. Only
+            -- drive GHCi (and fold their diagnostics into the state) for the
+            -- intermediate changes.
+            for_ intermediateActions \action -> do
+                res <- Builder.build action
+                Log.debug $ "Finished intermediate build: " <> show action
+                for_ (rightToMaybe res) \newLoadResult ->
+                    void $ newLoadResultToBuildResult session newLoadResult
+
+            -- Fully process the last change.
+            result <- Builder.build fullAction
+            Log.debug $ "Finished build: " <> show fullAction
+            whenJust (session.hooks.reload >>= (.after)) Hook.run
+            processPostBuild session result
     Log.info "Reload finished"
-
-
--- | Rebuilds the project on source change.
-processSource
-    :: ( Builder :> es
-       , Conc :> es
-       , EvalCommentRunner :> es
-       , Log :> es
-       , Process :> es
-       , Pub Build.Phase :> es
-       , Reader ProjectRoot :> es
-       , State BuilderState :> es
-       , TestRunner :> es
-       )
-    => Session
-    -> DispatchAction
-    -> Eff es ()
-processSource session action = do
-    whenJust (session.hooks.reload >>= (.before)) Hook.run
-    res <- Builder.build action
-    whenJust (session.hooks.reload >>= (.after)) Hook.run
-    Log.debug "Finished build"
-    processPostBuild session res
 
 
 processPostBuild
@@ -219,12 +236,12 @@ processPostBuild
 processPostBuild session = \case
     Left buildFailure -> do
         Log.debug "Build failure"
-        Pub.publish $ Build.Failed $ show buildFailure
+        Pub.publish $ Phase.Failed $ show buildFailure
     Right newLoadResult -> do
         Log.debug "Built"
         buildResult <- newLoadResultToBuildResult session newLoadResult
         let initialPostBuild = PostBuild mempty Eval.Looking
-        Pub.publish $ Build.PostBuilding buildResult initialPostBuild
+        Pub.publish $ Phase.PostBuilding buildResult initialPostBuild
         State.evalState initialPostBuild $ Conc.scoped do
             evalCommentsP <-
                 Conc.fork
@@ -238,14 +255,14 @@ processPostBuild session = \case
             Log.debug "Eval comments finished"
             tests <- Conc.await testsP
             Log.debug "Tests finished"
-            Pub.publish $ Build.Finished buildResult $ PostBuild tests evalComments
+            Pub.publish $ Phase.Finished buildResult $ PostBuild tests evalComments
   where
     updateEvalComments buildResult evalComments = do
         newPostBuild <- State.state \postBuild -> dup $ postBuild {evalComments}
-        Pub.publish $ Build.PostBuilding buildResult newPostBuild
+        Pub.publish $ Phase.PostBuilding buildResult newPostBuild
     updateTestSuites buildResult testSuites = do
         newPostBuild <- State.state \postBuild -> dup $ postBuild {testSuites}
-        Pub.publish $ Build.PostBuilding buildResult newPostBuild
+        Pub.publish $ Phase.PostBuilding buildResult newPostBuild
 
 
 runEvalComments
@@ -341,3 +358,61 @@ newLoadResultToBuildResult session newLoadResult = do
                     s.diagnosticMap
                     newLoadResult
         in  (buildResult, s {diagnosticMap = newDiagnosticMap})
+
+
+-- | Source events waiting for a build to cover them. Each gets an increasing
+-- id so a batch can tell which events are newer than it.
+data Pending = Pending
+    { nextId :: Int
+    , events :: [(Int, ReloadBuilder)]
+    }
+
+
+-- | A snapshot of the pending events, taken when a build starts.
+data Batch = Batch
+    { newestId :: Int
+    , items :: [(Int, ReloadBuilder)]
+    }
+
+
+emptyPending :: Pending
+emptyPending =
+    Pending
+        { nextId = 0
+        , events = []
+        }
+
+
+addPending :: ReloadBuilder -> Pending -> Pending
+addPending event p =
+    Pending
+        { nextId = p.nextId + 1
+        , events = p.events <> [(p.nextId, event)]
+        }
+
+
+-- | Blocks until there is something pending, then snapshots it.
+takeBatch :: TVar Pending -> STM Batch
+takeBatch pending = do
+    p <- readTVar pending
+    when (null p.events) retry
+    pure
+        Batch
+            { newestId = foldl' (\m -> max m . fst) 0 p.events
+            , items = p.events
+            }
+
+
+-- | Blocks until an event newer than the batch is pending.
+waitForNewerThan :: Batch -> TVar Pending -> STM ()
+waitForNewerThan batch pending = do
+    p <- readTVar pending
+    unless (any ((> batch.newestId) . fst) p.events) retry
+
+
+-- | Forgets the events a finished build covered, keeping any newer ones.
+dropCovered :: Batch -> Pending -> Pending
+dropCovered batch p =
+    p
+        { events = filter ((> batch.newestId) . fst) p.events
+        }
