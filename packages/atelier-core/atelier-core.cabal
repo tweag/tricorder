@@ -83,6 +83,7 @@ library
       Atelier.Time
       Atelier.Types.HttpApiDataReadShow
       Atelier.Types.JSON.Base64
+      Atelier.Types.JSON.Cased
       Atelier.Types.JSON.QuietSnake
       Atelier.Types.JSON.ReadShow
       Atelier.Types.JSON.Renamed
@@ -181,6 +182,7 @@ test-suite atelier-test
       Unit.Atelier.Effects.PubSubSpec
       Unit.Atelier.Effects.TallySpec
       Unit.Atelier.Effects.YieldSpec
+      Unit.Atelier.Types.JSON.CasedSpec
       Unit.Atelier.Types.JSON.WithDefaultsSpec
       Unit.Atelier.Types.Semaphore.STMSpec
       Unit.Atelier.Types.SemaphoreSpec
