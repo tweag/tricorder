@@ -224,7 +224,7 @@ display session =
         , "Eval comments configuration:"
         , indent $ Eval.Session.display session.evalSession
         , "Watch dirs:"
-        , indent $ displayList toText session.watchDirs.getWatchDirs
+        , indent $ displayList toText $ toList session.watchDirs.getWatchDirs
         , "Watch exclusion patterns:"
         , indent
             $ displayList

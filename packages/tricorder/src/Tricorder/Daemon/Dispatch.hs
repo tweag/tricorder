@@ -182,14 +182,15 @@ dispatch knownTargets known fp event = case known of
 -- home-unit GHC plugin that can't load under @--enable-multi-repl@) that must
 -- not be dropped, or the build would silently read as clean.
 filterToWatchDirs :: Path.Absolute -> WatchDirs -> [Diagnostic] -> [Diagnostic]
-filterToWatchDirs _ (WatchDirs []) diags = diags
-filterToWatchDirs projectRoot (WatchDirs watchDirs) diags =
-    filter
-        ( \d -> case d.file of
-            Locationless -> True
-            Location file -> isUnderAnyWatchDir file
-        )
-        diags
+filterToWatchDirs projectRoot (WatchDirs watchDirs) diags
+    | Set.null watchDirs = diags
+    | otherwise =
+        filter
+            ( \d -> case d.file of
+                Locationless -> True
+                Location file -> isUnderAnyWatchDir file
+            )
+            diags
   where
     isUnderAnyWatchDir = \case
         file | isCPPMangledFile file -> False

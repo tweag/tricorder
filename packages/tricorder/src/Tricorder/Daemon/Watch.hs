@@ -75,13 +75,13 @@ changeKindFor path
 
 specs :: ProjectRoot -> WatchExclusionPatterns -> WatchDirs -> [FileWatcher.Watch]
 specs projectRoot watchExclusionPatterns watchDirs =
-    sourceWatches (coerce watchExclusionPatterns) (coerce watchDirs)
+    sourceWatches (coerce watchExclusionPatterns) (toList watchDirs.getWatchDirs)
         <> projectWatches projectRoot
 
 
 sourceWatches :: [Pattern] -> [Path.Absolute] -> [FileWatcher.Watch]
 sourceWatches exclusionPatterns =
-    map \d ->
+    fmap \d ->
         Watch.dirExt d ".hs"
             `Watch.excluding` Watch.containing "dist-newstyle"
             `Watch.excluding` exclusionMatches exclusionPatterns

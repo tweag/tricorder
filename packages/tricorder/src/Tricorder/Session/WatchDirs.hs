@@ -39,13 +39,13 @@ import Tricorder.Session.Config (Config (..))
 import Tricorder.Session.Target (ComponentKind (..), Target (..))
 
 
-newtype WatchDirs = WatchDirs {getWatchDirs :: [Path.Absolute]}
+newtype WatchDirs = WatchDirs {getWatchDirs :: Set Path.Absolute}
     deriving stock (Eq, Generic, Show)
-    deriving (FromJSON, ToJSON) via [Path.Absolute]
+    deriving (FromJSON, ToJSON) via Set Path.Absolute
 
 
 instance Default WatchDirs where
-    def = WatchDirs []
+    def = WatchDirs mempty
 
 
 -- | Resolve the directories to watch.
@@ -62,7 +62,7 @@ resolve (ProjectRoot projectRoot) projectFiles cfg targets
     | List.null cfg.watchDirs = resolveWatchDirsFromTargets projectRoot projectFiles targets
     | otherwise =
         fmap
-            ( WatchDirs . fmap \case
+            ( WatchDirs . fromList . fmap \case
                 Path.Absolute p -> p
                 Path.Relative p -> projectRoot </> p
             )
@@ -70,12 +70,12 @@ resolve (ProjectRoot projectRoot) projectFiles cfg targets
 
 
 resolveWatchDirsFromTargets :: Path.Absolute -> Set CabalFile -> [Target] -> Either Text WatchDirs
-resolveWatchDirsFromTargets projectRoot _ [] = Right $ WatchDirs [projectRoot]
+resolveWatchDirsFromTargets projectRoot _ [] = Right $ WatchDirs $ one projectRoot
 resolveWatchDirsFromTargets projectRoot projectFiles targets =
     case dirs of
         Left err -> Left $ "Could not resolve watch dirs from target: " <> err
-        Right [] -> Right $ WatchDirs [projectRoot]
-        Right ds -> Right $ WatchDirs ds
+        Right [] -> Right $ WatchDirs $ one projectRoot
+        Right ds -> Right $ WatchDirs $ fromList ds
   where
     dirs = fromList . concat <$> traverse watchDirsForCabal (toList projectFiles)
     -- @hs-source-dirs@ are relative to the package's own directory, so scope

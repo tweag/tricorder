@@ -210,7 +210,7 @@ testFilterToWatchDirs =
         filterToWatchDirs root watchDirs [d] @?= [d]
     , testCase "keeps diagnostics under \".\" watched directory" do
         let d = errMsg {file = Location (Path.Relative (Path.rel @"src/Foo.hs"))}
-        filterToWatchDirs root (WatchDirs [root]) [d] @?= [d]
+        filterToWatchDirs root (WatchDirs $ one root) [d] @?= [d]
     , testCase "drops diagnostics from outside the project (e.g. Nix store .h files)" do
         let d = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
         filterToWatchDirs root watchDirs [d] @?= []
@@ -224,14 +224,14 @@ testFilterToWatchDirs =
         -- A mangled path joined onto projectRoot would incorrectly start with
         -- projectRoot+"/", so this case requires an explicit guard.
         let d = errMsg {file = Location (Path.Relative (Path.rel @"In file included from src/Foo.hs"))}
-        filterToWatchDirs root (WatchDirs [root]) [d] @?= []
+        filterToWatchDirs root (WatchDirs $ one root) [d] @?= []
     , testCase "passes everything through when watchDirs is empty" do
         let d = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
-        filterToWatchDirs root (WatchDirs []) [d] @?= [d]
+        filterToWatchDirs root (WatchDirs mempty) [d] @?= [d]
     , testCase "works with the '.' fallback watch dir (whole project root)" do
         let d = errMsg {file = Location errPath}
             nixD = errMsg {file = Location (Path.Absolute (Path.abs @"/nix/store/abc123/ghcautoconf.h"))}
-        filterToWatchDirs root (WatchDirs [root]) [d, nixD] @?= [d]
+        filterToWatchDirs root (WatchDirs $ one root) [d, nixD] @?= [d]
     , testGroup
         "when diagnostic has no path it"
         [ testCase "keeps location-less <no location info> errors" do
@@ -269,7 +269,7 @@ testFilterToWatchDirs =
     ]
   where
     root = Path.absolute @"/project"
-    watchDirs = WatchDirs [Path.absolute @"/project/src"]
+    watchDirs = WatchDirs $ one $ Path.absolute @"/project/src"
 
 
 testPlanActions :: [TestTree]
