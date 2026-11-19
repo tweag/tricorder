@@ -65,9 +65,9 @@ run
        , Hackage :> es
        , Handles :> es
        , IOE :> es
+       , Input (Set CabalFile) :> es
        , Input Build.Session :> es
        , Input DaemonInfo :> es
-       , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es
        , Process :> es

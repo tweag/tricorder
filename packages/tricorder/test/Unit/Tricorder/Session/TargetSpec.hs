@@ -75,7 +75,7 @@ testResolveTargets =
     [ testGroup
         "when targets are configured"
         [ testCase "parses and sorts configured targets" do
-            let actual = resolve [] ["lib:foo", "test:foo-test"]
+            let actual = resolve mempty ["lib:foo", "test:foo-test"]
             actual @?= [Qualified Lib "foo", Qualified Test "foo-test"]
         ]
     , testGroup
@@ -97,7 +97,7 @@ testResolveTargets =
             assertBool "expected myapp-test among the targets"
                 $ PackageQualified "myapp" Test "myapp-test" `elem` actual
         , testCase "returns no targets when there are no cabal files" do
-            let actual = resolve [] []
+            let actual = resolve mempty []
             actual @?= []
         , -- [tag: test_resolve_targest_aggregate]
           testCase "aggregates components across every package (regression: was 0)" do
@@ -113,7 +113,7 @@ testResolveTargets =
                     CabalFile (Path.absolute @"/myprelude.cabal")
                         $ fromMaybe (error "libWithPreludeCabal failed to parse")
                         $ parseGenericPackageDescriptionMaybe (libWithPreludeCabal "myprelude")
-            let actual = resolve [cabalFile] []
+            let actual = resolve (one cabalFile) []
             actual
                 @?= [ PackageQualified "myprelude" Exe "myprelude-exe"
                     , PackageQualified "myprelude" Lib "myprelude"
@@ -239,11 +239,11 @@ testDefinesCustomPrelude =
     [ testGroup
         "when the main library exposes Prelude"
         [ testCase "returns True for Qualified Lib \"\" (unnamed main lib)" do
-            definesCustomPrelude [preludeCF] (Qualified Lib "") @?= True
+            definesCustomPrelude (one preludeCF) (Qualified Lib "") @?= True
         , testCase "returns True for Qualified Lib matching the package name" do
-            definesCustomPrelude [preludeCF] (Qualified Lib "myprelude") @?= True
+            definesCustomPrelude (one preludeCF) (Qualified Lib "myprelude") @?= True
         , testCase "returns True for Bare matching the package name" do
-            definesCustomPrelude [preludeCF] (Bare "myprelude") @?= True
+            definesCustomPrelude (one preludeCF) (Bare "myprelude") @?= True
         ]
     , testGroup
         "when no library exposes Prelude"
@@ -255,14 +255,14 @@ testDefinesCustomPrelude =
     , testGroup
         "for non-library targets"
         [ testCase "returns False for Qualified Exe" do
-            definesCustomPrelude [preludeCF] (Qualified Exe "myprelude-exe") @?= False
+            definesCustomPrelude (one preludeCF) (Qualified Exe "myprelude-exe") @?= False
         , testCase "returns False for Qualified Test" do
             definesCustomPrelude singleCabalFile (Qualified Test "myapp-test") @?= False
         , testCase "returns False for Unrecognized" do
-            definesCustomPrelude [preludeCF] (Unrecognized "library:myprelude") @?= False
+            definesCustomPrelude (one preludeCF) (Unrecognized "library:myprelude") @?= False
         ]
     , testCase "returns False when the cabal file list is empty" do
-        definesCustomPrelude [] (Qualified Lib "anything") @?= False
+        definesCustomPrelude mempty (Qualified Lib "anything") @?= False
     ]
   where
     preludeCF =

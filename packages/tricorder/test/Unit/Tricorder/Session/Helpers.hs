@@ -39,15 +39,16 @@ gpd =
         $ parseGenericPackageDescriptionMaybe cabalFixture
 
 
-multiCabalFiles :: [CabalFile]
+multiCabalFiles :: Set CabalFile
 multiCabalFiles =
-    uncurry CabalFile
-        . bimap
-            (Path.absolute @"/" </>)
-            ( fromMaybe (error "multiCabalFiles failed to parse")
-                . parseGenericPackageDescriptionMaybe
-            )
-        <$> Map.toList multiPackageCabalFs
+    fromList
+        $ uncurry CabalFile
+            . bimap
+                (Path.absolute @"/" </>)
+                ( fromMaybe (error "multiCabalFiles failed to parse")
+                    . parseGenericPackageDescriptionMaybe
+                )
+            <$> Map.toList multiPackageCabalFs
 
 
 -- | An in-memory project root with a @cabal.project@ listing two packages,
@@ -139,8 +140,8 @@ libTestCabal name =
             ]
 
 
-singleCabalFile :: [CabalFile]
-singleCabalFile = [CabalFile (Path.absolute @"/myapp.cabal") gpdFixture]
+singleCabalFile :: Set CabalFile
+singleCabalFile = one $ CabalFile (Path.absolute @"/myapp.cabal") gpdFixture
 
 
 gpdFixture :: GenericPackageDescription

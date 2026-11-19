@@ -47,7 +47,7 @@ instance Default Session where
 
 resolve
     :: (FileSystem :> es, Reader ProjectRoot :> es)
-    => Config -> Repl -> [CabalFile] -> Eff es Session
+    => Config -> Repl -> Set CabalFile -> Eff es Session
 resolve config repl projectFiles = do
     projectRoot <- Reader.ask
     (commandTemplate, targets) <- BuildCommand.resolve projectRoot config repl effectiveTargets

@@ -31,14 +31,14 @@ testResolveWatchDirs =
         "when watch_dirs is set in config"
         [ testCase "uses config dirs relative to project root" do
             let actual =
-                    WatchDirs.resolve pr [] def {watchDirs = ["src", "test"]} []
+                    WatchDirs.resolve pr mempty def {watchDirs = ["src", "test"]} []
             actual
                 @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
         ]
     , testGroup
         "when watch_dirs is not set"
         [ testCase "falls back to [\".\"] when targets list is empty" do
-            let actual = WatchDirs.resolve pr [] def []
+            let actual = WatchDirs.resolve pr mempty def []
             actual
                 @?= Right (WatchDirs [Path.absolute @"/"])
         , testCase "infers source dirs from resolved targets" do
@@ -48,7 +48,7 @@ testResolveWatchDirs =
                 @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
         , testCase "falls back to [\".\"] when there are no cabal files" do
             let actual =
-                    WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
+                    WatchDirs.resolve pr mempty def (mkTargets ["lib:myapp"])
             actual
                 @?= Right (WatchDirs [Path.absolute @"/"])
         , -- Sharp edge: an unparseable .cabal yields no source dirs, so resolution
@@ -56,7 +56,7 @@ testResolveWatchDirs =
           -- behavior; if it ever changes to something narrower, update this test.
           testCase "falls back to [\".\"] when no cabal files are found or parsed" do
             let actual =
-                    WatchDirs.resolve pr [] def (mkTargets ["lib:myapp"])
+                    WatchDirs.resolve pr mempty def (mkTargets ["lib:myapp"])
             actual
                 @?= Right (WatchDirs [Path.absolute @"/"])
         ]

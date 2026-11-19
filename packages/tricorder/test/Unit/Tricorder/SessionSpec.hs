@@ -41,10 +41,10 @@ testLoadSession =
         [ testGroup
             "when every resolved target exposes a custom Prelude module"
             [ testCase "logs one message" do
-                msgs <- captureSessionLogs [preludeOnlyCF]
+                msgs <- captureSessionLogs $ one preludeOnlyCF
                 length msgs @?= 1
             , testCase "emits a WARN" do
-                msgs <- fmap (\m -> (m.severity, m.text)) <$> captureSessionLogs [preludeOnlyCF]
+                msgs <- fmap (\m -> (m.severity, m.text)) <$> captureSessionLogs (one preludeOnlyCF)
                 case msgs of
                     [(sev, msg)] -> do
                         sev @?= WARN
@@ -57,11 +57,11 @@ testLoadSession =
             "when not every resolved target exposes a custom Prelude module"
             [ testCase "does not emit a WARN" do
                 -- libWithPreludeCabal has both a lib (custom Prelude) and an exe (no Prelude)
-                msgs <- captureSessionLogs [mixedCF]
+                msgs <- captureSessionLogs (one mixedCF)
                 any (\m -> m.severity == WARN) msgs @?= False
             ]
         , testCase "does not emit a WARN when there are no resolved targets" do
-            msgs <- captureSessionLogs []
+            msgs <- captureSessionLogs mempty
             any (\m -> m.severity == WARN) msgs @?= False
         ]
   where
@@ -126,7 +126,7 @@ testMissingTargetPlaceholder =
         withProjectFiles mempty \root ->
             execWriter @[Message]
                 . Log.runWriter
-                . Input.withConst ([] :: [CabalFile])
+                . Input.withConst (mempty :: Set CabalFile)
                 . runReader (ProjectRoot root)
                 . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
                 . Tricorder.Config.asInput
@@ -149,7 +149,7 @@ testIdleTimeout =
     loadSessionWith cfg =
         withProjectFiles mempty \root ->
             Log.runNoOp
-                . Input.withConst ([] :: [CabalFile])
+                . Input.withConst (mempty :: Set CabalFile)
                 . runReader (ProjectRoot root)
                 . Input.withConst (LoadedConfig $ toStrict $ Aeson.encode cfg)
                 . Tricorder.Config.asInput

@@ -39,7 +39,11 @@ data CabalFile = CabalFile
     { projectFilePath :: Path.Absolute
     , projectPackageDescription :: GenericPackageDescription
     }
-    deriving stock (Show)
+    deriving stock (Eq, Show)
+
+
+instance Ord CabalFile where
+    compare (CabalFile a _) (CabalFile b _) = compare a b
 
 
 inputCabalFiles
@@ -49,7 +53,7 @@ inputCabalFiles
        , Log :> es
        , Reader ProjectRoot :> es
        )
-    => Eff (Input [CabalFile] : es) a -> Eff es a
+    => Eff (Input (Set CabalFile) : es) a -> Eff es a
 inputCabalFiles = Input.withEff $ Log.withNamespace "CabalFile" do
     packageRes <- discoverPackages
     case packageRes of
@@ -57,12 +61,12 @@ inputCabalFiles = Input.withEff $ Log.withNamespace "CabalFile" do
         Right projectFilePaths -> do
             (faileds, packageDescriptions) <-
                 logFailure
-                    $ partitionEithers <$> for projectFilePaths readProjectFile
+                    $ partitionEithers <$> for (toList projectFilePaths) readProjectFile
             unless (null faileds) do
                 Log.warn
                     $ "Failed to parse .cabal files for the following packages: "
                         <> T.intercalate ", " (toText . Path.toFilePath <$> faileds)
-            pure $ packageDescriptions
+            pure $ fromList packageDescriptions
   where
     logFailure =
         ( `catch`
@@ -105,7 +109,7 @@ discoverPackages
        , Input StackProject :> es
        , Reader ProjectRoot :> es
        )
-    => Eff es (Either Text [Path.Absolute])
+    => Eff es (Either Text (Set Path.Absolute))
 discoverPackages = do
     ProjectRoot projectRoot <- Reader.ask
     hasStackYaml <- File.exists $ projectRoot </> Path.relative @"stack.yaml"
@@ -121,7 +125,7 @@ discoverCabalPackages
        , Glob :> es
        , Reader ProjectRoot :> es
        )
-    => Eff es (Either Text [Path.Absolute])
+    => Eff es (Either Text (Set Path.Absolute))
 discoverCabalPackages = do
     ProjectRoot projectRoot <- Reader.ask
     homeCabalFiles <-
@@ -139,7 +143,7 @@ discoverCabalPackages = do
             packages <- fmap (find (not . null))
                 $ for projectFiles \projectFile -> do
                     contents <- File.read projectFile
-                    concat
+                    mconcat
                         <$> traverse
                             (cabalFilesForEntry projectRoot)
                             (projectPackageEntries contents)
@@ -157,29 +161,28 @@ discoverCabalPackages = do
     cabalFilesForEntry projectRoot (entry :: Path.Relative)
         | hasWildcard entry = do
             matches <- globDir1 (compile $ Path.toFilePath entry) projectRoot
-            concat <$> traverse resolveMatch matches
-        | isCabalFile entry = pure [projectRoot </> entry]
+            mconcat <$> traverse resolveMatch matches
+        | isCabalFile entry = pure $ fromList [projectRoot </> entry]
         | otherwise = cabalFilesIn $ Path.normalise $ projectRoot </> entry
       where
         resolveMatch path
-            | isCabalFile path = pure [Path.normalise path]
+            | isCabalFile path = pure $ fromList [Path.normalise path]
             | otherwise = cabalFilesIn (Path.normalise path)
 
 
 discoverStackPackages
     :: (Input StackProject :> es, Reader ProjectRoot :> es)
-    => Eff es (Either Text [Path.Absolute])
+    => Eff es (Either Text (Set Path.Absolute))
 discoverStackPackages = do
     ProjectRoot projectRoot <- Reader.ask
     project <- Input.input
-    pure $ Right $ Path.normalise . (projectRoot </>) <$> project.packages
+    pure $ Right $ fromList $ Path.normalise . (projectRoot </>) <$> project.packages
 
 
 -- | List the @.cabal@ files directly inside a directory.
-cabalFilesIn :: (FileSystem :> es) => Path.Absolute -> Eff es [Path.Absolute]
-cabalFilesIn dir = do
-    entries <- filter isCabalFile <$> Directory.list dir
-    pure $ (dir </>) <$> entries
+cabalFilesIn :: (FileSystem :> es) => Path.Absolute -> Eff es (Set Path.Absolute)
+cabalFilesIn dir =
+    fromList . fmap (dir </>) . filter isCabalFile <$> Directory.list dir
 
 
 -- | Does a @packages:@ entry contain a glob wildcard?

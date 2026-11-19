@@ -11,6 +11,7 @@ import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
 import Atelier.FileSystem.Path qualified as Path
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 
 import Tricorder.Runtime.ProjectRoot (ProjectRoot (..))
 import Tricorder.Session.CabalFile
@@ -54,16 +55,16 @@ testDiscoverCabalPackages =
         "when there is no cabal.project"
         [ testCase "finds the .cabal files in the project root" do
             actual <- runDiscovery (Map.singleton (rel "myapp.cabal") cabalFixture)
-            actual @?= Right [rel "myapp.cabal"]
+            actual @?= Right (fromList [rel "myapp.cabal"])
         , testCase "returns no files when the root has no cabal file" do
             actual <- runDiscovery mempty
-            actual @?= Right []
+            actual @?= Right mempty
         ]
     , testGroup
         "when there is a multi-package cabal.project"
         [ testCase "resolves each listed package to its .cabal (regression: was root-only)" do
             actual <- runDiscovery multiPackageFs
-            actual @?= Right [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"]
+            actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"])
         ]
     , testGroup
         "priority among cabal.project.local, cabal.project.freeze, and cabal.project"
@@ -75,7 +76,7 @@ testDiscoverCabalPackages =
                         , (rel "cabal.project", "packages: pkg-b\n")
                         ]
                         `Map.union` multiPackageCabalFs
-            actual @?= Right [rel "pkg-a/pkg-a.cabal"]
+            actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal"])
         , testCase "prefers cabal.project.freeze over cabal.project" do
             actual <-
                 runDiscovery
@@ -84,7 +85,7 @@ testDiscoverCabalPackages =
                         , (rel "cabal.project", "packages: pkg-b\n")
                         ]
                         `Map.union` multiPackageCabalFs
-            actual @?= Right [rel "pkg-a/pkg-a.cabal"]
+            actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal"])
         , testGroup
             "when a higher-priority file lists no packages"
             [ testCase "falls through to the next file in priority order" do
@@ -95,29 +96,29 @@ testDiscoverCabalPackages =
                             , (rel "cabal.project", "packages: pkg-b\n")
                             ]
                             `Map.union` multiPackageCabalFs
-                actual @?= Right [rel "pkg-b/pkg-b.cabal"]
+                actual @?= Right (fromList [rel "pkg-b/pkg-b.cabal"])
             ]
         ]
     , testGroup
         "packages: entry resolution"
         [ testCase "uses a direct .cabal path entry verbatim, without scanning a directory" do
             actual <- runDiscovery $ Map.singleton (rel "cabal.project") "packages: sub/foo.cabal\n"
-            actual @?= Right [rel "sub/foo.cabal"]
+            actual @?= Right (fromList [rel "sub/foo.cabal"])
         , testCase "expands a glob entry matching .cabal files directly" do
             actual <-
                 runDiscovery
                     $ Map.singleton (rel "cabal.project") "packages: */*.cabal\n"
                         `Map.union` multiPackageCabalFs
-            fromRight [] actual @?= [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"]
+            actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"])
         , testCase "expands a glob entry matching package directories" do
             actual <-
                 runDiscovery
                     $ Map.singleton (rel "cabal.project") "packages: */\n"
                         `Map.union` multiPackageCabalFs
-            fromRight [] actual @?= [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"]
+            actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"])
         , testCase "returns no files when a glob entry matches nothing" do
             actual <- runDiscovery $ Map.singleton (rel "cabal.project") "packages: */*.cabal\n"
-            actual @?= Right []
+            actual @?= Right mempty
         ]
     , testGroup
         "$HOME/.cabal/config fallback"
@@ -128,7 +129,7 @@ testDiscoverCabalPackages =
                     runDiscovery
                         $ Map.singleton (rel "home/.cabal/config") "packages: pkg-a\n"
                             `Map.union` multiPackageCabalFs
-                actual @?= Right [rel "pkg-a/pkg-a.cabal"]
+                actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal"])
             ]
         , testGroup
             "when $HOME/.cabal/config exists but lists no packages"
@@ -139,7 +140,7 @@ testDiscoverCabalPackages =
                             [ (rel "home/.cabal/config", "")
                             , (rel "myapp.cabal", cabalFixture)
                             ]
-                actual @?= Right [rel "myapp.cabal"]
+                actual @?= Right (fromList [rel "myapp.cabal"])
             ]
         ]
     , testGroup
@@ -151,7 +152,7 @@ testDiscoverCabalPackages =
                     runDiscovery
                         $ Map.singleton (rel "cabal.project") "packages: pkg-a, pkg-b\n"
                             `Map.union` multiPackageCabalFs
-                fromRight [] actual @?= [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"]
+                actual @?= Right (fromList [rel "pkg-a/pkg-a.cabal", rel "pkg-b/pkg-b.cabal"])
             ]
         ]
     ]
@@ -167,7 +168,7 @@ testDiscoverCabalPackages =
 -- @$HOME@ is pointed at @home/@ inside the root, so a test can seed
 -- @home/.cabal/config@ and tests that don't are unaffected by the real
 -- @$HOME@.
-runDiscovery :: Map Path.Relative ByteString -> IO (Either Text [Path.Relative])
+runDiscovery :: Map Path.Relative ByteString -> IO (Either Text (Set Path.Relative))
 runDiscovery files =
     withProjectFiles files \root -> do
         let pr = ProjectRoot root
@@ -175,7 +176,7 @@ runDiscovery files =
             withHome (root </> Path.relative @"home")
                 $ Glob.runIO
                 $ runReader pr discoverCabalPackages
-        pure $ fmap (fmap (Path.makeRelative root)) result
+        pure $ fmap (Set.map (Path.makeRelative root)) result
 
 
 -- | Pins the discovery contract: with a @stack.yaml@, package paths come
@@ -184,13 +185,13 @@ testDiscoverStackPackages :: [TestTree]
 testDiscoverStackPackages =
     [ testCase "resolves each package path against the project root" do
         let actual = runStack (StackProject [Path.rel @"pkg-a", Path.rel @"pkg-b"]) discoverStackPackages
-        actual @?= Right [Path.absolute @"/pkg-a", Path.absolute @"/pkg-b"]
+        actual @?= Right (fromList [Path.absolute @"/pkg-a", Path.absolute @"/pkg-b"])
     , testCase "normalises resolved paths" do
         let actual = runStack (StackProject [Path.rel @"./pkg-a"]) discoverStackPackages
-        actual @?= Right [Path.absolute @"/pkg-a"]
+        actual @?= Right (fromList [Path.absolute @"/pkg-a"])
     , testCase "returns no packages when the list is empty" do
         let actual = runStack (StackProject []) discoverStackPackages
-        actual @?= Right []
+        actual @?= Right mempty
     ]
   where
     pr = ProjectRoot (Path.absolute @"/")

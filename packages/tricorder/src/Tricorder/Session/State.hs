@@ -74,7 +74,7 @@ eval
        , FileSystem :> es
        , FileWatcher :> es
        , Input (Either Text Tricorder.Config) :> es
-       , Input [CabalFile] :> es
+       , Input (Set CabalFile) :> es
        , Log :> es
        , Reader ProjectRoot :> es
        , Waiters :> es
@@ -104,7 +104,7 @@ updateSession
     :: ( Concurrent :> es
        , FileSystem :> es
        , Input (Either Text Tricorder.Config) :> es
-       , Input [CabalFile] :> es
+       , Input (Set CabalFile) :> es
        , Log :> es
        , Pub Reloaded :> es
        , Reader ProjectRoot :> es

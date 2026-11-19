@@ -84,7 +84,7 @@ instance Default Session where
 load
     :: ( FileSystem :> es
        , Input (Either Text Tricorder.Config) :> es
-       , Input [CabalFile] :> es
+       , Input (Set CabalFile) :> es
        , Log :> es
        , Reader ProjectRoot :> es
        )
@@ -100,7 +100,7 @@ load = do
 
 
 mkSession
-    :: (FileSystem :> es, Input [CabalFile] :> es, Log :> es, Reader ProjectRoot :> es)
+    :: (FileSystem :> es, Input (Set CabalFile) :> es, Log :> es, Reader ProjectRoot :> es)
     => Config -> Eff es (Either Text Session)
 mkSession cfgFile = do
     projectRoot <- Reader.ask @ProjectRoot
