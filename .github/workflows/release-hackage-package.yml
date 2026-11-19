@@ -75,8 +75,23 @@ jobs:
           pkgdir="$(find "$scratch" -mindepth 1 -maxdepth 1 -type d)"
           cd "$pkgdir"
           echo "packages: ." > cabal.project
-          cabal update
-          cabal build all
+          # A sibling package may have been published moments ago, and the
+          # Hackage index can take a while to propagate. Refresh the index and
+          # retry the build a few times before giving up.
+          max_attempts=4
+          delay=60
+          for attempt in $(seq 1 "$max_attempts"); do
+            if cabal update && cabal build all; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "Attempt $attempt/$max_attempts failed; retrying in ${delay}s to allow the Hackage index to propagate..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "Verification failed after $max_attempts attempts" >&2
+          exit 1
       - name: Publish to Hackage
         if: ${{ steps.tagging.outputs.created }}
         uses: haskell-actions/hackage-publish@73c1489054aa60b7aa082cdde9b51502d960c0e1
