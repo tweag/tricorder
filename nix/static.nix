@@ -78,10 +78,27 @@
         ];
       };
       staticFlake = staticProject.flake { };
+      # The statically linked TUI embeds ncurses' compiled-in terminfo
+      # directory, which makes Nix keep ncurses (and musl, via ncurses' own
+      # tools) in the closure for a fallback path.  ncurses also searches
+      # $TERMINFO, ~/.terminfo, $TERMINFO_DIRS and the system terminfo
+      # directories, so scrub the reference.  Linux only; the darwin build
+      # has no such reference.
+      scrubTerminfo =
+        exe:
+        if pkgs.stdenv.hostPlatform.isLinux then
+          pkgs.runCommand exe.name { nativeBuildInputs = [ pkgs.buildPackages.removeReferencesTo ]; } ''
+            mkdir -p $out/bin
+            cp ${exe}/bin/tricorder $out/bin/
+            chmod +w $out/bin/tricorder
+            remove-references-to -t ${staticPkgs.ncurses} $out/bin/tricorder
+          ''
+        else
+          exe;
     in
     {
       packages = {
-        tricorder-static = staticFlake.packages."tricorder:exe:tricorder";
+        tricorder-static = scrubTerminfo staticFlake.packages."tricorder:exe:tricorder";
         tricorder-mcp-static = staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";
       };
     };

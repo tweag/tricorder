@@ -20,6 +20,11 @@ pkgs.haskell-nix.cabalProject' {
   inherit compiler-nix-name;
   src = ../../.;
 
+  cabalProjectLocal = /* cabal */ ''
+    package tricorder
+      executable-stripping: True
+  '';
+
   modules = [
     {
       inherit doHaddock;
@@ -33,6 +38,10 @@ pkgs.haskell-nix.cabalProject' {
           preBuild = ''
             export TRICORDER_VERSION="${self.shortRev or "unknown"}"
           '';
+          components.exes.tricorder = {
+            dontStrip = false;
+            dontPatchELF = false;
+          };
         };
       };
     }
