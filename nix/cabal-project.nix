@@ -20,6 +20,21 @@ let
     }:
     import ./package/mk-project.nix {
       inherit self pkgs compiler-nix-name;
+      extraModules = lib.optional pkgs.stdenv.hostPlatform.isLinux {
+        # Dynamic build only (static musl binaries have no rpath to patch).
+        # nixpkgs' gmp builds libgmpxx, which drags libstdc++ (gcc-lib)
+        # into the closure. The exe only needs libgmp, so repoint the
+        # rpath to a gmp built without C++ support.
+        packages.tricorder.components.exes.tricorder.postInstall = ''
+          exe=$out/bin/tricorder
+          newrpath=$(patchelf --print-rpath "$exe" | tr ':' '\n' \
+            | sed 's|^/nix/store/[a-z0-9]*-gmp-with-cxx-[^/]*/lib$|${
+              pkgs.gmp.override { cxx = false; }
+            }/lib|' \
+            | paste -sd:)
+          patchelf --set-rpath "$newrpath" "$exe"
+        '';
+      };
     };
 in
 {
