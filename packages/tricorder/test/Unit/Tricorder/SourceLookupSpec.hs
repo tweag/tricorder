@@ -161,8 +161,8 @@ test_SourceLookup =
         , testGroup
             "project modules"
             [ testCase "resolves every component's source dirs against the package dir" do
-                projectSourceDirs [projectCabalFile (Path.absolute @"/")]
-                    @?= ProjectSourceDirs [Path.absolute @"/p/src", Path.absolute @"/p/test"]
+                projectSourceDirs (fromList [projectCabalFile (Path.absolute @"/")])
+                    @?= ProjectSourceDirs (fromList [Path.absolute @"/p/src", Path.absolute @"/p/test"])
             , testCase "reads a module from the project's source dirs" do
                 result <-
                     runTestAt [] projectFiles noFetch
@@ -281,11 +281,11 @@ projectCabalFile root =
 
 
 projectDirs :: Path.Absolute -> ProjectSourceDirs
-projectDirs root = projectSourceDirs [projectCabalFile root]
+projectDirs root = projectSourceDirs $ one $ projectCabalFile root
 
 
 noProjectDirs :: ProjectSourceDirs
-noProjectDirs = ProjectSourceDirs []
+noProjectDirs = ProjectSourceDirs mempty
 
 
 projectTypesSource :: Text

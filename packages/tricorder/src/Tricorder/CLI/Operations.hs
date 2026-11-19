@@ -206,8 +206,8 @@ showSource
        , FileSystem :> es
        , GhcPkg :> es
        , Hackage :> es
+       , Input (Set CabalFile) :> es
        , Input Build.Session :> es
-       , Input [CabalFile] :> es
        , Log :> es
        , PackageStore :> es
        )

@@ -138,7 +138,7 @@ componentName = \case
 -- discovered package are auto-detected when no targets are configured. Either
 -- way the result is sorted with 'compare' so libraries exposing a custom
 -- @Prelude@ come last [ref:lib_sort_order].
-resolve :: [CabalFile] -> [Text] -> [Target]
+resolve :: Set CabalFile -> [Text] -> [Target]
 resolve cabalFiles = \case
     targets@(_ : _) -> sortTargets $ parse <$> targets
     [] -> sortTargets $ foldMap (allComponentTargets . (.projectPackageDescription)) cabalFiles
@@ -167,7 +167,7 @@ compare definesPrelude a b
 -- module for the given target. Used to build the predicate passed to
 -- 'compare' so that only the libraries that actually cause the GHCi
 -- startup failure are sorted last [ref:lib_sort_order].
-definesCustomPrelude :: [CabalFile] -> Target -> Bool
+definesCustomPrelude :: Set CabalFile -> Target -> Bool
 definesCustomPrelude cabalFiles target = any check cabalFiles
   where
     check cabalFile = any hasPrelude $ relevantLibs cabalFile.projectPackageDescription

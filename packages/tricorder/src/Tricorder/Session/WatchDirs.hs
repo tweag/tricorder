@@ -57,7 +57,7 @@ instance Default WatchDirs where
 --    against the project root; absolute entries are used as-is)
 -- 2. @hs-source-dirs@ inferred from cabal targets, if targets are set
 -- 3. Falls back to the project root if neither is available
-resolve :: ProjectRoot -> [CabalFile] -> Config -> [Target] -> Either Text WatchDirs
+resolve :: ProjectRoot -> Set CabalFile -> Config -> [Target] -> Either Text WatchDirs
 resolve (ProjectRoot projectRoot) projectFiles cfg targets
     | List.null cfg.watchDirs = resolveWatchDirsFromTargets projectRoot projectFiles targets
     | otherwise =
@@ -69,7 +69,7 @@ resolve (ProjectRoot projectRoot) projectFiles cfg targets
             $ traverse Path.fromFilePath cfg.watchDirs
 
 
-resolveWatchDirsFromTargets :: Path.Absolute -> [CabalFile] -> [Target] -> Either Text WatchDirs
+resolveWatchDirsFromTargets :: Path.Absolute -> Set CabalFile -> [Target] -> Either Text WatchDirs
 resolveWatchDirsFromTargets projectRoot _ [] = Right $ WatchDirs [projectRoot]
 resolveWatchDirsFromTargets projectRoot projectFiles targets =
     case dirs of
@@ -77,7 +77,7 @@ resolveWatchDirsFromTargets projectRoot projectFiles targets =
         Right [] -> Right $ WatchDirs [projectRoot]
         Right ds -> Right $ WatchDirs ds
   where
-    dirs = nub . concat <$> traverse watchDirsForCabal projectFiles
+    dirs = fromList . concat <$> traverse watchDirsForCabal (toList projectFiles)
     -- @hs-source-dirs@ are relative to the package's own directory, so scope
     -- them to the directory holding that package's @.cabal@. In a
     -- single-package project that directory is the project root; in a

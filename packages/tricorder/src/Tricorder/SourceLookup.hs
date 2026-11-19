@@ -44,18 +44,18 @@ import Tricorder.SourceLookup.GhcPkg qualified as GhcPkg
 
 -- | The directories holding the project's own modules: the @hs-source-dirs@ of
 -- every component of every project package, resolved against the package dir.
-newtype ProjectSourceDirs = ProjectSourceDirs [Path.Absolute]
+newtype ProjectSourceDirs = ProjectSourceDirs (Set Path.Absolute)
     deriving stock (Eq, Show)
 
 
-projectSourceDirs :: [CabalFile] -> ProjectSourceDirs
+projectSourceDirs :: Set CabalFile -> ProjectSourceDirs
 projectSourceDirs cabalFiles =
     ProjectSourceDirs
-        $ ordNub
+        $ fromList
             [ Path.normalise $ case dir of
                 Path.Relative d -> Path.takeDirectory cabalFile.projectFilePath </> d
                 Path.Absolute d -> d
-            | cabalFile <- cabalFiles
+            | cabalFile <- toList cabalFiles
             , dir <- orRoot (either (const []) id $ allSourceDirs cabalFile.projectPackageDescription)
             ]
   where
@@ -155,7 +155,7 @@ findProjectModule
 findProjectModule (ProjectSourceDirs dirs) modName =
     firstExisting
         [ dir </> relPath <.> toString rawExt
-        | dir <- dirs
+        | dir <- toList dirs
         , rawExt <- sourceExtensions
         , Right relPath <- one $ Path.fromFilePath $ toString $ T.replace "." "/" (unModuleName modName)
         ]
