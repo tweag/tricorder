@@ -20,6 +20,32 @@
         else
           pkgs;
 
+      # Terminfo entries compiled into libtinfo, so the TUI still starts on
+      # hosts without a terminfo database (minimal containers, and so on).
+      # The released binary is copied out of the Nix store, so it cannot rely
+      # on ncurses' own database being present.
+      ncursesWithFallbacks = staticPkgs.ncurses.overrideAttrs (old: {
+        configureFlags = (old.configureFlags or [ ]) ++ [
+          "--with-fallbacks=${
+            lib.concatStringsSep "," [
+              "xterm"
+              "xterm-256color"
+              "xterm-color"
+              "screen"
+              "screen-256color"
+              "tmux"
+              "tmux-256color"
+              "linux"
+              "vt100"
+              "alacritty"
+              "foot"
+              "wezterm"
+            ]
+          }"
+        ];
+        nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.buildPackages.ncurses ];
+      });
+
       staticExeConfig =
         if pkgs.stdenv.hostPlatform.isLinux then
           {
@@ -29,6 +55,8 @@
               "--ghc-option=-optl=-pthread"
               "--ghc-option=-optl=-static"
               "--ghc-option=-Wno-missed-extra-shared-lib"
+              # Listed first so the fallback-enabled ncurses wins over the stock one.
+              "--ghc-option=-optl=-L${lib.getLib ncursesWithFallbacks}/lib"
               "--ghc-option=-optl=-L${staticPkgs.gmp6.override { withStatic = true; }}/lib"
               # haskell.nix's musl overlay keeps libz.a in zlib's main output.
               "--ghc-option=-optl=-L${staticPkgs.zlib}/lib"
@@ -91,7 +119,7 @@
             mkdir -p $out/bin
             cp ${exe}/bin/tricorder $out/bin/
             chmod +w $out/bin/tricorder
-            remove-references-to -t ${staticPkgs.ncurses} $out/bin/tricorder
+            remove-references-to -t ${ncursesWithFallbacks} -t ${staticPkgs.ncurses} $out/bin/tricorder
           ''
         else
           exe;
