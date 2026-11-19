@@ -1,0 +1,57 @@
+name: Cache packages
+
+on:
+  push:
+    branches: [main]
+    # Pushes touching a `.cabal` file run release-hackage.yml, which calls this
+    # workflow itself and waits for it before releasing.
+    paths-ignore:
+      - "**/*.cabal"
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  # Never cancel: each commit on main has its own derivation worth caching.
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  cache:
+    name: Cache package ${{ matrix.package }} (${{ matrix.system }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - tricorder
+          - tricorder-mcp
+          - tricorder-static
+          - tricorder-mcp-static
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - macos-latest
+        include:
+          - os: ubuntu-latest
+            system: x86_64-linux
+          - os: macos-latest
+            system: aarch64-darwin
+          - os: ubuntu-24.04-arm
+            system: aarch64-linux
+    steps:
+      - uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+            extra-substituters = https://cache.iog.io
+            extra-trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
+        with:
+          name: tweag-tricorder
+          authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
+      - name: Build and cache ${{ matrix.package }} package
+        run: |
+          nix build --no-link -L '.#packages.${{ matrix.system }}.${{ matrix.package }}'
