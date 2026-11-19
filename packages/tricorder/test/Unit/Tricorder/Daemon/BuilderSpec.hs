@@ -100,7 +100,7 @@ testCompileBuildResults =
     ]
   where
     root = ProjectRoot (Path.absolute @"/")
-    watchDirs = WatchDirs [Path.absolute @"/src"]
+    watchDirs = WatchDirs $ one $ Path.absolute @"/src"
 
 
 --------------------------------------------------------------------------------

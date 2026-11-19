@@ -33,24 +33,24 @@ testResolveWatchDirs =
             let actual =
                     WatchDirs.resolve pr mempty def {watchDirs = ["src", "test"]} []
             actual
-                @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/src", Path.absolute @"/test"])
         ]
     , testGroup
         "when watch_dirs is not set"
         [ testCase "falls back to [\".\"] when targets list is empty" do
             let actual = WatchDirs.resolve pr mempty def []
             actual
-                @?= Right (WatchDirs [Path.absolute @"/"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/"])
         , testCase "infers source dirs from resolved targets" do
             let actual =
                     WatchDirs.resolve pr singleCabalFile def (mkTargets ["lib:myapp", "test:myapp-test"])
             actual
-                @?= Right (WatchDirs [Path.absolute @"/src", Path.absolute @"/test"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/src", Path.absolute @"/test"])
         , testCase "falls back to [\".\"] when there are no cabal files" do
             let actual =
                     WatchDirs.resolve pr mempty def (mkTargets ["lib:myapp"])
             actual
-                @?= Right (WatchDirs [Path.absolute @"/"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/"])
         , -- Sharp edge: an unparseable .cabal yields no source dirs, so resolution
           -- falls back to watching the whole project root. This pins the current
           -- behavior; if it ever changes to something narrower, update this test.
@@ -58,7 +58,7 @@ testResolveWatchDirs =
             let actual =
                     WatchDirs.resolve pr mempty def (mkTargets ["lib:myapp"])
             actual
-                @?= Right (WatchDirs [Path.absolute @"/"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/"])
         ]
     , testGroup
         "when the project is a multi-package cabal.project"
@@ -72,17 +72,18 @@ testResolveWatchDirs =
             actual
                 @?= Right
                     ( WatchDirs
-                        [ Path.absolute @"/pkg-a/src"
-                        , Path.absolute @"/pkg-a/test"
-                        , Path.absolute @"/pkg-b/src"
-                        , Path.absolute @"/pkg-b/test"
-                        ]
+                        $ fromList
+                            [ Path.absolute @"/pkg-a/src"
+                            , Path.absolute @"/pkg-a/test"
+                            , Path.absolute @"/pkg-b/src"
+                            , Path.absolute @"/pkg-b/test"
+                            ]
                     )
         , testCase "scopes a bare package-name target to that package, ignoring siblings" do
             let actual =
                     WatchDirs.resolve pr multiCabalFiles def (mkTargets ["pkg-a"])
             actual
-                @?= Right (WatchDirs [Path.absolute @"/pkg-a/src", Path.absolute @"/pkg-a/test"])
+                @?= Right (WatchDirs $ fromList [Path.absolute @"/pkg-a/src", Path.absolute @"/pkg-a/test"])
         ]
     ]
   where
