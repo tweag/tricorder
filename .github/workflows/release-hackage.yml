@@ -11,6 +11,10 @@ jobs:
     uses: ./.github/workflows/ci.yml
     secrets: inherit
 
+  cache:
+    uses: ./.github/workflows/cache-main.yml
+    secrets: inherit
+
   release-hackage-atelier-core:
     uses: ./.github/workflows/release-hackage-package.yml
     needs:
@@ -55,6 +59,7 @@ jobs:
     uses: ./.github/workflows/release-github.yml
     needs:
       - checks
+      - cache
       - release-hackage-tricorder
     if: ${{ needs.release-hackage-tricorder.outputs.published == 'true' }}
     secrets: inherit
@@ -77,6 +82,7 @@ jobs:
     uses: ./.github/workflows/release-github.yml
     needs:
       - checks
+      - cache
       - release-hackage-tricorder-mcp
     if: ${{ needs.release-hackage-tricorder-mcp.outputs.published == 'true' }}
     secrets: inherit
