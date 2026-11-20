@@ -52,6 +52,7 @@ import Tricorder.Session.WatchDirs (WatchDirs)
 import Tricorder.Build.Id qualified as Build (Id)
 import Tricorder.Build.Progress qualified as Build (Progress)
 import Tricorder.Build.Result qualified as Build (Result (..))
+import Tricorder.Daemon.Ghci.Config qualified as Ghci (Config)
 import Tricorder.Daemon.Ghci.Controls qualified as Controls
 import Tricorder.Daemon.Ghci.Controls qualified as Ghci (Controls)
 import Tricorder.Daemon.Ghci.LoadResult qualified as Ghci (LoadResult)
@@ -95,14 +96,15 @@ with
        , Reader ProjectRoot :> es
        )
     => Build.Id
+    -> Ghci.Config
     -> RenderedCommand 'Stage.Build
     -> WatchDirs
     -> (BuilderState -> NewLoadResult -> Eff (Builder : es) a)
     -> Eff es (Either SomeException a)
-with buildId command watchDirs action = do
+with buildId config command watchDirs action = do
     root <- ask
     startTime <- Clock.currentTime
-    trySync $ Ghci.Session.with Pub.publish command root \initialLoad controls -> do
+    trySync $ Ghci.Session.with config Pub.publish command root \initialLoad controls -> do
         endTime <- Clock.currentTime
         let filteredMsgs = filterToWatchDirs root.getProjectRoot watchDirs initialLoad.diagnostics
         Log.info

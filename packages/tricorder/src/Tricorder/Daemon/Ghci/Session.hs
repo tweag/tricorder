@@ -14,7 +14,6 @@ import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Log (Log)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
-import Data.Default (def)
 import Effectful
     ( Effect
     , Limit (..)
@@ -34,6 +33,7 @@ import Effectful.Exception (throwIO)
 import Effectful.State.Static.Shared (State, evalState, state)
 import Effectful.TH (makeEffect)
 
+import Tricorder.Daemon.Ghci.Config (Config)
 import Tricorder.Daemon.Ghci.Controls (Controls (..))
 import Tricorder.Daemon.Ghci.LoadResult (LoadResult)
 import Tricorder.Daemon.Ghci.Loading (Loading (..))
@@ -53,7 +53,8 @@ data Session :: Effect where
     -- returning new messages with module counts. The GHCi session is closed
     -- when the handler returns.
     With
-        :: (Build.Progress -> m ())
+        :: Config
+        -> (Build.Progress -> m ())
         -- ^ Action to run when reporting progress
         -> RenderedCommand 'Build
         -> ProjectRoot
@@ -81,7 +82,7 @@ runScripted results = reinterpret (evalState results) $ \env ->
                 Left ex -> throwIO ex
                 Right r -> pure r
     in  \case
-            With _ _ _ handler -> do
+            With _ _ _ _ handler -> do
                 initial <- popResult
                 localSeqLift env \liftEff ->
                     localSeqUnlift env \unlift ->
@@ -108,7 +109,7 @@ run
        )
     => Eff (Session : es) a -> Eff es a
 run = interpret $ \env -> \case
-    With onProgress cmd (ProjectRoot dir) handler -> do
+    With config onProgress cmd (ProjectRoot dir) handler -> do
         localLift env (ConcUnlift Persistent Unlimited) \liftEff ->
             localUnlift env (ConcUnlift Persistent Unlimited) \unlift -> do
                 let reportProgress loading =
@@ -118,7 +119,7 @@ run = interpret $ \env -> \case
                                 { compiled = loading.index
                                 , total = loading.total
                                 }
-                Process.with def cmd dir reportProgress (\_ -> pure ()) \process startupLines -> do
+                Process.with config cmd dir reportProgress (\_ -> pure ()) \process startupLines -> do
                     initialResult <- Ghci.Process.collectResult process startupLines dir
                     unlift
                         $ handler initialResult

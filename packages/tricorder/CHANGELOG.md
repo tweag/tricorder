@@ -7,6 +7,11 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The build session now honors `session.build.ghci` startup and shutdown
+  timeouts and extra setup commands. This is a non-breaking fix.
+
 ## [1.1.0.0] - 2026-11-18
 
 ### Changed

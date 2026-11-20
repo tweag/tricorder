@@ -139,7 +139,7 @@ runBuilder buildId session = State.evalState emptyBuilderState do
     whenJust (session.hooks.start >>= (.before)) Hook.run
     startupError <- fmap (either id absurd)
         $ Pub.map (Phase.Building $ Test.Session.targets session.testSession)
-        $ Builder.with buildId buildCommand session.watchDirs \_ initialLoad -> do
+        $ Builder.with buildId session.buildSession.ghci buildCommand session.watchDirs \_ initialLoad -> do
             whenJust (session.hooks.start >>= (.after)) Hook.run
             processPostBuild session $ Right initialLoad
             Log.debug "Waiting for reload"
