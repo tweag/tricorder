@@ -47,11 +47,12 @@ Tricorder](./docs/features-of-tricorder.md).
 If you have [Nix] installed, you can quickly test Tricorder out with the following command:
 
 ```bash
-nix run \
-  --extra-substituters https://tweag-tricorder.cachix.org \
-  --extra-trusted-public-keys "tweag-tricorder.cachix.org-1:PbwYPJ9gF8Wns14ai0sHK3iblqFd5YUrj0zEzGsJ/wg=" \
-  github:tweag/tricorder -- ui
+nix run --accept-flake-config github:tweag/tricorder -- ui
 ```
+
+`--accept-flake-config` makes Nix use the binary caches declared in the flake
+(`tweag-tricorder.cachix.org` and `cache.iog.io`). Without it, Nix builds
+Tricorder and the Haskell toolchain from source.
 
 ## Usage
 
