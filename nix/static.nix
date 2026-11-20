@@ -106,28 +106,40 @@
         ];
       };
       staticFlake = staticProject.flake { };
-      # The statically linked TUI embeds ncurses' compiled-in terminfo
-      # directory, which makes Nix keep ncurses (and musl, via ncurses' own
-      # tools) in the closure for a fallback path.  ncurses also searches
-      # $TERMINFO, ~/.terminfo, $TERMINFO_DIRS and the system terminfo
-      # directories, so scrub the reference.  Linux only; the darwin build
-      # has no such reference.
-      scrubTerminfo =
-        exe:
+      # The statically linked executables embed store paths that nothing needs
+      # at runtime, which makes Nix keep them in the closure:
+      #  - ncurses' compiled-in terminfo directory (ncurses also searches
+      #    $TERMINFO, ~/.terminfo, $TERMINFO_DIRS and the system terminfo
+      #    directories, and the common entries are compiled in as fallbacks),
+      #  - the -L directories of the static libraries linked in above, plus
+      #    everything those drag along (musl, libstdc++ via gmp's libgmpxx).
+      # Scrub them.  Linux only; the darwin build has no such references.
+      scrubbedRefs = [
+        ncursesWithFallbacks
+        staticPkgs.ncurses
+        staticPkgs.zlib
+        (staticPkgs.gmp6.override { withStatic = true; })
+      ];
+      scrubReferences =
+        exeName: exe:
         if pkgs.stdenv.hostPlatform.isLinux then
           pkgs.runCommand exe.name { nativeBuildInputs = [ pkgs.buildPackages.removeReferencesTo ]; } ''
             mkdir -p $out/bin
-            cp ${exe}/bin/tricorder $out/bin/
-            chmod +w $out/bin/tricorder
-            remove-references-to -t ${ncursesWithFallbacks} -t ${staticPkgs.ncurses} $out/bin/tricorder
+            cp ${exe}/bin/${exeName} $out/bin/
+            chmod +w $out/bin/${exeName}
+            remove-references-to ${
+              lib.concatMapStringsSep " " (ref: "-t ${ref}") scrubbedRefs
+            } $out/bin/${exeName}
           ''
         else
           exe;
     in
     {
       packages = {
-        tricorder-static = scrubTerminfo staticFlake.packages."tricorder:exe:tricorder";
-        tricorder-mcp-static = staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";
+        tricorder-static = scrubReferences "tricorder" staticFlake.packages."tricorder:exe:tricorder";
+        tricorder-mcp-static =
+          scrubReferences "tricorder-mcp"
+            staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";
       };
     };
 }
