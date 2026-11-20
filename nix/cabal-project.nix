@@ -33,6 +33,13 @@ let
             }/lib|' \
             | paste -sd:)
           patchelf --set-rpath "$newrpath" "$exe"
+          # Fail the build if the rewrite stopped matching (for example if
+          # nixpkgs renames the gmp package), rather than silently shipping
+          # gcc in the closure again.
+          if patchelf --print-rpath "$exe" | grep -q 'gmp-with-cxx'; then
+            echo "ERROR: $exe still references gmp-with-cxx" >&2
+            exit 1
+          fi
         '';
       };
     };

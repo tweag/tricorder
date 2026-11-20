@@ -7,6 +7,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- The statically linked binaries (GitHub release artifacts and the
+  `tricorder-static` Nix package) now bundle terminfo entries for common
+  terminals (xterm, screen, tmux, linux, alacritty, foot, wezterm), so the TUI
+  starts on hosts without a terminfo database. (Thanks @michael-xavier-well)
+  
 ### Fixed
 
 - The build session now honors `session.build.ghci` startup and shutdown
