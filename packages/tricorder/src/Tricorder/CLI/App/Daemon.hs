@@ -6,7 +6,6 @@ import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
-import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
 import Tricorder.API.Daemon.Command (Command (..))
 import Prelude hiding (force)
@@ -28,7 +27,6 @@ run
        , Daemons :> es
        , Delay :> es
        , Handles :> es
-       , IOE :> es
        , Input DaemonInfo :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es

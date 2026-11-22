@@ -11,7 +11,6 @@ import Atelier.Effects.Log (Log)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Process (Process)
 import Atelier.Effects.Timeout (Timeout)
-import Effectful (IOE)
 import Effectful.Concurrent (Concurrent)
 import Effectful.FileSystem (FileSystem)
 import Effectful.Provider (Provider_)
@@ -64,7 +63,6 @@ run
        , GhcPkg :> es
        , Hackage :> es
        , Handles :> es
-       , IOE :> es
        , Input (Set CabalFile) :> es
        , Input Build.Session :> es
        , Input DaemonInfo :> es
