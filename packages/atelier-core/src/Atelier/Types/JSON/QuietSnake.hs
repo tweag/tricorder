@@ -13,6 +13,10 @@
 --     deriving stock (Generic)
 --     deriving (FromJSON, ToJSON) via (QuietSnake Settings)
 -- @
+--
+-- This is equivalent to deriving via
+-- @'Atelier.Types.JSON.Cased.Cased' \'QuietSnakeCase@; see
+-- "Atelier.Types.JSON.Cased" for other casing conventions.
 module Atelier.Types.JSON.QuietSnake
     ( QuietSnake (..)
     , options
@@ -23,16 +27,16 @@ import Data.Aeson
     ( FromJSON (..)
     , GFromJSON
     , GToJSON
-    , Options (..)
+    , Options
     , ToJSON (..)
     , Zero
-    , camelTo2
-    , defaultOptions
     , genericParseJSON
     , genericToJSON
     )
 import Data.Default (Default (..))
 import GHC.Generics (Rep)
+
+import Atelier.Types.JSON.Cased (Casing (..), casingOptions)
 
 
 -- | Carrier for deriving @quiet_snake_case@ JSON instances generically.
@@ -52,8 +56,4 @@ instance (GToJSON Zero (Rep a), Generic a) => ToJSON (QuietSnake a) where
 
 
 options :: Options
-options =
-    defaultOptions
-        { constructorTagModifier = camelTo2 '_'
-        , fieldLabelModifier = camelTo2 '_'
-        }
+options = casingOptions QuietSnakeCase

@@ -7,6 +7,13 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Types.JSON.Cased`: `Cased (c :: Casing) a`, a `deriving via`
+  carrier for generic `FromJSON`/`ToJSON` instances that renders field names
+  and constructor tags in `camelCase`, `PascalCase`, `quiet_snake_case`,
+  `SCREAMING_SNAKE_CASE` or `kebab-case`. Non-breaking.
+
 ## [1.1.0.0] - 2026-11-18
 
 ### Added
