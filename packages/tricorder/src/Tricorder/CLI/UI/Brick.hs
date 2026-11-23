@@ -34,16 +34,11 @@ makeEffect ''Brick
 
 runBrick :: (IOE :> es) => Eff (Brick : es) a -> Eff es a
 runBrick = interpret_ \case
-    RunBrickApp chan app initialState -> liftIO do
-        let buildVty = do
-                cfg <- userConfig
-                vty <- mkVty cfg
-                setMode (outputIface vty) Mouse True
-                pure vty
-        initialVty <- liftIO buildVty
-        customMain
-            initialVty
-            buildVty
-            (Just chan)
-            app
-            initialState
+    RunBrickApp chan app initialState ->
+        liftIO $ customMain (Just buildVty) (Just chan) app initialState
+  where
+    buildVty = do
+        cfg <- userConfig
+        vty <- mkVty cfg
+        setMode (outputIface vty) Mouse True
+        pure vty

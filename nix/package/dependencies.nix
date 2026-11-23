@@ -38,7 +38,7 @@ let
     autodocodec-schema = ">=0.2 && <0.3";
     base = ">=4.18 && < 4.23";
     base64-bytestring = ">=1.2 && <1.3";
-    brick = ">=3.0 && <3.1";
+    brick = ">=3.1 && <3.2";
     bytestring = ">=0.11 && <0.13";
     casing = ">=0.1 && <0.2";
     containers = ">=0.6 && <0.9";
