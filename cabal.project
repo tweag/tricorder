@@ -1,12 +1,4 @@
 packages:
   packages/*
 
-shared: False
-
 tests: True
-
--- With `shared: False` the in-place `libHS*-inplace.so` files are never built,
--- but a dynamic GHC still looks for them and warns. Harmless; silence it (the
--- static Nix build does the same in nix/flake-module.nix).
-package *
-  ghc-options: -Wno-missed-extra-shared-lib
