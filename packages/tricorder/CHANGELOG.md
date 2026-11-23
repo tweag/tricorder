@@ -17,6 +17,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   output to `stderr` instead to a file when started directly instead of as a
   daemonized process from Tricorder's CLI. This simplifies debugging daemon
   issues by properly exposing the error output from the daemon.
+- `tricorder-daemon`, the optional standalone daemon binary for Tricorder, is
+  now statically built and included in GitHub releases.
 
 ## [1.1.0.0] - 2026-11-18
 

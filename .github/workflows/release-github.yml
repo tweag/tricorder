@@ -80,6 +80,19 @@ jobs:
           name: ${{ needs.meta.outputs.package }}_${{ matrix.system }}
           path: ${{ needs.meta.outputs.package }}_${{ matrix.system }}.gz
           archive: false
+      # The daemon is released as an extra artifact alongside the tricorder CLI.
+      - name: Build daemon
+        if: needs.meta.outputs.package == 'tricorder'
+        run: nix build --out-link result-daemon '.#tricorder-daemon-static'
+      - name: Compress daemon
+        if: needs.meta.outputs.package == 'tricorder'
+        run: gzip --stdout result-daemon/bin/tricorder-daemon > "tricorder-daemon_${{ matrix.system }}.gz"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: needs.meta.outputs.package == 'tricorder'
+        with:
+          name: tricorder-daemon_${{ matrix.system }}
+          path: tricorder-daemon_${{ matrix.system }}.gz
+          archive: false
 
   publish-github:
     name: Publish binaries to GitHub
@@ -124,6 +137,12 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: ${{ needs.meta.outputs.package }}_*
+          path: binaries
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        if: needs.meta.outputs.package == 'tricorder'
+        with:
+          pattern: tricorder-daemon_*
           path: binaries
           merge-multiple: true
       - name: Publish to GitHub

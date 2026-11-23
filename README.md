@@ -96,6 +96,7 @@ To install and use Tricorder in your NixOS configuration, see [Using with
 Nix](/docs/using-with-nix.md).
 
 Tricorder is also released as [pre-built binaries on GitHub][github-releases].
+Look for `tricorder_<system>.gz` for your system.
 
 ## Configuring
 

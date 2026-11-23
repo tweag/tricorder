@@ -137,6 +137,9 @@
     {
       packages = {
         tricorder-static = scrubReferences "tricorder" staticFlake.packages."tricorder:exe:tricorder";
+        tricorder-daemon-static =
+          scrubReferences "tricorder-daemon"
+            staticFlake.packages."tricorder:exe:tricorder-daemon";
         tricorder-mcp-static =
           scrubReferences "tricorder-mcp"
             staticFlake.packages."tricorder-mcp:exe:tricorder-mcp";

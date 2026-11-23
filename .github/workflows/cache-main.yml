@@ -26,6 +26,7 @@ jobs:
           - tricorder
           - tricorder-mcp
           - tricorder-static
+          - tricorder-daemon-static
           - tricorder-mcp-static
         os:
           - ubuntu-latest
