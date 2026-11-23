@@ -27,8 +27,6 @@ module Atelier.Effects.Log
     ( -- * Effect
       Log
     , Message (..)
-    , Config (..)
-    , Severity (..)
     , log
     , info
     , warn
@@ -41,30 +39,22 @@ module Atelier.Effects.Log
     , runNoOp
     , runToHandle
     , runWriter
-
-      -- * Utils
-    , minimumSeverityFromEnv
     )
 where
 
-import Data.Aeson (FromJSON (..), ToJSON)
-import Data.Default (Default (..))
 import Effectful (Effect, IOE)
 import Effectful.Dispatch.Dynamic (localSeqUnlift, reinterpret, reinterpretWith)
-import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask, local, runReader)
 import Effectful.TH (makeEffect)
 import Effectful.Writer.Static.Shared (Writer, tell)
 import System.IO (Handle, hFlush, stdout)
 
 import Data.ByteString.Char8 qualified as B8
+import Effectful.Reader.Static qualified as Reader
 
-import Atelier.Effects.Env (Env)
-import Atelier.Types.JSON.QuietSnake (QuietSnake (..))
-import Atelier.Types.JSON.ReadShow (ReadShow (..))
-import Atelier.Types.JSON.WithDefaults (WithDefaults (..))
+import Atelier.Effects.Log.Severity (Severity)
 
-import Atelier.Effects.Env qualified as Env
+import Atelier.Effects.Log.Severity qualified as Severity
 
 
 -- | Effect for structured logging with hierarchical namespaces.
@@ -102,38 +92,6 @@ instance Semigroup Namespace where
     Namespace a <> Namespace b = Namespace (a <> "." <> b)
 
 
--- | Logging configuration.
-data Config = Config
-    { minimumSeverity :: Severity
-    -- ^ Messages below this severity are discarded.
-    }
-    deriving stock (Eq, Generic, Show)
-    deriving (ToJSON) via QuietSnake Config
-    deriving (FromJSON) via WithDefaults (QuietSnake Config)
-
-
--- | Log severity levels, ordered from least to most severe.
-data Severity
-    = -- | Verbose diagnostic detail.
-      DEBUG
-    | -- | Normal operational information.
-      INFO
-    | -- | Something unexpected, but recoverable.
-      WARN
-    | -- | A failure that needs attention.
-      ERROR
-    deriving stock (Bounded, Enum, Eq, Ord, Read, Show)
-    deriving (FromJSON) via ReadShow Severity
-    deriving (ToJSON) via ReadShow Severity
-
-
-instance Default Config where
-    def =
-        Config
-            { minimumSeverity = minBound
-            }
-
-
 makeEffect ''Log
 
 
@@ -154,22 +112,22 @@ log severity text = do
 
 -- | Log a message at 'DEBUG' severity.
 debug :: (HasCallStack, Log :> es) => Text -> Eff es ()
-debug = withFrozenCallStack $ log DEBUG
+debug = withFrozenCallStack $ log Severity.DEBUG
 
 
 -- | Log a message at 'INFO' severity.
 info :: (HasCallStack, Log :> es) => Text -> Eff es ()
-info = withFrozenCallStack $ log INFO
+info = withFrozenCallStack $ log Severity.INFO
 
 
 -- | Log a message at 'WARN' severity.
 warn :: (HasCallStack, Log :> es) => Text -> Eff es ()
-warn = withFrozenCallStack $ log WARN
+warn = withFrozenCallStack $ log Severity.WARN
 
 
 -- | Log a message at 'ERROR' severity.
 err :: (HasCallStack, Log :> es) => Text -> Eff es ()
-err = withFrozenCallStack $ log ERROR
+err = withFrozenCallStack $ log Severity.ERROR
 
 
 -- | Consumes `Log` effects, and discards the logged messages
@@ -186,10 +144,9 @@ runNoOp = reinterpret (runReader (Namespace "")) $ \env -> \case
 -- The minimum severity defaults to 'Config'\'s @minimumSeverity@, but can be
 -- overridden at runtime by the @DEBUG@, @LOGGING@ or @LOG@ environment
 -- variables (checked in that order).
-runIO :: (Env :> es, IOE :> es, Reader Config :> es) => Eff (Log : es) a -> Eff es a
+runIO :: (IOE :> es, Reader Severity.Config :> es) => Eff (Log : es) a -> Eff es a
 runIO action = do
-    config <- ask
-    severity <- fromMaybe config.minimumSeverity <$> minimumSeverityFromEnv
+    Severity.Config severity <- Reader.ask
 
     reinterpretWith (runReader (Namespace "")) action \lenv -> \case
         LogMsg msg ->
@@ -242,26 +199,6 @@ formatMessage msg =
   where
     showNamespace (Namespace "") = ""
     showNamespace (Namespace ns) = square ns <> " "
-
-
-minimumSeverityFromEnv :: (Env :> es) => Eff es (Maybe Severity)
-minimumSeverityFromEnv = do
-    fmap rightToMaybe
-        $ runNonDet OnEmptyKeep
-        $ asum
-            [ Env.lookup "LOG" >>= readAlt
-            , Env.lookup "LOGGING" >>= readAlt
-            , Env.lookup "DEBUG" >>= \case
-                Nothing -> emptyEff
-                Just x
-                    | x == "0" -> emptyEff
-                    | otherwise -> pure DEBUG
-            ]
-  where
-    readAlt Nothing = emptyEff
-    readAlt (Just x) = case readMaybe x of
-        Nothing -> emptyEff
-        Just x' -> pure x'
 
 
 square :: Text -> Text

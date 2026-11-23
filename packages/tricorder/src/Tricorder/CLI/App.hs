@@ -4,6 +4,7 @@ import Atelier.Effects.Clock (Clock)
 import Atelier.Effects.Conc (Conc)
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input)
@@ -59,6 +60,7 @@ run
        , Console :> es
        , Daemons :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
        , FileSystem :> es
        , GhcPkg :> es

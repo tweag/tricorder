@@ -1,6 +1,6 @@
 module Unit.Tricorder.SessionSpec (test_Session) where
 
-import Atelier.Effects.Log (Message (..), Severity (..))
+import Atelier.Effects.Log (Message (..))
 import Data.Aeson (object, (.=))
 import Distribution.PackageDescription.Parsec (parseGenericPackageDescriptionMaybe)
 import Effectful.Reader.Static (runReader)
@@ -10,6 +10,7 @@ import Test.Tasty.HUnit (assertFailure, testCase, (@?), (@?=))
 
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Log.Severity qualified as Severity
 import Atelier.FileSystem.Path qualified as Path
 import Data.Aeson qualified as Aeson
 import Data.Text qualified as T
@@ -47,7 +48,7 @@ testLoadSession =
                 msgs <- fmap (\m -> (m.severity, m.text)) <$> captureSessionLogs (one preludeOnlyCF)
                 case msgs of
                     [(sev, msg)] -> do
-                        sev @?= WARN
+                        sev @?= Severity.WARN
                         "Every resolved target exposes a custom Prelude module" `T.isPrefixOf` msg
                             @? "does not start with expected string"
                     xs ->
@@ -58,11 +59,11 @@ testLoadSession =
             [ testCase "does not emit a WARN" do
                 -- libWithPreludeCabal has both a lib (custom Prelude) and an exe (no Prelude)
                 msgs <- captureSessionLogs (one mixedCF)
-                any (\m -> m.severity == WARN) msgs @?= False
+                any (\m -> m.severity == Severity.WARN) msgs @?= False
             ]
         , testCase "does not emit a WARN when there are no resolved targets" do
             msgs <- captureSessionLogs mempty
-            any (\m -> m.severity == WARN) msgs @?= False
+            any (\m -> m.severity == Severity.WARN) msgs @?= False
         ]
   where
     preludeOnlyCF =
@@ -76,7 +77,7 @@ testLoadSession =
     captureSessionLogs = captureSessionLogs' $ Aeson.Object mempty
     captureSessionLogs' cfg cabalFiles =
         withProjectFiles mempty \root ->
-            fmap (filter (\m -> m.severity /= DEBUG))
+            fmap (filter (\m -> m.severity /= Severity.DEBUG))
                 . execWriter @[Message]
                 . Log.runWriter
                 . Input.withConst cabalFiles
@@ -95,29 +96,29 @@ testMissingTargetPlaceholder =
             [ testCase "emits a WARN when it has no {target} placeholder" do
                 let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl test:foo" :: Text)]]
                 logs <- captureLogsFor cfg
-                any (\m -> m.severity == WARN) logs @?= True
+                any (\m -> m.severity == Severity.WARN) logs @?= True
             , testCase "does not emit a WARN when it has the {target} placeholder" do
                 let cfg = sessionCfg ["test" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
                 logs <- captureLogsFor cfg
-                any (\m -> m.severity == WARN) logs @?= False
+                any (\m -> m.severity == Severity.WARN) logs @?= False
             ]
         , testGroup
             "eval.command_template"
             [ testCase "emits a WARN when it has no {target} placeholder" do
                 let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl Tricorder.Foo" :: Text)]]
                 logs <- captureLogsFor cfg
-                any (\m -> m.severity == WARN) logs @?= True
+                any (\m -> m.severity == Severity.WARN) logs @?= True
             , testCase "does not emit a WARN when it has the {target} placeholder" do
                 let cfg = sessionCfg ["eval" .= object ["command_template" .= ("cabal repl {target}" :: Text)]]
                 logs <- captureLogsFor cfg
-                any (\m -> m.severity == WARN) logs @?= False
+                any (\m -> m.severity == Severity.WARN) logs @?= False
             ]
         , testGroup
             "build.command_template"
             [ testCase "does not emit a WARN when it has no {targets} placeholder" do
                 let cfg = sessionCfg ["build" .= object ["command_template" .= ("cabal repl lib:foo" :: Text)]]
                 logs <- captureLogsFor cfg
-                any (\m -> m.severity == WARN) logs @?= False
+                any (\m -> m.severity == Severity.WARN) logs @?= False
             ]
         ]
   where

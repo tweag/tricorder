@@ -11,7 +11,6 @@ module Atelier.Effects.Posix.Daemons
     )
 where
 
-import Data.Default (def)
 import Effectful (Dispatch (..), DispatchOf, Effect, IOE, Limit (..), Persistence (..))
 import Effectful.Dispatch.Static
     ( SideEffects (..)
@@ -23,6 +22,7 @@ import Effectful.Dispatch.Static
     , unsafeEff_
     )
 import Effectful.Exception (trySync)
+import System.Posix.Daemon (Redirection (..))
 
 import System.Posix.Daemon qualified as Daemons
 
@@ -45,12 +45,12 @@ newtype PidFile = PidFile {getPidFile :: Path.Absolute}
 
 -- | Daemonize the given program, ensuring it is cleanly separated from the
 -- spawning process.
-daemonize :: (Daemons :> es) => PidFile -> Eff es () -> Eff es ()
-daemonize (PidFile pidFile) program = do
+daemonize :: (Daemons :> es) => PidFile -> Path.Absolute -> Eff es () -> Eff es ()
+daemonize (PidFile pidFile) logFilePath program = do
     Daemons <- getStaticRep
     unsafeEff \env ->
         concUnliftIO env Persistent Unlimited \unlift -> do
-            Daemons.runDetached (Just $ Path.toFilePath pidFile) def
+            Daemons.runDetached (Just $ Path.toFilePath pidFile) (ToFile $ Path.toFilePath logFilePath)
                 $ unlift program
 
 

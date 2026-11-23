@@ -13,6 +13,10 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
   `tricorder-static` Nix package) now bundle terminfo entries for common
   terminals (xterm, screen, tmux, linux, alacritty, foot, wezterm), so the TUI
   starts on hosts without a terminfo database.
+- The standalone Tricorder daemon `tricorder-daemon` now properly writes its
+  output to `stderr` instead to a file when started directly instead of as a
+  daemonized process from Tricorder's CLI. This simplifies debugging daemon
+  issues by properly exposing the error output from the daemon.
 
 ## [1.1.0.0] - 2026-11-18
 
