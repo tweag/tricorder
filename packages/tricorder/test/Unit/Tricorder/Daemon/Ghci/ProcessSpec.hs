@@ -1,6 +1,6 @@
 module Unit.Tricorder.Daemon.Ghci.ProcessSpec (test_Process) where
 
-import Atelier.Effects.Log (Message (..), Severity (..))
+import Atelier.Effects.Log (Message (..))
 import Atelier.Effects.Process (terminateProcessGroup, withProcessGroup)
 import Atelier.Effects.Process.Internal (RunningProcess (..))
 import Atelier.Time (Millisecond)
@@ -37,6 +37,7 @@ import Atelier.Effects.Conc qualified as Conc
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Log.Severity qualified as Severity
 import Atelier.Effects.Process qualified as AProc
 import Atelier.Effects.Process qualified as Atelier.Process
 import Atelier.Effects.Timeout qualified as Timeout
@@ -175,7 +176,7 @@ testDrainUntil =
                     $ do
                         Handles.hClose w
                         trySync (Process.drainUntil r (finishMarker 3) (\_ -> pure ()))
-            case filter (\m -> m.severity == ERROR) msgs of
+            case filter (\m -> m.severity == Severity.ERROR) msgs of
                 [] -> assertFailure "expected an ERROR log message"
                 (logMsg : _) -> do
                     (finishMarker 3 `T.isInfixOf` logMsg.text) @?= True
@@ -191,7 +192,7 @@ testDrainUntil =
                     for_ ["oops-line-1", "oops-line-2"] (Handles.hPutTextLn w)
                     Handles.hClose w
                     trySync (Process.drainUntil r (finishMarker 4) (\_ -> pure ()))
-        case filter (\m -> m.severity == ERROR) msgs of
+        case filter (\m -> m.severity == Severity.ERROR) msgs of
             [] -> assertFailure "expected an ERROR log message"
             (logMsg : _) -> do
                 (finishMarker 4 `T.isInfixOf` logMsg.text) @?= True

@@ -4,10 +4,12 @@ import Atelier.Signal (installTerminationHandler)
 import Data.Default (def)
 import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
+import System.IO (stderr)
 
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
+import Atelier.Effects.Console qualified as Console
 import Atelier.Effects.Debounce qualified as Debounce
 import Atelier.Effects.Delay qualified as Delay
 import Atelier.Effects.Env qualified as Env
@@ -46,10 +48,9 @@ import Tricorder.Daemon.Hpack.Effect qualified as Hpack
 import Tricorder.Daemon.IdleTimer qualified as IdleTimer
 import Tricorder.Daemon.TestRunner qualified as TestRunner
 import Tricorder.Daemon.Watch qualified as Watch
-import Tricorder.Logging qualified as Logging
+import Tricorder.Logging.Severity.Config qualified as Log.Severity.Config
 import Tricorder.Runtime.Cache qualified as Runtime.Cache
 import Tricorder.Runtime.Directory qualified as Runtime.Directory
-import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
 import Tricorder.Runtime.ProjectHash qualified as Runtime.ProjectHash
 import Tricorder.Runtime.ProjectRoot qualified as Runtime.ProjectRoot
 import Tricorder.Runtime.SocketPath qualified as Runtime.SocketPath
@@ -81,10 +82,10 @@ main =
         . Runtime.ProjectRoot.asReader
         . Runtime.ProjectHash.asReader
         . Runtime.Cache.asReader
-        . Runtime.LogPath.asReader
         . LoadedConfig.asInput
-        . Handles.run
-        . Logging.run
+        . Console.runHandle stderr
+        . Log.Severity.Config.asInput
+        . Log.runIO
         . FileWatcher.runIO
         . Runtime.Directory.asReader
         . Runtime.SocketPath.asReader
@@ -93,6 +94,7 @@ main =
         . inputCabalFiles
         . Process.run
         . runGhcPkgIO
+        . Handles.run
         . UnixSocket.runIO
         . Ghci.Session.run
         . State.evalState (Build.Id 1)

@@ -60,6 +60,8 @@ library
       Atelier.Effects.Internal.Coroutine
       Atelier.Effects.Iterator
       Atelier.Effects.Log
+      Atelier.Effects.Log.Config
+      Atelier.Effects.Log.Severity
       Atelier.Effects.Posix.Daemons
       Atelier.Effects.Posix.IO
       Atelier.Effects.Process

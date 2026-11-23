@@ -2,10 +2,12 @@ module Tricorder.CLI.App.Test (run) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
 import Effectful (IOE)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 import Tricorder.API.IfBuildIsPending (IfBuildIsPending (..))
 import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
@@ -20,6 +22,7 @@ import Tricorder.API.IfBuildIsPending qualified as IfBuildIsPending
 import Tricorder.API.IfDaemonIsStopped qualified as IfDaemonIsStopped
 import Tricorder.API.Test.SuiteView.Schema qualified as SuiteView.Schema
 
+import Tricorder.Runtime.LogPath (LogPath)
 import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (queryStatus, queryStatusWait)
 import Tricorder.Socket.UnixSocket (UnixSocket)
@@ -36,9 +39,12 @@ run
     :: ( Console :> es
        , Daemons :> es
        , Delay :> es
+       , Env :> es
        , Exit :> es
+       , FileSystem :> es
        , Handles :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -61,8 +67,11 @@ printResult = \case
 showSuites
     :: ( Daemons :> es
        , Delay :> es
+       , Env :> es
+       , FileSystem :> es
        , Handles :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -119,7 +128,10 @@ awaitBuildStatus wait = do
 ensureDaemonRunning
     :: ( Daemons :> es
        , Delay :> es
+       , Env :> es
+       , FileSystem :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -138,7 +150,10 @@ ensureDaemonRunning ifDaemonIsStopped continue = do
 ensureDaemonIsRunning
     :: ( Daemons :> es
        , Delay :> es
+       , Env :> es
+       , FileSystem :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es

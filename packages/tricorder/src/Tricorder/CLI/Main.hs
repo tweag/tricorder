@@ -19,6 +19,7 @@ import Atelier.Effects.FileSystem.Glob qualified as Glob
 import Atelier.Effects.Handles qualified as Handles
 import Atelier.Effects.Input qualified as Input
 import Atelier.Effects.Log qualified as Log
+import Atelier.Effects.Log.Severity qualified as Log.Severity
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Process qualified as Process
 import Atelier.Effects.Timeout qualified as Timeout
@@ -71,7 +72,7 @@ main =
         . Runtime.ProjectRoot.asReader
         . Runtime.ProjectHash.asReader
         . Runtime.Cache.asReader
-        . Log.runToHandle stderr Log.INFO
+        . Log.runToHandle stderr Log.Severity.INFO
         . Runtime.Directory.asReader
         . Runtime.PidFile.asReader
         . Runtime.SocketPath.asReader

@@ -2,11 +2,13 @@ module Tricorder.CLI.App.Daemon (run) where
 
 import Atelier.Effects.Console (Console)
 import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Input (Input, input)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
 import Effectful (IOE)
+import Effectful.FileSystem (FileSystem)
 import Effectful.Reader.Static (Reader)
 import Tricorder.API.Daemon.Command (Command (..))
 import Prelude hiding (force)
@@ -17,6 +19,7 @@ import Data.Text qualified as T
 import Tricorder.CLI.Daemon (restartDaemon, startDaemon, stopDaemon, waitForDaemon)
 import Tricorder.CLI.Operations (showDaemonInfo)
 import Tricorder.Daemon.DaemonInfo (DaemonInfo)
+import Tricorder.Runtime.LogPath (LogPath)
 import Tricorder.Runtime.PidFile (PidFile)
 import Tricorder.Runtime.SocketPath (SocketPath)
 import Tricorder.Socket.Client (isDaemonRunning)
@@ -27,9 +30,12 @@ run
     :: ( Console :> es
        , Daemons :> es
        , Delay :> es
+       , Env :> es
+       , FileSystem :> es
        , Handles :> es
        , IOE :> es
        , Input DaemonInfo :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , Timeout :> es

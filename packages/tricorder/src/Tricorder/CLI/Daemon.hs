@@ -7,11 +7,14 @@ module Tricorder.CLI.Daemon
 where
 
 import Atelier.Effects.Delay (Delay)
+import Atelier.Effects.Env (Env)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
 import Atelier.Time (Millisecond, Second)
 import Effectful (IOE)
+import Effectful.Exception (trySync)
+import Effectful.FileSystem (FileSystem)
 import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.Writer.Static.Local (runWriter, tell)
@@ -19,10 +22,15 @@ import Tricorder.API.IfThereArePendingQueries (IfThereArePendingQueries)
 import Prelude hiding (force)
 
 import Atelier.Effects.Delay qualified as Delay
+import Atelier.Effects.Env qualified as Env
 import Atelier.Effects.Posix.Daemons qualified as Daemons
 import Atelier.Effects.Timeout qualified as Timeout
+import Atelier.FileSystem.File qualified as File
+import Atelier.FileSystem.Path qualified as Path
+import Effectful.Reader.Static qualified as Reader
 import Tricorder.API.IfThereArePendingQueries qualified as IfThereArePendingQueries
 
+import Tricorder.Runtime.LogPath (LogPath (..))
 import Tricorder.Runtime.PidFile (PidFile)
 import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (isDaemonReady, isDaemonRunning, requestShutdown)
@@ -33,13 +41,18 @@ import Tricorder.Daemon.Main qualified as Daemon.Main
 
 startDaemon
     :: ( Daemons :> es
+       , Env :> es
+       , FileSystem :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        )
     => Eff es ()
 startDaemon = do
-    pidFile <- ask
-    Daemons.daemonize pidFile $ liftIO Daemon.Main.main
+    pidFile <- Reader.ask
+    LogPath logPath <- Reader.ask
+    truncateLog logPath
+    Daemons.daemonize pidFile logPath $ liftIO Daemon.Main.main
 
 
 -- | Attempts to stop the daemon in progressively more forceful ways.
@@ -108,8 +121,11 @@ stopDaemon force = do
 restartDaemon
     :: ( Daemons :> es
        , Delay :> es
+       , Env :> es
+       , FileSystem :> es
        , Handles :> es
        , IOE :> es
+       , Reader LogPath :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , Timeout :> es
@@ -153,3 +169,16 @@ waitForDaemon = do
             else do
                 Delay.wait (200 :: Millisecond)
                 go sockPath (n - 1)
+
+
+noTruncateVarName :: String
+noTruncateVarName = "TRICORDER_NO_LOG_TRUNCATE"
+
+
+truncateLog
+    :: (Env :> es, FileSystem :> es)
+    => Path.Absolute -> Eff es ()
+truncateLog path = do
+    doTruncate <- (\x -> x == Nothing || x == Just "0") <$> Env.lookup noTruncateVarName
+    when doTruncate do
+        void $ trySync $ File.write path ("" :: ByteString)

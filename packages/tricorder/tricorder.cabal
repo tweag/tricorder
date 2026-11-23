@@ -104,7 +104,7 @@ library tricorder-internal
       Tricorder.Daemon.Main
       Tricorder.Daemon.TestRunner
       Tricorder.Daemon.Watch
-      Tricorder.Logging
+      Tricorder.Logging.Severity.Config
       Tricorder.Runtime.Cache
       Tricorder.Runtime.Directory
       Tricorder.Runtime.LogPath
