@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.1.1.0] - 2026-11-23
+
 ### Changed
 
 - The statically linked binaries (GitHub release artifacts and the
