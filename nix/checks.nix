@@ -100,6 +100,10 @@
           binaryName = "tricorder-static";
           binary = "${self'.packages.tricorder-static}/bin/tricorder";
         };
+        tricorder-daemon-static-portable = staticCheck {
+          binaryName = "tricorder-daemon-static";
+          binary = "${self'.packages.tricorder-daemon-static}/bin/tricorder-daemon";
+        };
         tricorder-mcp-static-portable = staticCheck {
           binaryName = "tricorder-mcp-static";
           binary = "${self'.packages.tricorder-mcp-static}/bin/tricorder-mcp";

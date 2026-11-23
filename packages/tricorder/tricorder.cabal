@@ -71,6 +71,7 @@ library tricorder-internal
       Tricorder.CLI.UI.View
       Tricorder.Config
       Tricorder.Config.LoadedConfig
+      Tricorder.Daemon.Arguments
       Tricorder.Daemon.Builder
       Tricorder.Daemon.Core
       Tricorder.Daemon.DaemonInfo

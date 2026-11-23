@@ -6,6 +6,7 @@ import Effectful (runEff)
 import Effectful.Concurrent (runConcurrent)
 import System.IO (stderr)
 
+import Atelier.Effects.Arguments qualified as Arguments
 import Atelier.Effects.Chan qualified as Chan
 import Atelier.Effects.Clock qualified as Clock
 import Atelier.Effects.Conc qualified as Conc
@@ -39,6 +40,7 @@ import Tricorder.Build.Id qualified as Build (Id (..))
 import Tricorder.Build.Phase qualified as Build (Phase)
 import Tricorder.Build.Phase qualified as Build.Phase
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
+import Tricorder.Daemon.Arguments qualified as Daemon.Arguments
 import Tricorder.Daemon.Core qualified as Core
 import Tricorder.Daemon.EvalCommentRunner qualified as EvalCommentRunner
 import Tricorder.Daemon.Ghci.Session qualified as Ghci.Session
@@ -68,6 +70,8 @@ import Tricorder.Waiters qualified as Waiters
 main :: IO ()
 main =
     runEff
+        . Arguments.runIO
+        . Daemon.Arguments.run
         . runConcurrent
         . FileSystem.runFileSystem
         . Conc.runIO

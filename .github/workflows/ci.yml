@@ -137,6 +137,7 @@ jobs:
           name: tweag-tricorder
           authToken: "${{ secrets.CACHIX_TWEAG_TRICORDER_AUTH_TOKEN }}"
       - run: nix build '.#checks.${{ matrix.system }}.tricorder-static-portable' -L
+      - run: nix build '.#checks.${{ matrix.system }}.tricorder-daemon-static-portable' -L
       - run: nix build '.#checks.${{ matrix.system }}.tricorder-mcp-static-portable' -L
 
   results:
