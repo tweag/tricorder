@@ -11,7 +11,6 @@ import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons)
 import Atelier.Effects.Timeout (Timeout)
 import Atelier.Time (Millisecond, Second)
-import Effectful (IOE)
 import Effectful.NonDet (OnEmptyPolicy (..), emptyEff, runNonDet)
 import Effectful.Reader.Static (Reader, ask)
 import Effectful.Writer.Static.Local (runWriter, tell)
@@ -28,18 +27,18 @@ import Tricorder.Runtime.SocketPath (SocketPath (..))
 import Tricorder.Socket.Client (isDaemonReady, isDaemonRunning, requestShutdown)
 import Tricorder.Socket.UnixSocket (UnixSocket)
 
-import Tricorder.Daemon.Main qualified as Daemon.Main
 
-
+-- | Start the daemon as a detached process. The process re-executes the
+-- current program, whose entry point ("Tricorder.CLI.Main") then runs
+-- "Tricorder.Daemon.Main".
 startDaemon
     :: ( Daemons :> es
-       , IOE :> es
        , Reader PidFile :> es
        )
     => Eff es ()
 startDaemon = do
     pidFile <- ask
-    Daemons.daemonize pidFile $ liftIO Daemon.Main.main
+    Daemons.daemonize pidFile
 
 
 -- | Attempts to stop the daemon in progressively more forceful ways.
@@ -109,7 +108,6 @@ restartDaemon
     :: ( Daemons :> es
        , Delay :> es
        , Handles :> es
-       , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , Timeout :> es

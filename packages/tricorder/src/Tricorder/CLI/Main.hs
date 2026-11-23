@@ -34,6 +34,7 @@ import Tricorder.CLI.Arguments qualified as CLI.Arguments
 import Tricorder.CLI.UI.Keys qualified as Keys
 import Tricorder.Config.LoadedConfig qualified as LoadedConfig
 import Tricorder.Daemon.DaemonInfo qualified as DaemonInfo
+import Tricorder.Daemon.Main qualified as Daemon.Main
 import Tricorder.Runtime.Cache qualified as Runtime.Cache
 import Tricorder.Runtime.Directory qualified as Runtime.Directory
 import Tricorder.Runtime.LogPath qualified as Runtime.LogPath
@@ -49,8 +50,15 @@ import Tricorder.SourceLookup.Hackage qualified as Hackage
 import Tricorder.SourceLookup.PackageStore qualified as PackageStore
 
 
+-- | The CLI entry point. When started by 'Daemons.daemonize', runs the daemon
+-- instead.
 main :: IO ()
 main =
+    Daemons.withDaemonEntryPoint Daemon.Main.main cliMain
+
+
+cliMain :: IO ()
+cliMain =
     runEff
         . Arguments.runIO
         . CLI.Arguments.reader

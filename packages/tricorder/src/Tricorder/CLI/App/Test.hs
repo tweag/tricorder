@@ -5,7 +5,6 @@ import Atelier.Effects.Delay (Delay)
 import Atelier.Effects.Exit (Exit)
 import Atelier.Effects.Handles (Handles)
 import Atelier.Effects.Posix.Daemons (Daemons, PidFile)
-import Effectful (IOE)
 import Effectful.Reader.Static (Reader)
 import Tricorder.API.IfBuildIsPending (IfBuildIsPending (..))
 import Tricorder.API.IfDaemonIsStopped (IfDaemonIsStopped)
@@ -38,7 +37,6 @@ run
        , Delay :> es
        , Exit :> es
        , Handles :> es
-       , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -62,7 +60,6 @@ showSuites
     :: ( Daemons :> es
        , Delay :> es
        , Handles :> es
-       , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -119,7 +116,6 @@ awaitBuildStatus wait = do
 ensureDaemonRunning
     :: ( Daemons :> es
        , Delay :> es
-       , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
@@ -138,7 +134,6 @@ ensureDaemonRunning ifDaemonIsStopped continue = do
 ensureDaemonIsRunning
     :: ( Daemons :> es
        , Delay :> es
-       , IOE :> es
        , Reader PidFile :> es
        , Reader SocketPath :> es
        , UnixSocket :> es
