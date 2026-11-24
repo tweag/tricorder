@@ -22,6 +22,7 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 - `tricorder-daemon`, the optional standalone daemon binary for Tricorder, is
   now statically built and included in GitHub releases.
 - Bumped `atelier-core` requirement to `==1.2.*`.
+- Bumped `tricorder-types` requirement to `==1.2.*`.
 
 ## [1.1.0.0] - 2026-11-18
 
