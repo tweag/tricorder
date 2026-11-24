@@ -5,6 +5,7 @@ module Atelier.Effects.Posix.Daemons
     ( Daemons
     , PidFile (..)
     , daemonize
+    , daemonizeTo
     , isRunning
     , forceKillAndWait
     , run
@@ -45,12 +46,18 @@ newtype PidFile = PidFile {getPidFile :: Path.Absolute}
 
 -- | Daemonize the given program, ensuring it is cleanly separated from the
 -- spawning process.
-daemonize :: (Daemons :> es) => PidFile -> Path.Absolute -> Eff es () -> Eff es ()
-daemonize (PidFile pidFile) logFilePath program = do
+daemonize :: (Daemons :> es) => PidFile -> Eff es () -> Eff es ()
+daemonize = daemonizeTo Nothing
+
+
+daemonizeTo :: (Daemons :> es) => Maybe Path.Absolute -> PidFile -> Eff es () -> Eff es ()
+daemonizeTo logFilePath (PidFile pidFile) program = do
     Daemons <- getStaticRep
     unsafeEff \env ->
         concUnliftIO env Persistent Unlimited \unlift -> do
-            Daemons.runDetached (Just $ Path.toFilePath pidFile) (ToFile $ Path.toFilePath logFilePath)
+            Daemons.runDetached
+                (Just $ Path.toFilePath pidFile)
+                (maybe DevNull (ToFile . Path.toFilePath) logFilePath)
                 $ unlift program
 
 
