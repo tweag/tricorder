@@ -7,6 +7,8 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+## [1.2.0.0] - 2026-11-24
+
 ### Changed
 
 - Bumped `atelier-core` requirement to `==1.2.*`.
