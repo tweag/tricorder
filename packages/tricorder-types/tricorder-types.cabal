@@ -90,7 +90,7 @@ library
   ghc-options: -Weverything -Wno-unsafe -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-import-lists -Wno-implicit-prelude -Wno-unticked-promoted-constructors -Wno-unused-packages -Wno-all-missed-specialisations -Wno-missed-specialisations
   build-depends:
       aeson >=2.2 && <2.4
-    , atelier-core ==1.1.*
+    , atelier-core ==1.2.*
     , atelier-prelude ==0.4.*
     , autodocodec >=0.6 && <0.8
     , autodocodec-schema ==0.2.*
@@ -143,7 +143,7 @@ test-suite tricorder-types-test
       tasty-discover:tasty-discover
   build-depends:
       aeson >=2.2 && <2.4
-    , atelier-core ==1.1.*
+    , atelier-core ==1.2.*
     , atelier-prelude ==0.4.*
     , autodocodec >=0.6 && <0.8
     , autodocodec-schema ==0.2.*
