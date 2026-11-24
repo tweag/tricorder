@@ -7,6 +7,17 @@ and this project adheres to the [PVP](https://pvp.haskell.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `Atelier.Effects.Posix.Daemons.daemonizeTo`: Accepts an optional file path to
+  write the daemonized program's `stdout` and `stderr` to.
+
+### Changes
+
+- `Atelier.Effects.Log`: move `Config` to `Atelier.Effects.Log.Config`.
+- `Atelier.Effects.Log`: move `Severity` to `Atelier.Effects.Log.Severity`.
+- `Atelier.Effects.Log`: move `minimumSeverity` to `Atelier.Effects.Log.Severity`.
+
 ## [1.1.0.0] - 2026-11-18
 
 ### Added

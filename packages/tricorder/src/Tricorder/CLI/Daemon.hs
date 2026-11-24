@@ -52,7 +52,7 @@ startDaemon = do
     pidFile <- Reader.ask
     LogPath logPath <- Reader.ask
     truncateLog logPath
-    Daemons.daemonize pidFile logPath $ liftIO Daemon.Main.main
+    Daemons.daemonizeTo (Just logPath) pidFile $ liftIO Daemon.Main.main
 
 
 -- | Attempts to stop the daemon in progressively more forceful ways.
